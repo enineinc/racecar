@@ -8,10 +8,16 @@ ifdef VENV
 endif
 PYTHON := $(if $(VENV),$(VENV)/bin/python3,python3)
 
-.PHONY: install install-deps check-docs test check help
+.PHONY: install install-deps expert expert-uninstall check-docs test check help
 
 install: install-deps
 	./install
+
+expert:
+	$(PYTHON) scripts/expert_mode.py install
+
+expert-uninstall:
+	$(PYTHON) scripts/expert_mode.py uninstall
 
 install-deps:
 	$(PYTHON) -m pip install --group dev
@@ -25,8 +31,10 @@ test:
 check: check-docs test
 
 help:
-	@echo "make install      - install python deps then bootstrap into Claude Code config"
-	@echo "make install-deps - install python deps from pyproject.toml dev group"
-	@echo "make check-docs   - run the mechanical pre-pass on this repo's own docs"
+	@echo "make install          - install python deps then bootstrap into Claude Code config"
+	@echo "make install-deps     - install python deps from pyproject.toml dev group"
+	@echo "make expert           - install the optional racecar-expert-mode overlay (skill symlink + CLAUDE.md pointer)"
+	@echo "make expert-uninstall - remove the racecar-expert-mode overlay"
+	@echo "make check-docs       - run the mechanical pre-pass on this repo's own docs"
 	@echo "make test         - run the test suites under each skill"
 	@echo "make check        - run check-docs and test"

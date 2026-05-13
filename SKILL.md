@@ -14,3 +14,5 @@ The three lenses, each its own skill:
 - **racecar-eng-review** → [`eng-review/README.md`](eng-review/README.md). Three-phase wrapper: racecar pre-pass → gstack `/plan-eng-review` → racecar post-pass against Python/Django hygiene. Per-language specifics in [`eng-review/PYTHON.md`](eng-review/PYTHON.md) and [`eng-review/DJANGO.md`](eng-review/DJANGO.md).
 
 Do not load lens content speculatively. If the task is ambiguous, ask which concern applies before loading.
+
+Optional overlay (not a lens): **racecar-expert-mode** → [`expert/README.md`](expert/README.md). Output discipline — terse, high-density delivery; lead with the result, no preamble/recap/hedging. Installed separately via `make expert` (skill symlink + managed `~/.claude/CLAUDE.md` pointer block); `make expert-uninstall` reverses it. Not part of `./install`.

@@ -44,6 +44,9 @@ Load: [shared/GLOSSARY.md](shared/GLOSSARY.md)
 Topic: Commits — Conventional Commits format, valid VERSION increments, VERSION bump convention
 Load: [shared/COMMITS.md](shared/COMMITS.md)
 
+Topic: Expert output mode — terse, high-density delivery for an expert operator (optional overlay, not a review lens; installed separately via `make expert`)
+Load: [expert/README.md](expert/README.md)
+
 ## Enforcement
 
 Reference this file from your project's `CLAUDE.md` or equivalent agent-instruction file. Read it first to find which component applies. Do not load component files speculatively — read only what the current task requires. If you arrived at a component file directly, return here first.
@@ -61,6 +64,8 @@ Bash entrypoint, idempotent. Requires `python3` on `PATH` (stdlib only); the scr
 3. **Hooks** in `~/.claude/settings.json` (or `$CLAUDE_SETTINGS_PATH`): a `PreToolUse` Bash hook (`hooks/compound-command-allow.sh`) and a `PostToolUse` Read hook (`hooks/claude_racecar_hook.sh`). The Read hook re-fires the pointer sync whenever the agent reads `racecar/README.md`, so the pointer self-heals if the checkout moves.
 
 Re-run `./install` any time you move the checkout. Nothing else updates per-machine state.
+
+**Optional overlay — expert output mode.** `make expert` installs the `racecar-expert-mode` skill (symlink `~/.claude/skills/racecar-expert-mode` → `expert/`) plus a managed pointer block in `~/.claude/CLAUDE.md` delimited by `<!-- BEGIN racecar-expert-mode pointer (managed) -->` / `<!-- END racecar-expert-mode pointer (managed) -->`. `make expert-uninstall` reverses both. Not run by `./install`; see [`expert/README.md`](expert/README.md).
 
 ## Bootstrap check
 
