@@ -8,7 +8,7 @@ ifdef VENV
 endif
 PYTHON := $(if $(VENV),$(VENV)/bin/python3,python3)
 
-.PHONY: install install-deps expert expert-uninstall check-docs test check help
+.PHONY: install install-deps expert expert-uninstall check-docs check-brief test check help
 
 install: install-deps
 	./install
@@ -25,10 +25,13 @@ install-deps:
 check-docs:
 	$(PYTHON) doc-coherence/scripts/check_docs.py
 
+check-brief:
+	$(PYTHON) llm-summary/scripts/check_brief.py
+
 test:
 	$(PYTHON) -m pytest arch-coherence/tests
 
-check: check-docs test
+check: check-docs test check-brief
 
 help:
 	@echo "make install          - install python deps then bootstrap into Claude Code config"
@@ -36,5 +39,6 @@ help:
 	@echo "make expert           - install the optional racecar-expert-mode overlay (skill symlink + CLAUDE.md pointer)"
 	@echo "make expert-uninstall - remove the racecar-expert-mode overlay"
 	@echo "make check-docs       - run the mechanical pre-pass on this repo's own docs"
+	@echo "make check-brief      - validate the racecar-llm-summary brief bundle at docs/<repo>/<REPO>.md"
 	@echo "make test         - run the test suites under each skill"
-	@echo "make check        - run check-docs and test"
+	@echo "make check        - run check-docs, test, and check-brief"

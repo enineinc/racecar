@@ -26,6 +26,9 @@ Load: [eng-review/DJANGO.md](eng-review/DJANGO.md)
 Topic: Documentation coherence — update protocol + review lens (links, section numbers, file naming, cogency, scope honesty, rule testability, one-home-per-rule)
 Load: [doc-coherence/README.md](doc-coherence/README.md)
 
+Topic: LLM summary — generate a reconstruction-grade repo brief (queryable database of entities, relationships, contracts, flags, flows, plus a live-access block for clients calling the deployed system) for a downstream agent working without the repo; source-derivable only, no strategy or org views
+Load: [llm-summary/README.md](llm-summary/README.md)
+
 Topic: Ownership — tooling enables design and confirms correctness; responsibility stays with the owner
 Load: [shared/OWNERSHIP.md](shared/OWNERSHIP.md)
 
@@ -59,7 +62,7 @@ From a fresh clone:
 
 Bash entrypoint, idempotent. Requires `python3` on `PATH` (stdlib only); the script checks upfront and prints an install hint if it's missing. It does three things, all rooted at this checkout's absolute path:
 
-1. **Symlinks** `~/.claude/skills/racecar`, `racecar-arch-coherence`, `racecar-doc-coherence`, `racecar-eng-review` into the matching directories here, so the `/racecar*` slash commands resolve. An existing symlink pointing somewhere else, or a regular file at one of those paths, is refused — never clobbered.
+1. **Symlinks** `~/.claude/skills/racecar`, `racecar-arch-coherence`, `racecar-doc-coherence`, `racecar-eng-review`, `racecar-llm-summary` into the matching directories here, so the `/racecar*` slash commands resolve. An existing symlink pointing somewhere else, or a regular file at one of those paths, is refused — never clobbered.
 2. **Pointer block** in `~/.claude/CLAUDE.md` (or `$CLAUDE_MD_PATH`), delimited by `<!-- BEGIN racecar pointer (managed) -->` / `<!-- END racecar pointer (managed) -->` and rewritten in place. Content outside the markers is preserved.
 3. **Hooks** in `~/.claude/settings.json` (or `$CLAUDE_SETTINGS_PATH`): a `PreToolUse` Bash hook (`hooks/compound-command-allow.sh`) and a `PostToolUse` Read hook (`hooks/claude_racecar_hook.sh`). The Read hook re-fires the pointer sync whenever the agent reads `racecar/README.md`, so the pointer self-heals if the checkout moves.
 

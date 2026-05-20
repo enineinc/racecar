@@ -5,6 +5,7 @@ dev = [
     "isort",
     "pylint",
     "pytest",
+    "pyyaml>=6.0",
 ]
 
 [tool.black]
