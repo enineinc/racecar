@@ -9,9 +9,11 @@ include them.
 
 Destination root resolution order:
   1. --dest CLI flag
-  2. GRIDINT_OBSIDIAN_ROOT env var
-  3. dest_root in ~/.config/gridint/obsidian-sync.toml
-  4. ~/Obsidian/Code/batteryos/gridint/
+  2. OBSIDIAN_SYNC_ROOT env var
+  3. dest_root in ~/.config/obsidian-sync.toml
+
+If none are set, the script exits with a helpful error. There is no
+default — the destination is per-user and the script refuses to guess.
 
 Files are copied preserving the repo-relative path. Identical files
 (same size + content) are skipped. Pass --prune to delete files in the
@@ -32,8 +34,7 @@ import sys
 import tomllib
 from pathlib import Path
 
-CONFIG_PATH = Path.home() / ".config" / "gridint" / "obsidian-sync.toml"
-DEFAULT_DEST = Path.home() / "Obsidian" / "Code" / "batteryos" / "gridint"
+CONFIG_PATH = Path.home() / ".config" / "obsidian-sync.toml"
 
 
 def repo_root(start: Path) -> Path:
@@ -56,13 +57,16 @@ def load_config_dest() -> Path | None:
 def resolve_dest(cli_dest: str | None) -> Path:
     if cli_dest:
         return Path(cli_dest).expanduser().resolve()
-    env = os.environ.get("GRIDINT_OBSIDIAN_ROOT")
+    env = os.environ.get("OBSIDIAN_SYNC_ROOT")
     if env:
         return Path(env).expanduser().resolve()
     cfg = load_config_dest()
     if cfg is not None:
         return cfg.resolve()
-    return DEFAULT_DEST.resolve()
+    raise SystemExit(
+        "no destination configured; pass --dest, set OBSIDIAN_SYNC_ROOT, "
+        f"or put dest_root = \"...\" in {CONFIG_PATH}"
+    )
 
 
 def tracked_md_files(root: Path, *, include_dotfiles: bool) -> list[Path]:

@@ -14,7 +14,7 @@ Operational reminder: this is a wrapper, not a standalone lens. The three phases
 3. **Post-pass (racecar):** apply [`PYTHON.md`](PYTHON.md) and [`DJANGO.md`](DJANGO.md) as applicable for language-specific idiosyncrasies gstack does not opine on.
 
 Per-language content (loaded on demand in the post-pass):
-- [`PYTHON.md`](PYTHON.md) — mindset, naming, formatting, testing, linting, Definition of Done.
-- [`DJANGO.md`](DJANGO.md) — database/performance, security.
+- [`PYTHON.md`](PYTHON.md) — language-specific code-quality rules.
+- [`DJANGO.md`](DJANGO.md) — framework-specific code-quality rules.
 
 Output format: numbered entries tagged `[pre]` / `[gstack]` / `[post]` with severity (Blocker / Major / Minor / Nit), verdict line at the end (Ship / Revise / Rework). No preamble.

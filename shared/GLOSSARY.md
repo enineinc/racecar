@@ -14,7 +14,7 @@ External: [Directed acyclic graph (Wikipedia)](https://en.wikipedia.org/wiki/Dir
 
 The architectural property that the dependency graph is acyclic and its direction rules hold: imports flow outward/downward, layers do not leak, peer edges have a pure provider. A coherent codebase is one where local reasoning survives growth — you can change one place and predict what else moves. See [arch-coherence/README.md](../arch-coherence/README.md) for the axioms and review checks.
 
-Related: [doc-coherence](../doc-coherence/README.md) — the analogous property applied to documentation (link/anchor/section-number integrity, cogency, scope honesty, file naming, rule testability, one-home-per-rule).
+Related: [doc-coherence](../doc-coherence/README.md) — the analogous property applied to documentation.
 
 ## Cogency
 

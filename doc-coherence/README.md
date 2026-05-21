@@ -17,7 +17,7 @@ When updating any documentation file, apply these operations in order:
 ## How to use the review lens
 
 1. Load this file in full.
-2. Run the **[mechanical pre-pass](#mechanical-pre-pass)** by invoking `scripts/check_docs.py` (command below). Bookkeeping drift — broken links, stale section numbers, enforcement labels that no longer match the rule — surfaces first and collapses into a single root rather than inflating the report into a thousand cuts.
+2. Run the **[mechanical pre-pass](#mechanical-pre-pass)** by invoking `scripts/check_docs.py` (command below). Bookkeeping drift — broken links, stale section numbers, drifted vocabulary, enforcement labels that no longer match the rule — surfaces first and collapses into a single root rather than inflating the report into a thousand cuts.
 3. Apply the **five document checks**, in order. If an earlier check fails, later checks are often moot — fix upstream first.
 4. Scan the **document red flags**.
 5. Group findings by defect where one judgment call resolves several mentions.
@@ -40,12 +40,13 @@ python3 ~/.claude/skills/racecar-doc-coherence/scripts/check_docs.py
 
 Exit 0 is clean. Drift findings print one per line with file and line number; collapse them into a single root rather than inflating the report into a thousand cuts.
 
-Four checks, two of them mechanized:
+Five checks, three of them mechanized:
 
 1. **Link resolution** *(mechanized).* For every `[text](path)` in a `.md` file, resolve the path against the filesystem. Every target must exist; every `#section-slug` must match a heading in the target file. A file move without a link audit is the classic source.
 2. **Section-number citations** *(mechanized).* For every `FILENAME.md §N` cited in a non-markdown file (scripts, Makefile, `*.toml`, `*.yaml`), verify the target has a heading at that number. An optional directory prefix (`<dir>/FILENAME.md §N`) disambiguates when the same basename lives under multiple directories.
-3. **Example self-verification** *(reviewer).* Any canonical example embedded in a doc that names real files, sections, or line numbers must match current state — or be genericized so it cannot drift. Treat the example as an artifact under the lens.
-4. **Doc-vs-enforcement agreement** *(partially mechanized via check 2).* For every script, linter, CI hook, Makefile target, or pre-commit entry that claims to enforce a named rule, the doc at that name must exist and say the same thing with the same label. Mismatches are one defect across N pointers, not N independent defects.
+3. **Vocabulary identity** *(mechanized).* Every line of the form ``<Class> values are literal: **<literal>**`` must agree with every other instance of the same class across the repo's markdown. Catches drift between sibling READMEs that each repeat the same output vocabulary inline — see [`../shared/VOCABULARY.md`](../shared/VOCABULARY.md) for racecar's canonical block. The rule is identity, not existence: a class declared in only one place is fine.
+4. **Example self-verification** *(reviewer).* Any canonical example embedded in a doc that names real files, sections, or line numbers must match current state — or be genericized so it cannot drift. Treat the example as an artifact under the lens.
+5. **Doc-vs-enforcement agreement** *(partially mechanized via check 2).* For every script, linter, CI hook, Makefile target, or pre-commit entry that claims to enforce a named rule, the doc at that name must exist and say the same thing with the same label. Mismatches are one defect across N pointers, not N independent defects.
 
 ## The five document checks
 
@@ -159,6 +160,6 @@ Common voice: [../shared/VOICE.md](../shared/VOICE.md).
 
 > Load `doc-coherence/README.md`. Run `make check-docs` (in-repo) or `python3 ~/.claude/skills/racecar-doc-coherence/scripts/check_docs.py` (skill install) first for the mechanical pre-pass, then review the attached doc for cogency, scope honesty, file naming, rule testability, and one-home-per-rule. Group findings by root cause.
 
-> Using `doc-coherence/README.md`, run the script to catch link/anchor/section-number drift, then audit the result for the prose-level issues the script cannot see.
+> Using `doc-coherence/README.md`, run the script to catch the mechanical drift the prose checks can't see, then audit the result for issues the script doesn't.
 
 If the artifact passes the mechanical pre-pass, all five checks, and trips no red flags, say so in one line and stop.

@@ -1,3 +1,10 @@
+# Agent Persona
+
+The interaction style and thought process a Claude Code agent adopts when applying racecar standards.
+
+Source: [pmarca on X, status 2051374498994364529](https://x.com/pmarca/status/2051374498994364529).
+
+```json
 {
   "source": "https://x.com/pmarca/status/2051374498994364529",
   "persona": {
@@ -53,3 +60,4 @@
     "success_metric": "accuracy, not user approval"
   }
 }
+```

@@ -5,28 +5,28 @@ This is a routing table. Load the file that applies to the task at hand. Do not 
 Topic: Agent persona — interaction style and thought process when applying racecar standards
 Load: [shared/PERSONA.md](shared/PERSONA.md)
 
-Topic: Architectural coherence — four checks (acyclicity, direction, layer integrity, depth-plus-one isolation) with sub-axioms (environment-layer exception, domain boundaries), plus review lens
+Topic: Architectural coherence — DAG axioms and review lens
 Load: [arch-coherence/README.md](arch-coherence/README.md)
 
-Topic: Python architectural coherence — module structure, imports, CLI, enforcement
+Topic: Python architectural coherence — language-specific rules and enforcement
 Load: [arch-coherence/PYTHON.md](arch-coherence/PYTHON.md)
 
-Topic: Django architectural coherence — service layer, view layering
+Topic: Django architectural coherence — framework-specific rules
 Load: [arch-coherence/DJANGO.md](arch-coherence/DJANGO.md)
 
-Topic: Engineering review — wrapper around gstack `plan-eng-review` with racecar-specific pre/post passes
+Topic: Engineering review — wrapper around gstack `plan-eng-review`
 Load: [eng-review/README.md](eng-review/README.md)
 
-Topic: Python engineering hygiene — mindset, naming, formatting, testing, linting, Definition of Done
+Topic: Python engineering hygiene — language-specific code-quality rules
 Load: [eng-review/PYTHON.md](eng-review/PYTHON.md)
 
-Topic: Django engineering hygiene — database/performance, security
+Topic: Django engineering hygiene — framework-specific code-quality rules
 Load: [eng-review/DJANGO.md](eng-review/DJANGO.md)
 
-Topic: Documentation coherence — update protocol + review lens (links, section numbers, file naming, cogency, scope honesty, rule testability, one-home-per-rule)
+Topic: Documentation coherence — update protocol + review lens
 Load: [doc-coherence/README.md](doc-coherence/README.md)
 
-Topic: LLM summary — generate a reconstruction-grade repo brief (queryable database of entities, relationships, contracts, flags, flows, plus a live-access block for clients calling the deployed system) for a downstream agent working without the repo; source-derivable only, no strategy or org views
+Topic: LLM summary — produce a shareable single-file knowledge package for a downstream LLM working without the repo
 Load: [llm-summary/README.md](llm-summary/README.md)
 
 Topic: Ownership — tooling enables design and confirms correctness; responsibility stays with the owner
@@ -38,13 +38,13 @@ Load: [shared/VOICE.md](shared/VOICE.md)
 Topic: TODO list rendering format
 Load: [shared/TODO_FORMAT.md](shared/TODO_FORMAT.md)
 
-Topic: Operational discipline — agent execution rules ordered independent→dependent (check before mutate, parallel independent reads, audit before fix, group failure modes, script mechanical changes, test suite is not a debugger)
+Topic: Operational discipline — agent execution rules ordered independent→dependent
 Load: [shared/OPERATIONAL.md](shared/OPERATIONAL.md)
 
-Topic: Glossary — DAG, coherence, cogency, resolver, depth-plus-one, outward-downward, one-home-per-rule, scope honesty, drift
+Topic: Glossary — shared terminology for the standards
 Load: [shared/GLOSSARY.md](shared/GLOSSARY.md)
 
-Topic: Commits — Conventional Commits format, valid VERSION increments, VERSION bump convention
+Topic: Commits — message convention and VERSION rules
 Load: [shared/COMMITS.md](shared/COMMITS.md)
 
 Topic: Expert output mode — terse, high-density delivery for an expert operator (optional overlay, not a review lens; installed separately via `make expert`)

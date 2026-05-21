@@ -1,6 +1,6 @@
 ---
 name: racecar-doc-coherence
-description: Documentation coherence review — update protocol (PRESERVE, ADD, UPDATE, DELETE, REVIEW) plus the review lens: link resolution, section-number citations, cogency, scope honesty, file naming, rule testability, one-home-per-rule. Owns the mechanical pre-pass (broken links, stale anchors, stale `§N` citations) implemented by `scripts/check_docs.py` — a generic tool that auto-discovers repo layout via `.git` walk-up, not racecar-specific. Use when asked to review docs, check link integrity, audit documentation drift, verify doc-vs-code agreement, or before shipping any doc change.
+description: Documentation coherence review — update protocol (PRESERVE, ADD, UPDATE, DELETE, REVIEW) plus the review lens: cogency, scope honesty, file naming, rule testability, one-home-per-rule. Owns the mechanical pre-pass implemented by `scripts/check_docs.py` — a generic tool that auto-discovers repo layout via `.git` walk-up, not racecar-specific. Use when asked to review docs, check link integrity, audit documentation drift, verify doc-vs-code agreement, or before shipping any doc change.
 ---
 
 # racecar-doc-coherence

@@ -29,7 +29,7 @@ check-brief:
 	$(PYTHON) llm-summary/scripts/check_brief.py
 
 test:
-	$(PYTHON) -m pytest arch-coherence/tests
+	$(PYTHON) -m pytest arch-coherence/tests doc-coherence/tests llm-summary/tests scripts/tests
 
 check: check-docs test check-brief
 

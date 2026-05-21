@@ -237,13 +237,15 @@ When a new `__main__.py` is added, update the parent's `commands()` before mergi
 
 Enforcement here is local confirmation the owner can rely on, not a CI gate that replaces owner judgment — see [OWNERSHIP.md](../shared/OWNERSHIP.md).
 
-Three tools enforce the coherence rules:
+Five tools enforce the coherence rules:
 
 - `import-linter` checks acyclicity and direction ([`README.md`](README.md) checks 1–2).
 - `scripts/check_upward_imports.py` enforces §1 (no upward imports from business modules to the root package), file-by-file.
 - `scripts/check_cli_commands.py` enforces §3 (the `__main__.py` + `commands()` CLI contract) by walking the CLI tree, confirming every `python -m <pkg>` lists its registered children, and surfacing orphan `__main__.py` files that no parent registers.
+- `scripts/check_string_relations.py` enforces [DJANGO.md §2](DJANGO.md#2-orm-relations) (no cross-module string ORM relations); skipped automatically when the consumer repo has no `manage.py`.
+- `scripts/check_docs.py` enforces the [doc-coherence](../doc-coherence/README.md) mechanical pre-pass.
 
-The first two are wired into `pre-commit` and run on every commit via `.pre-commit-config.yaml`. `check_cli_commands.py` is a full-tree audit — it shells out `python -m <pkg>` for every node, which is too expensive for a per-commit hook — so it runs via `make arch PKG=<path>`, in CI, or on-demand. The per-project contract (layers, forbidden edges) lives in `pyproject.toml` under `[tool.importlinter]`.
+`check_upward_imports.py`, `check_docs.py`, and `check_string_relations.py` are wired into `pre-commit` and run on every commit via `.pre-commit-config.yaml`. `check_cli_commands.py` is a full-tree audit — it shells out `python -m <pkg>` for every node, which is too expensive for a per-commit hook — so it runs via `make arch PKG=<path>`, in CI, or on-demand. The per-project contract (layers, forbidden edges) lives in `pyproject.toml` under `[tool.importlinter]`.
 
 For linter configuration and workflow (formatter-as-canonical, no inline suppressions, full-codebase scope), see [`../eng-review/PYTHON.md` §5 Linting & Verification](../eng-review/PYTHON.md#5-linting-verification).
 
@@ -255,7 +257,11 @@ Templates live in [`../templates/`](../templates/). To adopt on a new project:
 2. Copy all blocks from the chosen variant's `pyproject.toml` into your project's `pyproject.toml` (merge into an existing file if present). Skip blocks that don't apply (e.g. `[tool.mypy]` if you don't type-check).
 3. Copy the chosen variant's `pre-commit-config.yaml` to your project root as `.pre-commit-config.yaml` (add the leading dot on copy).
 4. Copy the chosen variant's `Makefile` to your project root.
-5. Copy `scripts/` (inside `arch-coherence/`) to your project's `scripts/` directory (shared across both variants).
+5. Copy the check scripts into your project's `scripts/` directory (shared across both variants):
+   - `arch-coherence/scripts/check_upward_imports.py`
+   - `arch-coherence/scripts/check_cli_commands.py`
+   - `arch-coherence/scripts/check_string_relations.py` (Django projects; skipped at runtime otherwise)
+   - `doc-coherence/scripts/check_docs.py`
 6. Replace `<root>` with your top-level package name, and fill the layer rows with your own packages.
 7. Install and enable:
    - Ruff variant: `pip install pre-commit ruff black mypy import-linter pytest && pre-commit install`

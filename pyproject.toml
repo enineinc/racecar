@@ -1,7 +1,6 @@
 [dependency-groups]
 dev = [
     "black",
-    "boto3",
     "isort",
     "pylint",
     "pytest",

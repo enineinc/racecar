@@ -63,6 +63,7 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+from datetime import date as date_cls
 from pathlib import Path
 
 try:
@@ -224,8 +225,6 @@ def validate_target(target: object, f: Findings) -> None:
             )
     else:
         # PyYAML may parse YYYY-MM-DD as datetime.date — accept that.
-        from datetime import date as date_cls
-
         if not isinstance(date, date_cls):
             f.error(f"frontmatter: target.date is required (ISO date); got {date!r}")
 

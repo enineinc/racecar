@@ -4,7 +4,7 @@ generator:
   version: "0.2.0"
 target:
   repo: racecar
-  sha: 6ce3338
+  sha: 9c70eef
   date: 2026-05-20
 bundle:
   - RACECAR.md
@@ -68,7 +68,7 @@ entities:
     case: on_disk_managed
     lifecycle: realized
     purpose: A plain `major.minor.patch` text file at the repo root that tracks the framework's release line.
-    notes: "Manually edited per shared/COMMITS.md; current 0.1.12."
+    notes: "Manually edited per shared/COMMITS.md; current 0.2.0."
 
   - name: SkillManifest
     case: content_tree
@@ -139,7 +139,7 @@ relationships:
   - from: ProjectTemplate
     to: MechanicalCheck
     cardinality: "1:N"
-    notes: "Each template variant wires check_upward_imports.py into .pre-commit-config.yaml and check_cli_commands.py into the Makefile's `make arch` target. check_docs.py, check_brief.py, and check_string_relations.py are not yet wired into the templates."
+    notes: "Each template variant wires four of the five mechanical checks. Pre-commit hooks: check_upward_imports.py, check_docs.py, and check_string_relations.py (the last guarded by `[ -f manage.py ]` so non-Django consumers skip it). Makefile targets: check_cli_commands.py via `make arch`; check_docs.py via `make docs`; check_string_relations.py via `make arch` with the same Django guard. Only check_brief.py is not wired — it validates briefs in the consumer's docs/ tree, not source code."
 
   - from: Overlay
     to: PointerBlock
@@ -184,7 +184,7 @@ external_surface:
     - verb: make install-deps
       module: Makefile
       args: none
-      behavior: "pip install --group dev (pulls pytest, pyyaml, black, isort, pylint, boto3)."
+      behavior: "pip install --group dev (pulls pytest, pyyaml, black, isort, pylint)."
     - verb: make expert
       module: Makefile
       args: none
@@ -208,13 +208,13 @@ external_surface:
     - verb: make test
       module: Makefile
       args: none
-      behavior: "pytest arch-coherence/tests (currently test_check_cli_commands.py and test_check_string_relations.py)."
+      behavior: "pytest across arch-coherence/tests, doc-coherence/tests, llm-summary/tests, scripts/tests (currently six test modules covering check_cli_commands, check_string_relations, check_upward_imports, check_docs, check_brief, sync_claude_md)."
 
   library_exports:
     - name: check_docs
       module: doc-coherence/scripts/check_docs.py
       signature: "python3 check_docs.py"
-      behavior: "Walk up to .git; check intra-repo Markdown links/anchors and `FILENAME.md §N` citations across .py/.yaml/.toml/Makefile. Honors [tool.pylint.MASTER].ignore-paths from the consumer's pyproject.toml."
+      behavior: "Walk up to .git; (1) check intra-repo Markdown links/anchors; (2) check `FILENAME.md §N` citations across .py/.yaml/.toml/Makefile; (3) check vocabulary identity — every `<Class> values are literal: **<literal>**` line agrees across all markdown. Honors [tool.pylint.MASTER].ignore-paths from the consumer's pyproject.toml."
     - name: check_brief
       module: llm-summary/scripts/check_brief.py
       signature: "python3 check_brief.py [<bundle-path>]"
@@ -259,12 +259,12 @@ User-facing primitives:
 
 | Module | Purpose |
 | --- | --- |
-| `arch-coherence/` | Architectural-coherence lens: four checks (acyclicity, direction, layer integrity, depth-plus-one) + Python/Django specifics + three enforcement scripts + tests for two of them. |
+| `arch-coherence/` | Architectural-coherence lens: four checks (acyclicity, direction, layer integrity, depth-plus-one) + Python/Django specifics + three enforcement scripts (`check_upward_imports`, `check_cli_commands`, `check_string_relations`), each with its own test module. |
 | `doc-coherence/` | Documentation-coherence lens: update protocol + review lens + mechanical pre-pass for link / anchor / §N drift. |
 | `eng-review/` | Engineering-review wrapper: racecar pre-pass → gstack `/plan-eng-review` → racecar post-pass. |
 | `llm-summary/` | This generator's spec + the `check_brief.py` validator. |
 | `expert/` | Optional output-mode overlay: terse, high-density expert delivery. |
-| `shared/` | Cross-cutting docs loaded on demand: `OPERATIONAL`, `OWNERSHIP`, `VOICE`, `PERSONA`, `GLOSSARY`, `COMMITS`, `TODO_FORMAT`. |
+| `shared/` | Cross-cutting docs loaded on demand: `OPERATIONAL`, `OWNERSHIP`, `VOICE`, `PERSONA`, `GLOSSARY`, `VOCABULARY` (severity/verdict literals), `COMMITS`, `TODO_FORMAT`. |
 | `scripts/` | Installer-internal tools: `sync_claude_md.py`, `expert_mode.py`, `sync_md_to_obsidian.py`. |
 | `hooks/` | Bash hooks wired into `~/.claude/settings.json`: `compound-command-allow.sh` (PreToolUse Bash), `claude_racecar_hook.sh` (PostToolUse Read). |
 | `templates/` | Copy-into-project starter files in `ruff/` and `classic/` variants. |
@@ -273,7 +273,7 @@ User-facing primitives:
 
 ### §1.3 Vendors
 
-Pure stdlib at runtime in the shipped scripts. Dev-only dependencies declared in `pyproject.toml` under `[dependency-groups].dev`: `pytest` (test runner), `pyyaml>=6.0` (hard requirement of `check_brief.py`), `black` / `isort` / `pylint` (classic-template tooling; unused by racecar's own check surface), `boto3` (declared but unreferenced anywhere in the source tree — likely a holdover). System dependencies: `python3 ≥ 3.11` for `tomllib` (hard, stdlib only), `jq` (hard for the Bash hook; the Read hook falls back to `sed` if absent), `make` (human surface).
+Pure stdlib at runtime in the shipped scripts. Dev-only dependencies declared in `pyproject.toml` under `[dependency-groups].dev`: `pytest` (test runner), `pyyaml>=6.0` (hard requirement of `check_brief.py`), `black` / `isort` / `pylint` (classic-template tooling; unused by racecar's own check surface). System dependencies: `python3 ≥ 3.11` for `tomllib` (hard, stdlib only), `jq` (hard for the Bash hook; the Read hook falls back to `sed` if absent), `make` (human surface).
 
 No paid SaaS, no cloud platforms. One sibling skill bundle is referenced by name: **gstack**, a separate Claude Code skill bundle whose `/plan-eng-review` skill `eng-review/README.md` delegates phase 2 to. If gstack is absent the wrapper degrades to pre-pass plus post-pass; the README states the degradation explicitly.
 
@@ -359,8 +359,8 @@ Short slash commands, `make` targets, and mechanical pre-pass scripts are fully 
 
 Cross-module contracts that are not user-callable:
 
-- **Severity vocabulary `Blocker / Major / Minor / Nit`** → produced by each lens README's `Feedback format` section; consumed by the lens's own emitted findings. Carried in model context, reproduced in model output. Drift between the three lens READMEs is a one-home-per-rule violation a doc-coherence prose review would catch — no script enforces it.
-- **Verdict vocabulary `Ship / Revise / Rework`** → same producer/consumer shape as severity, same prose-only enforcement.
+- **Severity vocabulary `Blocker / Major / Minor / Nit`** → canonical home `shared/VOCABULARY.md`; repeated inline in each lens README's `Feedback format` section so a reviewer never has to follow a link. Drift between sibling READMEs is mechanically caught by the vocabulary-identity check in `doc-coherence/scripts/check_docs.py`, which scans for `<Class> values are literal: **<literal>**` lines and asserts a single literal per class across all markdown.
+- **Verdict vocabulary `Ship / Revise / Rework`** → same shape as severity; same mechanical identity check.
 - **`commands() -> list[tuple[str, str]]`** → produced by `arch-coherence/PYTHON.md §3`; consumed by every `__main__.py` in a consumer project and by `arch-coherence/scripts/check_cli_commands.py`. Direct-child `(name, description)` pairs, no dots in names. Three patterns (1 pure discovery, 2 discovery + own CLI, 3 leaf) are mechanized in `_classify` and `_make_node`.
 - **Pointer-block markers** → produced by `scripts/sync_claude_md.py` (main) and `scripts/expert_mode.py` (overlay); consumed by the same scripts' `replace_or_append` and `install_block` / `uninstall_block`. Byte-exact partition of `~/.claude/CLAUDE.md` on `<!-- BEGIN racecar pointer (managed) -->` / `<!-- END racecar pointer (managed) -->` and the parallel `racecar-expert-mode` pair.
 - **Claude Code hook JSON** → produced by the Claude Code harness; consumed by both racecar bash hooks. Stdin carries `{"tool_input": {...}, "cwd": ...}`; PreToolUse may write `{"hookSpecificOutput": {"hookEventName":"PreToolUse","permissionDecision":"allow",…}}` on stdout. Both hooks always exit 0 — racecar never denies, only auto-allows or falls through.
@@ -379,7 +379,7 @@ Racecar has no production / dev split — there is no deployed instance. Every k
 - `CLAUDE_MD_PATH` — which `CLAUDE.md` the pointer block is written into. Default `~/.claude/CLAUDE.md`.
 - `CLAUDE_SETTINGS_PATH` — which `settings.json` receives the two hook entries. Default `~/.claude/settings.json`.
 - `STRING_RELATIONS_INSTALLED_APPS` — comma-separated app labels; overrides Django app discovery in `check_string_relations.py`. Test / CI mode; bypasses the `manage.py shell` invocation.
-- `GRIDINT_OBSIDIAN_ROOT` — destination root for `scripts/sync_md_to_obsidian.py`. Not wired into the Makefile; gridint-flavored default at `~/Obsidian/Code/batteryos/gridint/`.
+- `OBSIDIAN_SYNC_ROOT` — destination root for `scripts/sync_md_to_obsidian.py`. Not wired into the Makefile. CLI flag `--dest` > env var > `dest_root` in `~/.config/obsidian-sync.toml`. No default — the script refuses to guess.
 - `--claude-md` / `--target`, `--settings`, `--dry-run` — `sync_claude_md.py` CLI flags. CLI flag > env var > default.
 - `VENV` — `Makefile` auto-detect (`.venv`, `venv`, `../venv`); first that exists is prepended to `PATH`.
 - `PKG` — consumer-project Makefile variable (default `src`); scope for the `make arch` target in the templates.
@@ -412,7 +412,7 @@ Plugin / extension surfaces:
 
 - **Skill registration.** Add `<name>/SKILL.md` with `name:` and `description:` frontmatter, add a row to `install`'s symlink loop so `./install` creates the link, add a row to the root resolver `README.md`. The pointer block rendered by `scripts/sync_claude_md.py:render_block` is intentionally generic (points at `README.md` + `shared/OPERATIONAL.md`) and does not enumerate skills, so adding one does not require editing `render_block`. Recent example: the `racecar-llm-summary` skill (commit `eac2a8c` and follow-ups; see `install:77-88` for the symlink loop).
 - **Hook contract.** Append another `upsert_hook(settings, event, matcher, command, basename)` call in `scripts/sync_claude_md.py:sync_settings`. Hooks are identified by command basename so a moved checkout self-heals. Recent example: the PreToolUse Bash hook added alongside the PostToolUse Read hook (commit `3368339`).
-- **Mechanical check.** A new Python script in `arch-coherence/scripts/` or `doc-coherence/scripts/`, a row in the relevant template `pre-commit-config.yaml` under `repo: local` or the template Makefile's `make arch` target, and a doc section that the script's docstring backrefs by `§N`. Recent example: `arch-coherence/scripts/check_string_relations.py` (commit `ef6edee`) — note this one is *not* yet wired into either template.
+- **Mechanical check.** A new Python script in `arch-coherence/scripts/`, `doc-coherence/scripts/`, or `llm-summary/scripts/`; a row in the relevant template `pre-commit-config.yaml` under `repo: local` (or, for full-tree audits, a Makefile target); and a doc section that the script's docstring backrefs by `§N`. Recent example: the scope-honesty close-out (`9c70eef`) wired `check_string_relations.py` and `check_docs.py` into both ruff and classic templates, with the Django-only check guarded by `[ -f manage.py ]` so non-Django consumers fall through silently.
 - **Output overlay.** A directory with `SKILL.md` + content `.md`, a manage-block script under `scripts/` using twin `<!-- BEGIN ... (managed) -->` / `<!-- END ... (managed) -->` markers, and a `make` target pair (install / uninstall). Recent example: `racecar-expert-mode` (commit `6ce3338`; manage script `scripts/expert_mode.py`).
 
 ### §2.9 Design decisions
@@ -434,11 +434,11 @@ Plugin / extension surfaces:
 - **Bootstrap check.** Verify `~/.claude/settings.json` `hooks.PostToolUse` contains an entry whose command ends with `hooks/claude_racecar_hook.sh`. Root `README.md` documents this as the "Bootstrap check."
 - **Move the checkout.** Re-run `./install`. The PostToolUse Read hook also self-heals the pointer block and the two hook absolute paths whenever any `racecar/README.md` file is read.
 - **System dependencies.** `python3 ≥ 3.11` (`tomllib` stdlib). Optional `jq` for the Read hook (sed fallback); required `jq` for the Bash hook. `make` for the human surface.
-- **Dev dependencies.** `pip install --group dev` (via `make install-deps`) pulls `black` / `boto3` / `isort` / `pylint` / `pytest` / `pyyaml>=6.0`. Only `pytest` and `pyyaml` are exercised by `make check` against this repo's own surface; the rest are unused holdovers or consumer-side defaults.
+- **Dev dependencies.** `pip install --group dev` (via `make install-deps`) pulls `black` / `isort` / `pylint` / `pytest` / `pyyaml>=6.0`. Only `pytest` and `pyyaml` are exercised by `make check` against this repo's own surface; `black` / `isort` / `pylint` are consumer-side defaults wired into the templates.
 - **Scheduled jobs.** None. No `.github/workflows/`. Self-test cadence is owner-driven: `make check` runs `check-docs` + `pytest arch-coherence/tests` + `check-brief`.
 - **Healthcheck / observability.** None — no service. Hook scripts redirect their failures (`>/dev/null 2>&1 || true`) so PostToolUse never blocks a Read. `sync_claude_md.py` prints `created` / `updated` / `already up to date` at every run.
 - **Uninstall.** Not provided for the main install — symlinks and the pointer block survive a `git rm` of the checkout. `make expert-uninstall` does reverse the overlay block + symlink.
-- **Tests.** `arch-coherence/tests/test_check_cli_commands.py` and `test_check_string_relations.py`. No tests yet for `check_docs.py`, `check_brief.py`, `check_upward_imports.py`, `sync_claude_md.py`, or `expert_mode.py`.
+- **Tests.** Six modules: `arch-coherence/tests/{test_check_cli_commands,test_check_string_relations,test_check_upward_imports}.py`, `doc-coherence/tests/test_check_docs.py`, `llm-summary/tests/test_check_brief.py`, `scripts/tests/test_sync_claude_md.py`. Still untested: `expert_mode.py`, `sync_md_to_obsidian.py`, the two bash hooks, and `./install` itself.
 
 ### §2.11 Weirdness
 
@@ -448,8 +448,6 @@ Plugin / extension surfaces:
 - **`hooks/compound-command-allow.sh` embeds an inline Python parser.** Splitting `cmd && cmd2 ; cmd3 | cmd4` while respecting quotes is not expressible in `sed` / `awk` cleanly. The hook is bash because Claude Code wants a bash command on stdin; the parsing is Python because bash cannot parse bash safely.
 - **Mechanical pre-pass scripts run against the *consumer's* repo, not racecar's.** Each script walks up to `.git` at the CWD's ancestor — the consumer's repo, not racecar's. The scripts ship as skill content under `~/.claude/skills/racecar-doc-coherence/scripts/` (etc.) and operate on whichever repo the agent is reviewing. Looks wrong (a script that doesn't know which repo it's for); is correct (the repo it's for is wherever the model is running).
 - **No `[tool.importlinter]` block in this repo's own `pyproject.toml`.** Racecar imposes import-linter discipline on its consumers but does not run import-linter on itself — there are no business-logic packages here, just standalone scripts. The framework does not dodge its own rules; there is no DAG to enforce when the artifacts are stand-alone scripts.
-- **`boto3` is in `[dependency-groups].dev` with no import in source.** Grep across `.py` / `.sh` / `.md` / `.toml` / `.yaml` (excluding `.venv/`) returns only the declaration line. Likely a holdover from a removed template or a forgotten experiment.
-- **Two mechanical checks are not in the templates.** `check_string_relations.py` and `check_docs.py` exist, are documented, are exercised by tests in this repo's case (for the former) — but neither is wired into `templates/{ruff,classic}/pre-commit-config.yaml` or `Makefile`. A consumer adopting the templates does not get them automatically; they have to wire them by hand or run them via the installed skill.
 
 ## §3. Live access
 
@@ -483,18 +481,16 @@ N/A — no deployed instance. The install surface is `./install`, `make`, and th
 
 **Least confident**
 
-- §2.5 (Internal contracts): the claim that severity / verdict vocabulary drift is "what a doc-coherence prose review would catch — no script enforces it" is reconstructed from `doc-coherence/README.md`'s five-checks list (specifically one-home-per-rule) and the absence of any vocabulary-matching pattern in `check_docs.py`. Verify against `doc-coherence/README.md` and `doc-coherence/scripts/check_docs.py`.
-- §2.3 (Relationships) `ProjectTemplate → MechanicalCheck`: the note says `check_upward_imports.py` is wired into pre-commit and `check_cli_commands.py` into the Makefile but the other three scripts are not wired into either. Verified by reading `templates/ruff/pre-commit-config.yaml`, `templates/classic/pre-commit-config.yaml`, `templates/ruff/Makefile`, and `templates/classic/Makefile` — but the user may have local template diffs in flight. Verify against `grep -rn 'check_' templates/`.
+- §2.5 (Internal contracts): the claim that the vocabulary-identity regex `(\b[A-Z][a-z]+)\s+values\s+are\s+literal:\s*\*\*([^*]+)\*\*` catches *every* drift case between sibling READMEs assumes reviewers do not phrase the same vocabulary differently (e.g. "Severities are: …"). Verify against the regex at `doc-coherence/scripts/check_docs.py:200` and the inlined copies in each lens README.
+- §2.3 (Relationships) `ProjectTemplate → MechanicalCheck`: the post-`9c70eef` wiring note rests on the assumption that both `templates/ruff/` and `templates/classic/` are kept in lockstep. Drift between the two variants would be invisible to the framework's own `make check`. Verify with `diff <(sort templates/ruff/pre-commit-config.yaml) <(sort templates/classic/pre-commit-config.yaml)` and `diff templates/ruff/Makefile templates/classic/Makefile`.
 - §2.7 Flow 6 (CLI-tree audit) pattern classification: Patterns 1 / 2 / 3 and the "must also have `_print_commands`" rule are taken from `_classify` in `arch-coherence/scripts/check_cli_commands.py`; if the script is refactored to add a fourth pattern or to drop the `_print_commands` requirement, this brief will lag. Verify against the current `_classify` and `_make_node` definitions.
 - §2.9 (Design decisions): attribution of "identify hooks by command basename" to the moved-checkout motivation is inferred from the surrounding commit messages and the `upsert_hook` implementation; the precise commit where the basename rule was introduced was not isolated. Verify with `git log -p scripts/sync_claude_md.py`.
-- §2.11 (`boto3` unused): claim rests on `grep -rn boto3` across `.py` / `.sh` / `.md` / `.toml` / `.yaml` excluding `.venv/`. A future template or script could import it without other visible changes. Verify against `grep -rn boto3 <racecar-root>`.
 
 **Not in this brief**
 
 - Owner identity beyond `shared/PERSONA.md`'s persona JSON — unknown — ask user.
 - Adoption — which consumer repos use the templates, how many — unknown — ask user.
 - Roadmap intent: no `TODO.md` despite `shared/TODO_FORMAT.md` prescribing one — unknown — ask user whether work is tracked elsewhere.
-- Whether `boto3` in `[dependency-groups].dev` is planned future use or a forgotten holdover — unknown — ask user.
-- Purpose and intended invocation of `scripts/sync_md_to_obsidian.py` (not wired into Makefile; gridint-flavored defaults; not referenced from any README) — unknown — ask user.
+- Purpose and intended invocation of `scripts/sync_md_to_obsidian.py` (not wired into Makefile; not referenced from any README) — unknown — ask user.
 - Whether `gstack` is publicly available or owner-private — unknown — ask user.
 - Whether `check_string_relations.py` and `check_docs.py` are deliberately omitted from the consumer templates or just not wired yet — unknown — ask user.

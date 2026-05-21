@@ -25,3 +25,17 @@ repos:
         language: python
         types: [python]
         exclude: '(__main__|__init__)\.py$'
+
+      - id: doc-coherence-mechanical-pre-pass
+        name: doc-coherence/README.md — mechanical pre-pass (link / §N / vocabulary drift)
+        entry: python scripts/check_docs.py
+        language: python
+        pass_filenames: false
+        always_run: true
+
+      - id: no-cross-module-string-relations
+        name: arch-coherence/DJANGO.md §2 — no cross-module string ORM relations (skipped if no manage.py)
+        entry: bash -c 'if [ -f manage.py ]; then python scripts/check_string_relations.py; fi'
+        language: system
+        pass_filenames: false
+        always_run: true

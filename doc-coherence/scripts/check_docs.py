@@ -14,6 +14,11 @@ Checks:
      *.toml, *.yaml) points to a heading at that number in the target file.
      An optional directory prefix (`<dir>/FILENAME.md §N`) disambiguates
      when the same basename lives in more than one directory.
+  3. Vocabulary identity — every line of the form
+     ``<Class> values are literal: **<literal>**`` agrees with every other
+     instance of the same ``<Class>`` across the repo's markdown. Catches
+     drift between sibling READMEs that each repeat the same output
+     vocabulary inline (e.g. severity / verdict literals).
 
 Matches inside inline code spans (single backticks) and triple-backtick
 fenced code blocks are ignored — they are literals, not links.
@@ -192,12 +197,55 @@ def _check_section_citations(path: Path) -> list[str]:
     return errors
 
 
+VOCAB_LINE = re.compile(r"(\b[A-Z][a-z]+)\s+values\s+are\s+literal:\s*\*\*([^*]+)\*\*")
+
+
+def _check_vocabulary_identity(md_paths: list[Path]) -> list[str]:
+    """Every `<Class> values are literal: **<literal>**` must agree across the repo.
+
+    Catches drift between sibling READMEs that each repeat the same output
+    vocabulary inline. If only zero or one source declares a class, nothing
+    to check — the rule is identity, not existence.
+    """
+    sightings: dict[str, list[tuple[str, Path, int]]] = {}
+    for md_path in md_paths:
+        try:
+            text = md_path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, PermissionError, OSError):
+            continue
+        in_fence = False
+        for lineno, line in enumerate(text.splitlines(), start=1):
+            if line.startswith("```"):
+                in_fence = not in_fence
+                continue
+            if in_fence:
+                continue
+            for m in VOCAB_LINE.finditer(line):
+                klass, literal = m.group(1), m.group(2).strip()
+                sightings.setdefault(klass, []).append((literal, md_path, lineno))
+
+    errors: list[str] = []
+    for klass, occurrences in sightings.items():
+        literals = {lit for lit, _, _ in occurrences}
+        if len(literals) <= 1:
+            continue
+        errors.append(
+            f"vocabulary drift: {klass} declared with {len(literals)} different literals:"
+        )
+        for lit, path, lineno in occurrences:
+            errors.append(f"  {path}:{lineno}: **{lit}**")
+    return errors
+
+
 def main() -> int:
     errors: list[str] = []
+    md_paths: list[Path] = []
     for md_path in REPO_ROOT.rglob("*.md"):
         if _is_hidden(md_path) or _is_ignored(md_path):
             continue
+        md_paths.append(md_path)
         errors.extend(_check_links(md_path))
+    errors.extend(_check_vocabulary_identity(md_paths))
     for path in REPO_ROOT.rglob("*"):
         if path.is_dir() or _is_hidden(path) or _is_ignored(path):
             continue

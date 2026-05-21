@@ -13,9 +13,9 @@ endif
 # Override with:  make arch PKG=my_package
 PKG ?= src
 
-.PHONY: check fix fmt fmt-check lint test typecheck arch clean help
+.PHONY: check fix fmt fmt-check lint test typecheck arch docs clean help
 
-check: fmt-check lint test typecheck arch
+check: fmt-check lint test typecheck arch docs
 
 fix: fmt
 
@@ -40,6 +40,10 @@ arch:
 	lint-imports
 	python scripts/check_upward_imports.py $$(find $(PKG) -name '*.py')
 	python scripts/check_cli_commands.py $(PKG)
+	@if [ -f manage.py ]; then python scripts/check_string_relations.py; else echo "arch: skipping check_string_relations (no manage.py — not a Django project)"; fi
+
+docs:
+	python scripts/check_docs.py
 
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} +
@@ -48,12 +52,13 @@ clean:
 	find . -type d -name .ruff_cache -exec rm -rf {} +
 
 help:
-	@echo "make check     - run all verification (fmt-check + lint + test + typecheck + arch)"
+	@echo "make check     - run all verification (fmt-check + lint + test + typecheck + arch + docs)"
 	@echo "make fix       - auto-fix formatting (black) and safe ruff issues"
 	@echo "make fmt       - format code in place (ruff --fix then black)"
 	@echo "make fmt-check - check formatting without modifying (ruff + black --check)"
 	@echo "make lint      - run custom arch-coherence/PYTHON.md §1 check"
 	@echo "make test      - pytest"
 	@echo "make typecheck - mypy"
-	@echo "make arch      - full arch audit: lint-imports + §1 upward imports + §3 CLI tree. Scope: PKG=$(PKG) (override: make arch PKG=<path>)"
+	@echo "make arch      - full arch audit: lint-imports + §1 upward imports + §3 CLI tree + (Django only) string-relations. Scope: PKG=$(PKG) (override: make arch PKG=<path>)"
+	@echo "make docs      - doc-coherence mechanical pre-pass (link / §N / vocabulary drift)"
 	@echo "make clean     - remove cache dirs"
