@@ -32,6 +32,9 @@ Load: [llm-summary/README.md](llm-summary/README.md)
 Topic: Ownership — tooling enables design and confirms correctness; responsibility stays with the owner
 Load: [shared/OWNERSHIP.md](shared/OWNERSHIP.md)
 
+Topic: Drift — the doctrine for fighting entropy continuously
+Load: [shared/DRIFT.md](shared/DRIFT.md)
+
 Topic: Voice — shared conventions for prescriptive writing (standards and review outputs)
 Load: [shared/VOICE.md](shared/VOICE.md)
 

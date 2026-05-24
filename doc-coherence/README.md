@@ -84,7 +84,7 @@ Five checks, three of them mechanized:
 
 **Docs are not scratchpads.** Every shipped artifact is a read-only reference a teammate can load cold and use. TODOs, "temporary" notes, and half-built sections belong in draft branches, not merged files.
 
-**Duplication is drift.** Two homes for the same rule means two places it will diverge. Pick one. Cross-reference the other. A codebase with duplicated rules is not "documented twice" — it is "documented zero times reliably."
+**Duplication is drift.** Two homes for the same rule means two places it will diverge. Pick one. Cross-reference the other. A codebase with duplicated rules is not "documented twice" — it is "documented zero times reliably." This is Tier 1 (eliminate the drift surface) of the broader doctrine in [../shared/DRIFT.md](../shared/DRIFT.md).
 
 **Opine, do not describe.** A review, a rule, and a runbook all take positions. Good doc: "do X" or "do not do Y." Bad doc: "X is a pattern that exists." Describing is easier and less useful.
 
@@ -131,7 +131,7 @@ Scan for these. One line each.
 
 - Group findings by root cause. One root per numbered block; children listed beneath as indented occurrences. If a single fix resolves N mentions, the root gets one number and the N surface points become indented children.
 - Each root: `File/Topic — severity — one-sentence description`.
-- Severity values are literal: **Blocker / Major / Minor / Nit**. Broken navigation and stale enforcement labels default to Blocker/Major; misleading claims default to Major; prose tightening defaults to Minor/Nit.
+- Severity values are literal: **Blocker / Major / Minor / Nit**. Broken navigation and stale enforcement labels default to Blocker/Major; misleading claims default to Major; prose tightening defaults to Minor/Nit. These are defaults; frame can override them — grade at the frame where the damage lands ([../shared/DRIFT.md](../shared/DRIFT.md#drift-is-frame-relative)).
 - No preamble. Start with root 1.
 - End with a single verdict line. Verdict values are literal: **Ship / Revise / Rework**.
 

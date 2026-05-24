@@ -79,7 +79,7 @@ After gstack has run, load [PYTHON.md](PYTHON.md) and [DJANGO.md](DJANGO.md) and
 - Numbered list. One defect per numbered entry; multiple occurrences of the same defect become indented children under one root.
 - Tag each entry with the pass that caught it: `[pre]`, `[gstack]`, `[post]`. Downstream readers can tell which layer owns the finding.
 - Each entry: `[pass-tag] File/Topic — severity — one-sentence description`.
-- Severity values are literal: **Blocker / Major / Minor / Nit**. An engineering defect is Blocker when it breaks correctness or security; Major when it ships as canonical but is wrong; Minor/Nit otherwise.
+- Severity values are literal: **Blocker / Major / Minor / Nit**. An engineering defect is Blocker when it breaks correctness or security; Major when it ships as canonical but is wrong; Minor/Nit otherwise. These are defaults; frame can override them — grade at the frame where the damage lands ([../shared/DRIFT.md](../shared/DRIFT.md#drift-is-frame-relative)).
 - No preamble. Start with entry 1.
 - End with a single verdict line. Verdict values are literal: **Ship / Revise / Rework**.
 

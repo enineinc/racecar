@@ -42,4 +42,8 @@ Labels match contents. A file titled "language-agnostic" that is eighty percent 
 
 ## Drift
 
-Gradual divergence between two places that should hold the same value — two documents stating the same rule, a config value and a constant, two validators enforcing the same invariant. Duplication is drift waiting to happen. See [doc-coherence "Mental models"](../doc-coherence/README.md#mental-models), "Duplication is drift."
+Gradual divergence of a system from itself — between two places that should hold the same value (two documents stating one rule, a config value and a constant, two validators enforcing one invariant), or between what the system is and what it was meant to be. Drift is [frame-relative](#frame): the same fact reads as drift at one canvas size and noise at another, so local coherence can still be global drift. The doctrine for fighting it is [DRIFT.md](DRIFT.md).
+
+## Frame
+
+The canvas size at which drift is judged — function, module, or system. There is no "is this drift?" without "against what frame?" A defect's severity is assigned at the frame where its damage lands, which may be larger than the frame where its symptom shows. See [DRIFT.md "Drift is frame-relative"](DRIFT.md#drift-is-frame-relative).

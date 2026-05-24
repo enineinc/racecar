@@ -123,7 +123,7 @@ Each layer enumerates only its immediate children — never grandchildren. The t
 
 - Group findings by root cause. One root per numbered block; children listed beneath as indented occurrences.
 - Each root: `File/Topic — severity — one-sentence description`.
-- Severity values are literal: **Blocker / Major / Minor / Nit**. Cycles and upward-import violations default to Blocker; layer slips default to Major; depth-plus-one leaks default to Minor.
+- Severity values are literal: **Blocker / Major / Minor / Nit**. Cycles and upward-import violations default to Blocker; layer slips default to Major; depth-plus-one leaks default to Minor. These are defaults; frame can override them — grade at the frame where the damage lands ([../shared/DRIFT.md](../shared/DRIFT.md#drift-is-frame-relative)).
 - No preamble. Start with root 1.
 - End with a single verdict line. Verdict values are literal: **Ship / Revise / Rework**.
 
