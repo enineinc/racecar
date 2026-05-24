@@ -209,6 +209,26 @@ external_surface:
       module: Makefile
       args: none
       behavior: "pytest across arch-coherence/tests, doc-coherence/tests, llm-summary/tests, scripts/tests (currently six test modules covering check_cli_commands, check_string_relations, check_upward_imports, check_docs, check_brief, sync_claude_md)."
+    - verb: make clean
+      module: Makefile
+      args: none
+      behavior: "Remove __pycache__, *.pyc, .DS_Store, and build artifacts; prunes .git and the venv so neither is touched."
+    - verb: make distclean
+      module: Makefile
+      args: none
+      behavior: "clean + remove the virtualenv."
+    - verb: make obsidian
+      module: Makefile
+      args: none
+      behavior: "List the two obsidian sync modes (obsidian-data / obsidian-docs); syncs nothing itself."
+    - verb: make obsidian-data
+      module: Makefile
+      args: "vars: OBSIDIAN_DEST, DATA_DIR, OBSIDIAN_SLUG"
+      behavior: "Mirror DATA_DIR/ into OBSIDIAN_DEST/<org>-<repo>/data/ via rsync --delete (slug from git remote). No-op if DATA_DIR absent."
+    - verb: make obsidian-docs
+      module: Makefile
+      args: "vars: OBSIDIAN_DEST, OBSIDIAN_SLUG"
+      behavior: "Mirror every all-uppercase *.md ([A-Z]+.md) found anywhere in the repo into OBSIDIAN_DEST/<org>-<repo>/docs/, preserving tree structure (wipe + recopy, so the vault matches the repo). No-op if none found."
 
   library_exports:
     - name: check_docs
@@ -382,7 +402,10 @@ Racecar has no production / dev split — there is no deployed instance. Every k
 - `OBSIDIAN_SYNC_ROOT` — destination root for `scripts/sync_md_to_obsidian.py`. Not wired into the Makefile. CLI flag `--dest` > env var > `dest_root` in `~/.config/obsidian-sync.toml`. No default — the script refuses to guess.
 - `--claude-md` / `--target`, `--settings`, `--dry-run` — `sync_claude_md.py` CLI flags. CLI flag > env var > default.
 - `VENV` — `Makefile` auto-detect (`.venv`, `venv`, `../venv`); first that exists is prepended to `PATH`.
-- `PKG` — consumer-project Makefile variable (default `src`); scope for the `make arch` target in the templates.
+- `SRC` — consumer-project Makefile variable (default `src`); source root that `make fmt`/`fmt-check`/`lint`/`typecheck` operate on in the templates.
+- `PKG` — consumer-project Makefile variable (default `$(SRC)`); scope for the `make arch` target in the templates.
+- `PYTEST_ARGS` — consumer-project Makefile variable (default empty); extra args appended to `make test`, e.g. `make test PYTEST_ARGS="-k foo -q"`.
+- `OBSIDIAN_DEST` / `DATA_DIR` / `OBSIDIAN_SLUG` — consumer-project Makefile variables (defaults `$(HOME)/Obsidian` / `.data`; `OBSIDIAN_SLUG` derives `<org>-<repo>` from `git remote get-url origin`) for the obsidian sync targets. `make obsidian` lists the two modes; both **mirror** under a per-repo folder `$(OBSIDIAN_DEST)/<org>-<repo>/` so the vault matches the repo — `obsidian-data` mirrors `DATA_DIR/` into `.../data/`, `obsidian-docs` mirrors every all-uppercase `*.md` ([A-Z]+.md) found anywhere in the repo (tree preserved) into `.../docs/`. Both no-op when there's nothing to sync.
 - `[tool.importlinter].root_package` / `.root_packages` / `.contracts` — consumer-project TOML; see §2.5.
 - `[tool.pylint.MASTER].ignore-paths` — consumer-project TOML; see §2.5.
 
