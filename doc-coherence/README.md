@@ -48,6 +48,26 @@ Five checks, three of them mechanized:
 4. **Example self-verification** *(reviewer).* Any canonical example embedded in a doc that names real files, sections, or line numbers must match current state — or be genericized so it cannot drift. Treat the example as an artifact under the lens.
 5. **Doc-vs-enforcement agreement** *(partially mechanized via check 2).* For every script, linter, CI hook, Makefile target, or pre-commit entry that claims to enforce a named rule, the doc at that name must exist and say the same thing with the same label. Mismatches are one defect across N pointers, not N independent defects.
 
+## Subsystem documentation presence
+
+A second mechanical check, [`scripts/check_subsystem_docs.py`](scripts/check_subsystem_docs.py), verifies that every "major" subsystem in an `import-linter` layer owns a `README.md` (developer landing) and a `CLAUDE.md` (AI-agent operational context). Architecture-as-contract names the subsystems; this check enforces that each one documents itself.
+
+```
+make check-subsystem-docs
+```
+
+Discovery walks `pyproject.toml` `[tool.importlinter].contracts`, resolves every dotted package (`<root>/<pkg>`, `<root>/src/<pkg>`, `<root>/pypkg/src/<pkg>`), and recurses. A directory is **major** if it contains a non-excluded subdirectory OR its direct-child source files sum to >= `loc_threshold` non-blank lines (default 1000). Each major subsystem must own both docs, non-empty, with at least one `##` heading.
+
+Configuration is optional and lives in `pyproject.toml`:
+
+```
+[tool.racecar.subsystem-docs]
+loc_threshold = 1000
+exclude = ["tests", "migrations", "__pycache__"]
+```
+
+Repos without `[tool.importlinter]` exit 0 with one info line. The check is silent for repos that have not adopted architecture-as-contract; there is nothing to validate against.
+
 ## The five document checks
 
 1. **Cogency.** Do the artifact's claims, examples, and definitions agree with each other and with the system they describe?

@@ -8,7 +8,7 @@ ifdef VENV
 endif
 PYTHON := $(if $(VENV),$(VENV)/bin/python3,python3)
 
-.PHONY: install install-deps expert expert-uninstall check-docs check-brief test check clean distclean obsidian obsidian-data obsidian-docs help
+.PHONY: install install-deps expert expert-uninstall check-docs check-subsystem-docs check-brief test check clean distclean obsidian obsidian-data obsidian-docs help
 
 install: install-deps
 	./install
@@ -25,13 +25,16 @@ install-deps:
 check-docs:
 	$(PYTHON) doc-coherence/scripts/check_docs.py
 
+check-subsystem-docs:
+	$(PYTHON) doc-coherence/scripts/check_subsystem_docs.py
+
 check-brief:
 	$(PYTHON) llm-summary/scripts/check_brief.py
 
 test:
 	$(PYTHON) -m pytest arch-coherence/tests doc-coherence/tests llm-summary/tests scripts/tests
 
-check: check-docs test check-brief
+check: check-docs check-subsystem-docs test check-brief
 
 # Remove derived caches/build artifacts only. Never touches the virtualenv
 # (that is the explicit, separate `distclean`) and prunes .git + the venv so
@@ -96,9 +99,10 @@ help:
 	@echo "make expert           - install the optional racecar-expert-mode overlay (skill symlink + CLAUDE.md pointer)"
 	@echo "make expert-uninstall - remove the racecar-expert-mode overlay"
 	@echo "make check-docs       - run the mechanical pre-pass on this repo's own docs"
+	@echo "make check-subsystem-docs - verify every major subsystem in an import-linter layer owns README + CLAUDE"
 	@echo "make check-brief      - validate the racecar-llm-summary brief bundle at docs/<repo>/<REPO>.md"
 	@echo "make test         - run the test suites under each skill"
-	@echo "make check        - run check-docs, test, and check-brief"
+	@echo "make check        - run check-docs, check-subsystem-docs, test, and check-brief"
 	@echo "make clean        - remove caches and build artifacts (never the venv)"
 	@echo "make distclean    - clean + remove the virtualenv"
 	@echo "make obsidian      - list the obsidian sync modes (obsidian-data / obsidian-docs)"
