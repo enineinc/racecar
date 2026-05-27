@@ -37,6 +37,10 @@ Checks performed:
      - §2.4 frontmatter surface keys: any key with >5 entries must be a
        first-class recognized kind (``http_routes``, ``cli_verbs``,
        ``library_exports``, ``webhooks``, ``signals``).
+     - Spine/body agreement: any snapshot SHA restated in the brief's
+       preamble (body text before the first ``## §1`` heading) must match
+       ``target.sha``. Commit SHAs cited in §2.9 design history are out of
+       scope — they are different commits, not the snapshot point.
 
 Discovery:
   - If a path argument is given, it is used directly as the main-brief path.
@@ -484,6 +488,7 @@ REQUIRED_HEADINGS: tuple[tuple[str, int], ...] = (
 
 HEADING_RE = re.compile(r"^(#+)\s+(.+?)\s*$")
 STUB_RE = re.compile(r"^N/A\s+—\s+", re.MULTILINE)
+SHA_IN_TEXT_RE = re.compile(r"`([0-9a-fA-F]{7,40})`")
 
 
 def find_headings(body: str) -> list[tuple[int, int, str, int]]:
@@ -572,6 +577,42 @@ def check_confidence(body: str, f: Findings) -> None:
             f.error(
                 f"body: ## Confidence requires ≥1 'Not in this brief' bullet; found {notin_bullets}"
             )
+
+
+def check_spine_body_consistency(body: str, data: dict | None, f: Findings) -> None:
+    """Snapshot SHA restated in the brief's preamble must match target.sha.
+
+    The "preamble" is body text before the first H2 (``## ``) heading — by
+    convention the only place a brief restates its snapshot point. Commit SHAs
+    cited deep in §2.9 design history are *other* commits and stay out of
+    scope. Mechanizes the spine/body-agreement rule in
+    ``llm-summary/README.md`` (``## Structural budget``).
+    """
+    if not isinstance(data, dict):
+        return
+    target = data.get("target")
+    sha = target.get("sha") if isinstance(target, dict) else None
+    if not isinstance(sha, str) or not sha:
+        return
+    m = re.search(r"^##\s", body, re.MULTILINE)
+    preamble = body[: m.start()] if m else body
+    target_sha = sha.lower()
+    seen: set[str] = set()
+    for match in SHA_IN_TEXT_RE.finditer(preamble):
+        token = match.group(1).lower()
+        if token in seen:
+            continue
+        seen.add(token)
+        if (
+            token == target_sha
+            or token.startswith(target_sha)
+            or target_sha.startswith(token)
+        ):
+            continue
+        f.error(
+            f"body: preamble restates snapshot SHA `{match.group(1)}` which "
+            f"disagrees with frontmatter target.sha '{sha}'"
+        )
 
 
 def count_bullets(text: str) -> int:
@@ -667,6 +708,7 @@ def main(argv: list[str] | None = None) -> int:
     data = validate_frontmatter(frontmatter_text, f)
     check_required_headings(body, f)
     check_confidence(body, f)
+    check_spine_body_consistency(body, data, f)
     if data is not None and isinstance(data.get("bundle"), list):
         bundle = validate_bundle(data["bundle"], f)
         check_bundle_membership(brief_path, bundle, f)

@@ -202,6 +202,7 @@ Required at write-time:
 - §2.4 frontmatter surface kinds: no single kind exceeds 5 entries without being its own first-class key.
 - `## Confidence` present at end of main brief with ≥3 `**Least confident**` bullets and ≥1 `**Not in this brief**` bullet (bolded markers, exact).
 - The `bundle:` frontmatter list names exactly the sibling `.md` files in the bundle directory (no orphans, no missing).
+- Spine/body agreement: any snapshot SHA restated in the brief's preamble (the text before `## §1`) matches `target.sha` in the frontmatter. Commit SHAs cited in §2.9 design history are out of scope — they are different commits, not the snapshot point.
 
 Target size: 400–800 lines per brief (3–6K tokens). The previous reconstruction-grade format produced 900–1400 lines; the trimmed schema (class-level entities, no field tables, narrative §2.5/§2.6) brings the brief back to single-file mobile-shareable scale.
 
