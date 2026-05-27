@@ -64,6 +64,8 @@ POST_HOOK_BASENAME = "claude_racecar_hook.sh"
 PRE_HOOK_BASENAME = "compound-command-allow.sh"
 PRECOMPACT_HOOK_BASENAME = "precompact_history.py"
 SESSIONSTART_HOOK_BASENAME = "session_compact_history.py"
+SESSION_LOAD_HOOK_BASENAME = "session_load_standards.py"
+SESSION_LOAD_MATCHERS = ("startup", "resume", "clear", "compact")
 
 
 # --- CLAUDE.md pointer block -------------------------------------------------
@@ -71,17 +73,22 @@ SESSIONSTART_HOOK_BASENAME = "session_compact_history.py"
 
 def render_block(racecar_root: Path) -> str:
     readme = racecar_root / "README.md"
-    operational = racecar_root / "shared" / "OPERATIONAL.md"
+    shared = racecar_root / "shared"
     return (
         f"{BEGIN_MARKER}\n"
         f"## Standards: racecar\n"
-        f"Load `{readme}` as the resolver for any task involving code review, "
-        f"architectural coherence, documentation drift, or Python/Django "
-        f"engineering hygiene. Read it first to find which component file "
-        f"applies; do not load component files speculatively.\n\n"
-        f"Operational discipline (check before mutate, parallel independent "
-        f"reads, audit before fix, group failure modes, script mechanical "
-        f"changes, test suite is not a debugger): `{operational}`.\n"
+        f"Racecar's baseline is FORCE-LOADED on every SessionStart by the "
+        f"`session_load_standards` hook (wired by `./install` on matchers "
+        f"startup/resume/clear/compact). The baseline is `{readme}` plus "
+        f"every `*.md` under `{shared}` — operational discipline, persona, "
+        f"drift, voice, glossary, ownership, commits, TODO format. Treat "
+        f"the baseline as already loaded in this session; do not Read those "
+        f"files again.\n\n"
+        f"Use `{readme}` as the router for the lens files "
+        f"(`arch-coherence/`, `eng-review/`, `doc-coherence/`, "
+        f"`llm-summary/`). Lenses load ON DEMAND — Read the file the "
+        f"README points to when a task matches its topic; do not load "
+        f"lenses speculatively.\n"
         f"{END_MARKER}\n"
     )
 
@@ -217,12 +224,29 @@ def sync_settings(
         SESSIONSTART_HOOK_BASENAME,
     )
 
+    # SessionStart standards-loader. CLAUDE.md's pointer to racecar's README is
+    # only an instruction; the agent may skip it. This hook inlines README.md +
+    # shared/*.md as additionalContext on every relevant session boundary so
+    # the standards are present whether or not the agent followed the pointer.
+    session_load_command = str(racecar_root / "hooks" / SESSION_LOAD_HOOK_BASENAME)
+    session_load_changed = False
+    for matcher in SESSION_LOAD_MATCHERS:
+        if upsert_hook(
+            settings,
+            "SessionStart",
+            matcher,
+            session_load_command,
+            SESSION_LOAD_HOOK_BASENAME,
+        ):
+            session_load_changed = True
+
     rendered = json.dumps(settings, indent=2) + "\n"
     changed = (
         pre_changed
         or post_changed
         or precompact_changed
         or sessionstart_changed
+        or session_load_changed
         or (rendered != raw)
     )
 

@@ -176,6 +176,49 @@ def test_stale_racecar_hook_path_is_rewritten_in_place(tmp_path: Path) -> None:
     assert all("/old/path/" not in c for c in commands)
 
 
+def test_session_load_standards_hook_wired_on_all_four_matchers(
+    tmp_path: Path,
+) -> None:
+    """The standards-loader SessionStart hook must be present on startup,
+    resume, clear, and compact matchers — that is the contract that makes
+    racecar's README + shared/*.md show up in every session boundary."""
+    claude_md = tmp_path / "CLAUDE.md"
+    settings = tmp_path / "settings.json"
+
+    _run(claude_md, settings)
+
+    parsed = _load_settings(settings)
+    session_start_entries = parsed["hooks"]["SessionStart"]
+    matchers_with_loader = {
+        entry["matcher"]
+        for entry in session_start_entries
+        if any(
+            h["command"].endswith("session_load_standards.py")
+            for h in entry.get("hooks", [])
+        )
+    }
+    assert matchers_with_loader == {"startup", "resume", "clear", "compact"}
+
+
+def test_session_load_and_history_coexist_on_compact_matcher(
+    tmp_path: Path,
+) -> None:
+    """The standards-loader and the HISTORY.md reconciler both live on
+    SessionStart(compact). Neither should evict the other."""
+    claude_md = tmp_path / "CLAUDE.md"
+    settings = tmp_path / "settings.json"
+
+    _run(claude_md, settings)
+
+    parsed = _load_settings(settings)
+    compact_entry = next(
+        m for m in parsed["hooks"]["SessionStart"] if m["matcher"] == "compact"
+    )
+    basenames = {h["command"].rsplit("/", 1)[-1] for h in compact_entry["hooks"]}
+    assert "session_load_standards.py" in basenames
+    assert "session_compact_history.py" in basenames
+
+
 def test_dry_run_does_not_write_disk(tmp_path: Path) -> None:
     claude_md = tmp_path / "CLAUDE.md"
     settings = tmp_path / "settings.json"
