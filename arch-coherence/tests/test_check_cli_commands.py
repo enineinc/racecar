@@ -53,21 +53,29 @@ def _print_commands():
 '''
 
 _MAIN_P2 = '''\
+def parser():
+    p = argparse.ArgumentParser()
+    p.add_argument("--flag", default="")
+    return p
+
+
 def main():
     if not sys.argv[1:]:
         _print_commands()
         return
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--flag", default="")
-    parser.parse_args()
+    parser().parse_args()
 
 '''
 
 _MAIN_P3 = '''\
+def parser():
+    p = argparse.ArgumentParser()
+    p.add_argument("--flag", default="")
+    return p
+
+
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--flag", default="")
-    parser.parse_args()
+    parser().parse_args()
 
 '''
 
@@ -199,14 +207,23 @@ def _build_tree(base: Path, seed: int, faults_pool: list[str] | None = None) -> 
 
 
 def _empty_node(pkg: str, *, orphan: bool) -> dict:
+    # Mirrors check_cli_commands._make_node + _enrich applied with no
+    # parent description. The enriched fields (command, role, description,
+    # args, subcommands) are present on every node post-enrichment; absence
+    # would not match the actual output.
     return {
         "pkg": pkg,
         "kind": "missing",
         "pattern": "unknown",
         "commands": None,
+        "subcommands": None,
         "orphan": orphan,
         "violations": [],
         "children": [],
+        "command": f"python -m {pkg}",
+        "role": "unknown",
+        "description": None,
+        "args": None,
     }
 
 
@@ -216,11 +233,29 @@ _PATTERN_LABEL = {
     "pattern-3": "Pattern 3 (leaf)",
 }
 
+_BRIEF_PATTERN = {
+    "pattern-1": "pure-discovery",
+    "pattern-2": "discovery+cli",
+    "pattern-3": "leaf",
+    "unknown": "unknown",
+}
 
-def _expected_node(spec: NodeSpec, specs: dict[str, NodeSpec], orphan: bool) -> dict:
+
+def _expected_node(
+    spec: NodeSpec,
+    specs: dict[str, NodeSpec],
+    orphan: bool,
+    parent_descriptions: dict[str, str] | None = None,
+) -> dict:
     """Compute the expected audit dict for one node from the spec graph."""
+    leaf_name = spec.pkg.rsplit(".", 1)[-1]
+    parent_desc = (
+        parent_descriptions.get(leaf_name) if parent_descriptions is not None else None
+    )
+
     if spec.fault == "no_main_py":
         node = _empty_node(spec.pkg, orphan=orphan)
+        node["description"] = parent_desc
         node["violations"].append("no __main__.py (not importable as `python -m ...`)")
         # Broken-state descent: every direct sub-package on disk is audited.
         for name in sorted(spec.disk_children):
@@ -231,6 +266,7 @@ def _expected_node(spec: NodeSpec, specs: dict[str, NodeSpec], orphan: bool) -> 
 
     node = _empty_node(spec.pkg, orphan=orphan)
     node["kind"] = "package"
+    node["description"] = parent_desc
 
     if spec.fault == "missing_commands_fn":
         node["violations"].append("missing `commands()` function in __main__.py")
@@ -242,6 +278,15 @@ def _expected_node(spec: NodeSpec, specs: dict[str, NodeSpec], orphan: bool) -> 
 
     node["commands"] = [[n, d] for n, d in spec.commands]
     node["pattern"] = _pattern_name(spec.pattern)
+    node["role"] = _BRIEF_PATTERN[_pattern_name(spec.pattern)]
+    # Pattern 1 has no main()/no parser() → args stays None.
+    # Patterns 2 and 3 in the fixture expose `parser()` returning a parser
+    # with one `--flag` arg (default=""). The audit introspects it and
+    # populates `args` with that single entry.
+    if spec.pattern in (2, 3):
+        node["args"] = [
+            {"dest": "flag", "flags": ["--flag"], "default": ""}
+        ]
 
     # At this point we know: correct or desc_mismatch. Both have commands(),
     # both have the right pattern-identifying symbols.
@@ -254,15 +299,20 @@ def _expected_node(spec: NodeSpec, specs: dict[str, NodeSpec], orphan: bool) -> 
                 f"commands()={desc!r}, printed={printed_desc!r}"
             )
 
-    # Registered children recursion.
+    # Registered children recursion. Pass own commands() as the
+    # parent_descriptions so children get their description field populated.
+    own_descriptions = {n: d for n, d in spec.commands}
     registered = set()
     for name, _desc in spec.commands:
         registered.add(name)
         child_spec = specs[f"{spec.pkg}.{name}"]
-        node["children"].append(_expected_node(child_spec, specs, orphan=False))
+        node["children"].append(
+            _expected_node(child_spec, specs, orphan=False, parent_descriptions=own_descriptions)
+        )
 
     # Orphan scan: any disk_child with a __main__.py (fault != no_main_py) and
-    # not registered. Alphabetical order.
+    # not registered. Alphabetical order. Orphan children have no description
+    # in the parent's commands() (that's what makes them orphan).
     orphan_names = sorted(
         name
         for name in spec.disk_children
@@ -277,13 +327,16 @@ def _expected_node(spec: NodeSpec, specs: dict[str, NodeSpec], orphan: bool) -> 
             f"§3 orphan sub-package CLI: `{child_pkg}` has __main__.py "
             f"but is not in parent's commands()"
         )
-        node["children"].append(_expected_node(child_spec, specs, orphan=True))
+        node["children"].append(
+            _expected_node(child_spec, specs, orphan=True, parent_descriptions=None)
+        )
 
     return node
 
 
 def _expected_tree(specs: dict[str, NodeSpec]) -> dict:
-    return _expected_node(specs["fubar"], specs, orphan=False)
+    # Top-level root has no parent → description stays None.
+    return _expected_node(specs["fubar"], specs, orphan=False, parent_descriptions=None)
 
 
 # ---------- runner ------------------------------------------------------ #
@@ -383,6 +436,60 @@ def test_broken_root_still_descends(tmp_path: Path) -> None:
     assert "fubar.foo.date" in foo_child_pkgs  # the orphan
 
     assert rc == 1  # root is broken → non-zero exit
+
+
+def test_silent_omission_of_parser_factory(tmp_path: Path) -> None:
+    """A Pattern 3 leaf that constructs argparse.ArgumentParser inline in
+    main() — without exposing a parser() factory — is a silent omission of
+    the parser-factory contract. The AST scan must catch it."""
+    pkg = tmp_path / "fubar"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text("")
+    (pkg / "__main__.py").write_text(
+        "import argparse\n"
+        "def commands(): return []\n"
+        "def main():\n"
+        "    p = argparse.ArgumentParser()\n"
+        "    p.add_argument('--flag', default='')\n"
+        "    p.parse_args()\n"
+        'if __name__ == "__main__":\n'
+        "    main()\n"
+    )
+    rc, actual = _run_json(tmp_path)
+    assert rc == 1, "audit should exit non-zero when a silent omission is detected"
+    violations = actual["violations"]
+    assert any(
+        "no `parser()` factory is exposed" in v for v in violations
+    ), f"expected parser-factory omission violation; got {violations!r}"
+
+
+def test_silent_omission_of_subcommands(tmp_path: Path) -> None:
+    """A Pattern 3 leaf that uses add_subparsers() without declaring
+    subcommands() is also a silent omission — distinct from the parser()
+    factory omission; both can fire independently."""
+    pkg = tmp_path / "fubar"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text("")
+    (pkg / "__main__.py").write_text(
+        "import argparse\n"
+        "def commands(): return []\n"
+        "def parser():\n"
+        "    p = argparse.ArgumentParser()\n"
+        "    sub = p.add_subparsers(dest='action', required=True)\n"
+        "    sub.add_parser('sync', help='sync stuff')\n"
+        "    sub.add_parser('status', help='status stuff')\n"
+        "    return p\n"
+        "def main():\n"
+        "    parser().parse_args()\n"
+        'if __name__ == "__main__":\n'
+        "    main()\n"
+    )
+    rc, actual = _run_json(tmp_path)
+    assert rc == 1, "audit should exit non-zero when subcommands() is omitted"
+    violations = actual["violations"]
+    assert any(
+        "no `subcommands()` declared" in v for v in violations
+    ), f"expected subcommands omission violation; got {violations!r}"
 
 
 def test_importable_api(tmp_path: Path) -> None:

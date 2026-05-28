@@ -219,6 +219,49 @@ def test_session_load_and_history_coexist_on_compact_matcher(
     assert "session_compact_history.py" in basenames
 
 
+def test_session_discover_cli_hook_wired_on_all_four_matchers(
+    tmp_path: Path,
+) -> None:
+    """The CLI-discovery SessionStart hook must be present on startup,
+    resume, clear, and compact matchers — same coverage as the standards
+    loader, so the audit tree is re-injected after /clear and compaction."""
+    claude_md = tmp_path / "CLAUDE.md"
+    settings = tmp_path / "settings.json"
+
+    _run(claude_md, settings)
+
+    parsed = _load_settings(settings)
+    session_start_entries = parsed["hooks"]["SessionStart"]
+    matchers_with_discover = {
+        entry["matcher"]
+        for entry in session_start_entries
+        if any(
+            h["command"].endswith("session_discover_cli.py")
+            for h in entry.get("hooks", [])
+        )
+    }
+    assert matchers_with_discover == {"startup", "resume", "clear", "compact"}
+
+
+def test_session_load_and_discover_coexist(tmp_path: Path) -> None:
+    """Both SessionStart hooks must coexist on every shared matcher —
+    one loads standards, the other injects the CLI audit. Neither
+    evicts the other when both target the same matcher."""
+    claude_md = tmp_path / "CLAUDE.md"
+    settings = tmp_path / "settings.json"
+
+    _run(claude_md, settings)
+
+    parsed = _load_settings(settings)
+    for matcher_name in ("startup", "resume", "clear", "compact"):
+        entry = next(
+            m for m in parsed["hooks"]["SessionStart"] if m["matcher"] == matcher_name
+        )
+        basenames = {h["command"].rsplit("/", 1)[-1] for h in entry["hooks"]}
+        assert "session_load_standards.py" in basenames, matcher_name
+        assert "session_discover_cli.py" in basenames, matcher_name
+
+
 def test_dry_run_does_not_write_disk(tmp_path: Path) -> None:
     claude_md = tmp_path / "CLAUDE.md"
     settings = tmp_path / "settings.json"

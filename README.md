@@ -11,6 +11,9 @@ Load: [arch-coherence/README.md](arch-coherence/README.md)
 Topic: Python architectural coherence — language-specific rules and enforcement
 Load: [arch-coherence/PYTHON.md](arch-coherence/PYTHON.md)
 
+Topic: CLI surface — `__main__.py` patterns, `commands()` / `subcommands()` / `parser()` contracts, audit JSON schema
+Load: [arch-coherence/CLI.md](arch-coherence/CLI.md)
+
 Topic: Django architectural coherence — framework-specific rules
 Load: [arch-coherence/DJANGO.md](arch-coherence/DJANGO.md)
 

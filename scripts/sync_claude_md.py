@@ -5,8 +5,8 @@ Two idempotent operations against `~/.claude/`:
 
 1. Pointer block in `~/.claude/CLAUDE.md` — a managed `<!-- BEGIN/END
    racecar pointer -->` block that points the agent at this checkout.
-2. Hooks in `~/.claude/settings.json` — four, wired to absolute paths
-   inside this checkout:
+2. Hooks in `~/.claude/settings.json`, wired to absolute paths inside
+   this checkout:
      - `PreToolUse` Bash  → `hooks/compound-command-allow.sh`
      - `PostToolUse` Read → `hooks/claude_racecar_hook.sh`
      - `PreCompact` (matcher "" = manual+auto) → `hooks/precompact_history.py`
@@ -14,8 +14,15 @@ Two idempotent operations against `~/.claude/`:
      - `SessionStart` (matcher "compact") → `hooks/session_compact_history.py`
        (prompts the agent to reconcile <repo>/.claude/HISTORY.md from the
        transcript after compaction)
-   The two decision-log hooks no-op unless the project has a
-   `.claude/HISTORY.md`.
+     - `SessionStart` (matchers startup/resume/clear/compact) →
+       `hooks/session_load_standards.py` (force-loads README + shared/*.md)
+     - `SessionStart` (matchers startup/resume/clear/compact) →
+       `hooks/session_discover_cli.py` (runs check_cli_commands.py --json
+       on the consuming repo and injects the audit tree as
+       additionalContext)
+   The decision-log hooks no-op unless the project has a
+   `.claude/HISTORY.md`. The discovery hook no-ops unless the project has
+   a pyproject.toml with `[project].name`.
 
 Every run rewrites both in place. Designed to be invoked manually
 (Makefile) or automatically (Claude Code PostToolUse hook on Read of
@@ -65,6 +72,7 @@ PRE_HOOK_BASENAME = "compound-command-allow.sh"
 PRECOMPACT_HOOK_BASENAME = "precompact_history.py"
 SESSIONSTART_HOOK_BASENAME = "session_compact_history.py"
 SESSION_LOAD_HOOK_BASENAME = "session_load_standards.py"
+SESSION_DISCOVER_HOOK_BASENAME = "session_discover_cli.py"
 SESSION_LOAD_MATCHERS = ("startup", "resume", "clear", "compact")
 
 
@@ -240,6 +248,26 @@ def sync_settings(
         ):
             session_load_changed = True
 
+    # SessionStart CLI-discovery hook. Runs check_cli_commands.py --json
+    # against the consuming repo and injects the audit tree as
+    # additionalContext, so agents land in a repo already knowing its
+    # `python -m <pkg>` surface. Same four matchers as the standards
+    # loader — startup, resume, clear, compact — so the snapshot is
+    # re-injected after /clear and auto-compaction.
+    session_discover_command = str(
+        racecar_root / "hooks" / SESSION_DISCOVER_HOOK_BASENAME
+    )
+    session_discover_changed = False
+    for matcher in SESSION_LOAD_MATCHERS:
+        if upsert_hook(
+            settings,
+            "SessionStart",
+            matcher,
+            session_discover_command,
+            SESSION_DISCOVER_HOOK_BASENAME,
+        ):
+            session_discover_changed = True
+
     rendered = json.dumps(settings, indent=2) + "\n"
     changed = (
         pre_changed
@@ -247,6 +275,7 @@ def sync_settings(
         or precompact_changed
         or sessionstart_changed
         or session_load_changed
+        or session_discover_changed
         or (rendered != raw)
     )
 

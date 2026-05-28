@@ -26,7 +26,7 @@ A short routing table that points a reader to the file handling a given topic. A
 
 ## Depth-plus-one isolation
 
-A layer describes only what it directly contains (immediate children), never its grandchildren. Each layer owns its own listing; renaming a grandchild should not require edits in a grandparent. See [arch-coherence "Depth-plus-one isolation"](../arch-coherence/README.md#4-depth-plus-one-isolation) and [arch-coherence/PYTHON.md §3 CLI](../arch-coherence/PYTHON.md#3-cli).
+A layer describes only what it directly contains (immediate children), never its grandchildren. Each layer owns its own listing; renaming a grandchild should not require edits in a grandparent. See [arch-coherence "Depth-plus-one isolation"](../arch-coherence/README.md#4-depth-plus-one-isolation) and [arch-coherence/CLI.md](../arch-coherence/CLI.md).
 
 ## Outward-downward
 

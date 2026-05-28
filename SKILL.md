@@ -9,7 +9,7 @@ This skill is a routing table, not content. Load [`README.md`](README.md) for th
 
 The three lenses, each its own skill:
 
-- **racecar-arch-coherence** → [`arch-coherence/README.md`](arch-coherence/README.md). four architectural checks (acyclicity; direction with env-layer exception; layer integrity with domain boundaries; depth-plus-one) plus the reviewer-facing companion to `import-linter`. Per-language specifics in [`arch-coherence/PYTHON.md`](arch-coherence/PYTHON.md) and [`arch-coherence/DJANGO.md`](arch-coherence/DJANGO.md).
+- **racecar-arch-coherence** → [`arch-coherence/README.md`](arch-coherence/README.md). four architectural checks (acyclicity; direction with env-layer exception; layer integrity with domain boundaries; depth-plus-one) plus the reviewer-facing companion to `import-linter`. Per-language specifics in [`arch-coherence/PYTHON.md`](arch-coherence/PYTHON.md), the CLI contract in [`arch-coherence/CLI.md`](arch-coherence/CLI.md), Django in [`arch-coherence/DJANGO.md`](arch-coherence/DJANGO.md).
 - **racecar-doc-coherence** → [`doc-coherence/README.md`](doc-coherence/README.md). Doc update protocol + review lens + mechanical pre-pass.
 - **racecar-eng-review** → [`eng-review/README.md`](eng-review/README.md). Three-phase wrapper: racecar pre-pass → gstack `/plan-eng-review` → racecar post-pass against Python/Django hygiene. Per-language specifics in [`eng-review/PYTHON.md`](eng-review/PYTHON.md) and [`eng-review/DJANGO.md`](eng-review/DJANGO.md).
 

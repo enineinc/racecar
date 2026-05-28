@@ -2,7 +2,7 @@
 
 Accessed via [`README.md`](README.md). If you arrived here directly, read that first.
 
-Python-specific engineering hygiene — naming, formatting, testing, linting workflow, and the Definition of Done. For Python architectural coherence (module structure, imports, CLI, enforcement), see [`../arch-coherence/PYTHON.md`](../arch-coherence/PYTHON.md). For Django-specific hygiene, see [`DJANGO.md`](DJANGO.md).
+Python-specific engineering hygiene — naming, formatting, testing, linting workflow, and the Definition of Done. For Python architectural coherence (module structure, imports, enforcement), see [`../arch-coherence/PYTHON.md`](../arch-coherence/PYTHON.md); for the CLI contract specifically, see [`../arch-coherence/CLI.md`](../arch-coherence/CLI.md). For Django-specific hygiene, see [`DJANGO.md`](DJANGO.md).
 
 Sections are ordered as a DAG — most independent first, most dependent last.
 
@@ -75,4 +75,4 @@ After modifying code, verify:
    - Ruff variant: `ruff check src/` passes. Django projects additionally require `pylint --load-plugins pylint_django` — see [`DJANGO.md` §3](DJANGO.md#3-linting).
    - Classic variant: `pylint src/` passes.
 3. Test suite passes with 0 regressions.
-4. No `print()` statements in business logic. `print()` is permitted only in CLI entry files (`__main__.py`) via `_print_commands()` (Patterns 1 & 2) or `argparse` output (Pattern 3) — see [`../arch-coherence/PYTHON.md` §3 CLI](../arch-coherence/PYTHON.md#3-cli). No temporary `TODO`s remain.
+4. No `print()` statements in business logic. `print()` is permitted only in CLI entry files (`__main__.py`) via `_print_commands()` (Patterns 1 & 2) or `argparse` output (Pattern 3) — see [`../arch-coherence/CLI.md`](../arch-coherence/CLI.md). No temporary `TODO`s remain.

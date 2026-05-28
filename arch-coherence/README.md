@@ -8,7 +8,7 @@ These axioms assume a single rooted package tree. Multi-root monorepos are not a
 
 Pair with [eng-review](../eng-review/README.md) for software-engineering hygiene and [doc-coherence](../doc-coherence/README.md) for prose, cross-references, and file naming.
 
-For language-specific coherence, see [PYTHON.md](PYTHON.md) (module structure, imports, CLI, enforcement) and [DJANGO.md](DJANGO.md) (service layer, view layering).
+For language-specific coherence, see [PYTHON.md](PYTHON.md) (module structure, imports, enforcement) and [DJANGO.md](DJANGO.md) (service layer, view layering). The CLI contract — `__main__.py` patterns plus `commands()` / `subcommands()` / `parser()` plus audit JSON schema — has its own document: [CLI.md](CLI.md).
 
 ## How to use this file
 
