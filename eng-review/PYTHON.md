@@ -25,17 +25,10 @@ What things are called. Independent of structure and tooling. "Names describe fu
 
 ## 3. Formatting
 
-Tool-enforced style. Independent of architecture. Two variants; pick one per project.
+Tool-enforced style. Independent of architecture. The racecar tool set is black + isort + pylint — see [`../arch-coherence/PACKAGING.md`](../arch-coherence/PACKAGING.md) for the full canon and the OSS-governance rule (PSF/PyPA + community, no VC-backed tooling) that keeps ruff out of the standard.
 
-**Ruff variant** (recommended for new projects):
-- **Formatter is canonical.** `ruff format` is enforced (black-compatible output). No manual style overrides.
-- **Import ordering.** `ruff check` enforces stdlib → third-party → local via the `I` rule in the template's selected set. See [templates/ruff/pyproject.toml](../templates/ruff/pyproject.toml) for the full rule selection.
-
-**Classic variant:**
-- **Formatter is canonical.** `black` formatting is enforced.
-- **Import ordering.** `isort` groups: stdlib → third-party → local.
-
-Both variants:
+- **Formatter is canonical.** `black` formatting is enforced. No manual style overrides.
+- **Import ordering.** `isort` groups: stdlib → third-party → local. isort runs before black — ordering precedes formatting.
 - **Strings.** Use f-strings. No `%` or `.format()`.
 
 ## 4. Testing
@@ -47,10 +40,8 @@ Both variants:
 Final gate. Depends on everything above being correct. The linters configured here also enforce the architectural rules described in [`../arch-coherence/PYTHON.md` §4 Enforcement](../arch-coherence/PYTHON.md#4-enforcement); this section covers the workflow hygiene around running them and triaging output.
 
 - **Full-codebase scope.** Lint the entire project. Partial-set linting is not acceptable.
-- **Linter returns clean output.**
-  - Ruff variant: `ruff check` returns clean. Django projects additionally require `pylint --load-plugins pylint_django` — see [`DJANGO.md` §3](DJANGO.md#3-linting).
-  - Classic variant: `pylint` returns clean.
-- **No inline suppressions.** Neither `# noqa` (ruff/flake8), `# ruff: noqa`, `# pylint: disable=` (classic), nor `# fmt: off` / `# fmt: on` are acceptable. If the linter or formatter flags a problem, fix the code, not the suppression.
+- **Linter returns clean output.** `pylint` returns clean. Django projects additionally require `pylint --load-plugins pylint_django` — see [`DJANGO.md` §3](DJANGO.md#3-linting).
+- **No inline suppressions.** Neither `# pylint: disable=` nor `# fmt: off` / `# fmt: on` are acceptable. If the linter or formatter flags a problem, fix the code, not the suppression.
 
 When clearing existing pylint findings on a dirty codebase, the order of attack matters. Two phases:
 
@@ -62,17 +53,11 @@ Auto-fix `I` → `C` → mechanical-`W` (`unused-import`, `unused-variable`). Re
 
 `R` first — refactor findings (`too-many-branches`, `too-many-locals`, `duplicate-code`) reshape the code, so chasing `E`/`F` in pre-refactor structure wastes work or lands the fix in the wrong place. Then `E`, `F`, and judgment-heavy `W` (`broad-except`, `logging-fstring-interpolation`, `protected-access`) — these need intent the machine can draft but not ratify alone.
 
-**Ruff variant.** Same machine-vs-collaborative split, but the cut runs along whether the fix is mechanical or design-shaped — ruff has no five-letter category taxonomy to anchor on.
-
 ## 6. Definition of Done
 
 After modifying code, verify:
 
-1. **Format + safe fixes.**
-   - Ruff variant: `ruff check --fix src/` then `ruff format src/`.
-   - Classic variant: `isort src/` then `black src/`.
-2. **Lint clean.**
-   - Ruff variant: `ruff check src/` passes. Django projects additionally require `pylint --load-plugins pylint_django` — see [`DJANGO.md` §3](DJANGO.md#3-linting).
-   - Classic variant: `pylint src/` passes.
+1. **Format + safe fixes.** `isort src/` then `black src/` (isort orders imports, then black formats).
+2. **Lint clean.** `pylint src/` passes. Django projects additionally require `pylint --load-plugins pylint_django` — see [`DJANGO.md` §3](DJANGO.md#3-linting).
 3. Test suite passes with 0 regressions.
 4. No `print()` statements in business logic. `print()` is permitted only in CLI entry files (`__main__.py`) via `_print_commands()` (Patterns 1 & 2) or `argparse` output (Pattern 3) — see [`../arch-coherence/CLI.md`](../arch-coherence/CLI.md). No temporary `TODO`s remain.

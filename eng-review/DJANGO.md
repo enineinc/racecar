@@ -21,16 +21,15 @@ Cross-cutting concern.
 
 ## 3. Linting
 
-Ruff's `PL` rules cover the structural and logic portions of pylint, but ruff has no Django-aware rules. `pylint-django` fills that gap: it understands model fields, queryset types, and `get_user_model()` — things ruff cannot infer without a Django runtime.
+`pylint` is the racecar linter (see [`PYTHON.md` §3](PYTHON.md#3-formatting)), but it has no Django-aware rules out of the box. `pylint-django` fills that gap: it understands model fields, queryset types, and `get_user_model()` — things a plain linter cannot infer without a Django runtime.
 
-**Django projects on the ruff variant must run both:**
+**Django projects must load it:**
 
 ```
-ruff check src/          # structural + logic
-pylint --load-plugins pylint_django src/   # Django-specific
+pylint --load-plugins pylint_django src/
 ```
 
-Add to `pyproject.toml`:
+Add to the library pyproject:
 
 ```toml
 [tool.pylint.main]
@@ -41,4 +40,4 @@ load-plugins = ["pylint_django"]
 # disable = []
 ```
 
-The Definition of Done in [`PYTHON.md` §6](PYTHON.md#6-definition-of-done) covers the general ruff gate; this is an additional gate for Django projects only.
+The Definition of Done in [`PYTHON.md` §6](PYTHON.md#6-definition-of-done) covers the general lint gate; the `pylint-django` plugin is an additional requirement for Django projects only.

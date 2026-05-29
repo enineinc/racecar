@@ -48,23 +48,16 @@ Five tools enforce the coherence rules:
 
 For linter configuration and workflow (formatter-as-canonical, no inline suppressions, full-codebase scope), see [`../eng-review/PYTHON.md` §5 Linting & Verification](../eng-review/PYTHON.md#5-linting-verification).
 
-Templates live in [`../templates/`](../templates/). To adopt on a new project:
+Templates live in [`../templates/classic/`](../templates/classic/) — a single canonical set (black + isort + pylint; no ruff). The project shapes, the full file inventory (`library-pyproject.toml`, `djapp-pyproject.toml`, `Makefile`, `pre-commit-config.yaml`, `gitignore`), and the copy-and-substitute procedure live in [`PACKAGING.md`](PACKAGING.md). The arch-coherence-specific steps on top of that procedure are:
 
-1. Pick a variant under `../templates/`:
-   - `ruff/` (recommended for new projects — ruff for lint, black for format)
-   - `classic/` (black + isort + pylint)
-2. Copy all blocks from the chosen variant's `pyproject.toml` into your project's `pyproject.toml` (merge into an existing file if present). Skip blocks that don't apply (e.g. `[tool.mypy]` if you don't type-check).
-3. Copy the chosen variant's `pre-commit-config.yaml` to your project root as `.pre-commit-config.yaml` (add the leading dot on copy).
-4. Copy the chosen variant's `Makefile` to your project root.
-5. Copy the check scripts into your project's `scripts/` directory (shared across both variants):
+1. Copy the check scripts into your project's `scripts/` directory:
    - `arch-coherence/scripts/check_upward_imports.py`
    - `arch-coherence/scripts/check_cli_commands.py`
+   - `arch-coherence/scripts/check_packaging.py` (also imported by `check_upward_imports.py` for shape detection)
    - `arch-coherence/scripts/check_string_relations.py` (Django projects; skipped at runtime otherwise)
    - `doc-coherence/scripts/check_docs.py`
-6. Replace `<root>` with your top-level package name, and fill the layer rows with your own packages.
-7. Install and enable:
-   - Ruff variant: `pip install pre-commit ruff black mypy import-linter pytest && pre-commit install`
-   - Classic variant: `pip install pre-commit black isort pylint mypy import-linter pytest && pre-commit install`
+2. In the library pyproject's `[tool.importlinter]`, replace `<root>` with your top-level package name and fill the layer rows with your own packages.
+3. `pre-commit install` to enable the hooks.
 
 ### Bumping pinned versions
 
@@ -97,4 +90,4 @@ After editing the contract, run `lint-imports`. Output should be `Contracts: N k
 
 ### Template updates
 
-`../templates/` is the canonical source. When the templates evolve (new pinned versions, new custom checks), consumer projects pull changes in by manually re-copying. `diff -u ../templates/<variant>/pre-commit-config.yaml .pre-commit-config.yaml` (where `<variant>` is `ruff` or `classic`) shows drift; merge intentionally.
+`../templates/classic/` is the canonical source. When the templates evolve (new pinned versions, new custom checks), consumer projects pull changes in by manually re-copying. `diff -u ../templates/classic/pre-commit-config.yaml .pre-commit-config.yaml` shows drift; merge intentionally.
