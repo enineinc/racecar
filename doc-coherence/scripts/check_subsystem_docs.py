@@ -45,8 +45,9 @@ from __future__ import annotations
 import argparse
 import re
 import sys
-import tomllib
 from pathlib import Path
+
+from check_docs import load_project_pyproject
 
 DEFAULT_LOC_THRESHOLD = 1000
 DEFAULT_EXCLUDE: tuple[str, ...] = ("tests", "migrations", "__pycache__")
@@ -68,13 +69,16 @@ def find_repo_root(start: Path | None = None) -> Path:
 
 
 def read_pyproject(repo_root: Path) -> dict:
-    py = repo_root / "pyproject.toml"
-    if not py.is_file():
-        return {}
-    try:
-        return tomllib.loads(py.read_text(encoding="utf-8"))
-    except (tomllib.TOMLDecodeError, OSError):
-        return {}
+    """Locate and parse the project's pyproject via the shared two-home probe.
+
+    Delegates to :func:`check_docs.load_project_pyproject`, which reads the root
+    ``pyproject.toml`` (shapes ``src`` / ``djapp``) or, failing that, the library
+    pyproject at ``pypkg/src/pyproject.toml`` (shapes ``pypkg`` /
+    ``pypkg+djapp``). This makes the ``[tool.importlinter]`` contracts and
+    ``[tool.racecar.subsystem-docs]`` config discoverable for all shapes, not
+    just the single-root ones.
+    """
+    return load_project_pyproject(repo_root)
 
 
 def importlinter_packages(pyproject: dict) -> list[str]:

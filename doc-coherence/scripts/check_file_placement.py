@@ -29,6 +29,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+from check_docs import ignore_patterns
+
 ROOT_ALLOWED = {"README.md", "CLAUDE.md", "PLAN.md", "TODO.md", "CHANGELOG.md"}
 SUBDIR_ALLOWED = {"README.md", "CLAUDE.md"}
 
@@ -42,6 +44,11 @@ def _find_repo_root() -> Path:
 
 
 REPO_ROOT = _find_repo_root()
+
+# Same `[tool.pylint.MASTER].ignore-paths` patterns check_docs honors, so a repo
+# can scope out a data/ payload tree of markdown with one ignore-paths
+# declaration that also covers pylint and check_docs.
+IGNORE_PATTERNS = ignore_patterns(REPO_ROOT)
 
 
 class Finding:
@@ -58,6 +65,8 @@ def _markdown_files() -> list[Path]:
     for p in sorted(REPO_ROOT.rglob("*.md")):
         rel = p.relative_to(REPO_ROOT)
         if any(part.startswith(".") for part in rel.parts):
+            continue
+        if any(pat.search(rel.as_posix()) for pat in IGNORE_PATTERNS):
             continue
         out.append(p)
     return out

@@ -165,6 +165,43 @@ def test_small_leaf_dir_is_skipped(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stdout
 
 
+def test_contracts_in_pypkg_src_pyproject_are_found(tmp_path: Path) -> None:
+    """Shape pypkg / pypkg+djapp: the library pyproject lives at
+    pypkg/src/pyproject.toml with NO root pyproject. The shared two-home probe
+    must find its [tool.importlinter] contracts so subsystems are validated.
+
+    The package resolves via the pypkg/src/<pkg> shape branch in
+    resolve_package_dirs. A missing CLAUDE.md must be caught -- proving the
+    contracts were actually read and acted on, not silently ignored.
+    """
+    repo = _seed_repo(tmp_path)
+    (repo / "pypkg" / "src").mkdir(parents=True)
+    (repo / "pypkg" / "src" / "pyproject.toml").write_text(
+        PYPROJECT_TEMPLATE, encoding="utf-8"
+    )
+    # Package + layers under pypkg/src/<pkg>/...
+    base = repo / "pypkg" / "src" / "fake"
+    base.mkdir()
+    (base / "__init__.py").write_text("", encoding="utf-8")
+    (base / "core").mkdir()
+    (base / "core" / "inner").mkdir()
+    (base / "core" / "inner" / "mod.py").write_text("y = 1\n", encoding="utf-8")
+    (base / "cli").mkdir()
+    (base / "cli" / "__init__.py").write_text(
+        "\n".join(f"x = {i}" for i in range(8)) + "\n", encoding="utf-8"
+    )
+    for sub in ("", "core", "core/inner", "cli"):
+        d = base / sub if sub else base
+        _write_doc(d / "README.md")
+        _write_doc(d / "CLAUDE.md")
+    # Remove one CLAUDE.md: the check must fire, proving contracts were found.
+    (base / "cli" / "CLAUDE.md").unlink()
+    result = _run(repo)
+    assert result.returncode == 1, result.stdout
+    assert "missing" in result.stdout
+    assert "cli/CLAUDE.md" in result.stdout
+
+
 def test_unresolvable_package_emits_info(tmp_path: Path) -> None:
     """A contract pointing at a non-existent package exits 0 with info."""
     repo = _seed_repo(tmp_path)

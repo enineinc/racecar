@@ -1026,6 +1026,18 @@ def run_all(root: Path) -> list[Finding]:
 
     if shape.djapp_pyproject is not None:
         findings.extend(check_djapp_pyproject(root, shape.djapp_pyproject))
+    elif shape.name == "pypkg+djapp":
+        # Shape detected via djapp/manage.py, but djapp/pyproject.toml is absent.
+        # Without it the djapp runtime deps have no canonical home -- a false
+        # green if left unflagged (run_all would simply skip djapp validation).
+        findings.append(
+            Finding(
+                "Blocker",
+                "djapp/pyproject.toml",
+                "missing-file",
+                "required for shape pypkg+djapp: PEP 735 [dependency-groups].runtime, no [project]",
+            )
+        )
 
     findings.extend(check_legacy_version_file(root, has_canonical_version=has_canonical_version))
     findings.extend(check_requirements(root, shape))

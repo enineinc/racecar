@@ -68,30 +68,60 @@ REPO_ROOT = _find_repo_root()
 PYPROJECT_CANDIDATES = ("pyproject.toml", "pypkg/src/pyproject.toml")
 
 
-def _ignore_patterns() -> tuple[re.Pattern[str], ...]:
+def project_pyproject_path(repo_root: Path | None = None) -> Path | None:
+    """Return the project's pyproject.toml path, or None if neither home exists.
+
+    Probes the two known homes in :data:`PYPROJECT_CANDIDATES` order: the repo
+    root (shapes ``src`` / ``djapp``), else ``pypkg/src/pyproject.toml`` (shapes
+    ``pypkg`` / ``pypkg+djapp``). First existing file wins.
+
+    Shared, reusable across the doc-coherence checkers (and importable by
+    sibling scripts) so the two-home probe lives in exactly one place.
+    """
+    root = repo_root if repo_root is not None else REPO_ROOT
+    for candidate in PYPROJECT_CANDIDATES:
+        pyproject = root / candidate
+        if pyproject.is_file():
+            return pyproject
+    return None
+
+
+def load_project_pyproject(repo_root: Path | None = None) -> dict:
+    """Parse and return the project's pyproject.toml as a dict.
+
+    Locates the file via :func:`project_pyproject_path` (the shared two-home
+    probe). Returns ``{}`` when no pyproject exists or it cannot be parsed.
+    """
+    pyproject = project_pyproject_path(repo_root)
+    if pyproject is None:
+        return {}
+    try:
+        return tomllib.loads(pyproject.read_text(encoding="utf-8"))
+    except (tomllib.TOMLDecodeError, OSError):
+        return {}
+
+
+def ignore_patterns(repo_root: Path | None = None) -> tuple[re.Pattern[str], ...]:
     """Repo-relative regex patterns to skip.
 
     Honors ``[tool.pylint.MASTER].ignore-paths`` in the project's
     ``pyproject.toml`` so the script doesn't drown the report in vendored
     third-party drift the project has already declared out-of-scope. Reads the
     root ``pyproject.toml`` if present, else falls back to the library pyproject
-    at ``pypkg/src/pyproject.toml`` (shapes ``pypkg`` / ``pypkg+djapp``). No
-    pyproject / no key -> empty tuple.
+    at ``pypkg/src/pyproject.toml`` (shapes ``pypkg`` / ``pypkg+djapp``) via the
+    shared two-home probe. No pyproject / no key -> empty tuple.
+
+    Shared, reusable across the doc-coherence checkers so the ignore-paths
+    reader lives in exactly one place.
     """
-    for candidate in PYPROJECT_CANDIDATES:
-        pyproject = REPO_ROOT / candidate
-        if not pyproject.is_file():
-            continue
-        try:
-            data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
-        except (tomllib.TOMLDecodeError, OSError):
-            return ()
-        raw = data.get("tool", {}).get("pylint", {}).get("MASTER", {}).get("ignore-paths", [])
-        return tuple(re.compile(p) for p in raw if isinstance(p, str))
-    return ()
+    data = load_project_pyproject(repo_root)
+    if not data:
+        return ()
+    raw = data.get("tool", {}).get("pylint", {}).get("MASTER", {}).get("ignore-paths", [])
+    return tuple(re.compile(p) for p in raw if isinstance(p, str))
 
 
-IGNORE_PATTERNS = _ignore_patterns()
+IGNORE_PATTERNS = ignore_patterns()
 
 # Search order when a `FILENAME.md §N` citation carries no directory prefix.
 # First match wins; cite with a prefix (`<dir>/FILENAME.md §N`) to target a

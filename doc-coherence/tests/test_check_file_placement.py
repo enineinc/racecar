@@ -61,3 +61,30 @@ def test_claude_without_readme_fails(tmp_path: Path) -> None:
 def test_docs_dir_allows_any_markdown(tmp_path: Path) -> None:
     repo = _seed(tmp_path, "README.md", "docs/ANYTHING.md", "docs/sub/MORE.md")
     assert _run(repo).returncode == 0
+
+
+def test_ignore_paths_excludes_data_tree(tmp_path: Path) -> None:
+    """A data/ payload tree of markdown scoped out via
+    [tool.pylint.MASTER].ignore-paths (the same key check_docs honors) must not
+    be flagged as misplaced docs. Without the ignore-paths declaration those
+    same files are flagged -- proving the skip is doing the work."""
+    repo = _seed(
+        tmp_path,
+        "README.md",
+        "data/taxonomy/animals.md",
+        "data/taxonomy/plants/ferns.md",
+    )
+    # First, with no ignore-paths: the data/ markdown is flagged.
+    before = _run(repo)
+    assert before.returncode == 1, before.stdout
+    assert "data/taxonomy/animals.md" in before.stdout
+
+    # Now declare the data/ tree out of scope via ignore-paths.
+    (repo / "pyproject.toml").write_text(
+        "[tool.pylint.MASTER]\n"
+        'ignore-paths = ["^data/.*"]\n',
+        encoding="utf-8",
+    )
+    after = _run(repo)
+    assert after.returncode == 0, after.stdout
+    assert "data/" not in after.stdout

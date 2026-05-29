@@ -359,6 +359,18 @@ def test_djapp_missing_runtime_group_is_blocker(tmp_path: Path) -> None:
     assert "[dependency-groups].runtime" in result.stdout
 
 
+def test_pypkg_djapp_missing_djapp_pyproject_is_blocker(tmp_path: Path) -> None:
+    """Shape pypkg+djapp detected via djapp/manage.py but djapp/pyproject.toml
+    absent: the djapp runtime deps have no canonical home. Must Blocker, not
+    silently skip djapp validation (the false-green the audit surfaced)."""
+    repo = _seed_pypkg_djapp(tmp_path, **{"djapp/pyproject.toml": None})  # type: ignore[arg-type]
+    result = _run(repo)
+    assert result.returncode == 1, (result.stdout, result.stderr)
+    assert "djapp/pyproject.toml" in result.stdout
+    assert "missing-file" in result.stdout
+    assert "pypkg+djapp" in result.stdout
+
+
 def test_djapp_with_project_block_is_finding(tmp_path: Path) -> None:
     bad = '[project]\nname = "myapp-djapp"\nversion = "0.0.1"\n\n' + CANON_DJAPP_PYPROJECT
     repo = _seed_pypkg_djapp(tmp_path, **{"djapp/pyproject.toml": bad})
