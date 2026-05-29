@@ -68,6 +68,27 @@ exclude = ["tests", "migrations", "__pycache__"]
 
 Repos without `[tool.importlinter]` exit 0 with one info line. The check is silent for repos that have not adopted architecture-as-contract; there is nothing to validate against.
 
+## CLAUDE.md shape
+
+`CLAUDE.md` is the first file an agent loads in every repo, so its shape is a contract, not a preference: a fixed set of top-level slots means the orientation, the architecture pointer, the conventions, and the live work are always found in the same place regardless of which repo you opened. A repo-root `CLAUDE.md` must carry these four `##` sections (any order, richer subsections welcome beneath each):
+
+1. **`## Orientation`** — one paragraph on what the repo is, then the first moves on any task (where to start, what to read, how to run it).
+2. **`## Architecture`** — the layer DAG in brief, or a pointer to the canonical architecture doc (`ARCHITECTURE.md`, or the per-subsystem `DESIGN.md` / `SYSTEM.md` pair). Do not restate it; point to its one home.
+3. **`## Conventions`** — project-specific rules layered on the cross-project baseline (VISHAL.md) and the racecar standards. Only what is true *here* and not derivable from the code.
+4. **`## Open work`** — current state and in-flight tracks, with a pointer to `TODO.md` (the one home for the item list, per [`../shared/TODO_FORMAT.md`](../shared/TODO_FORMAT.md)). A handoff snapshot lives here, not scattered.
+
+Enforced mechanically by [`scripts/check_claude_shape.py`](scripts/check_claude_shape.py) (run from `make docs` in a consuming project): if a repo-root `CLAUDE.md` exists, it must contain all four headings. The check is silent when there is no root `CLAUDE.md` — presence in subsystems is the separate concern above. The shape is a floor; the section names are the fixed part, the content under them is the repo's own.
+
+## Documentation placement
+
+Where a doc lives is part of what it means: a reader who knows the layout finds the right file without searching, and a misplaced doc is a scope-honesty failure (the location disagrees with the role). The rule governs markdown documentation only — build/config files (`pyproject.toml`, `Makefile`, `.pre-commit-config.yaml`, `requirements.txt`) are not docs and are out of scope.
+
+- **Repo top level** carries only `README.md`, `CLAUDE.md`, `PLAN.md`, `TODO.md`, and `CHANGELOG.md`. Every other narrative doc (`ARCHITECTURE.md`, `DESIGN.md`, `SYSTEM.md`, `BRIEF.md`, guides) lives under `docs/`.
+- **Inside a subdirectory**, the only markdown outside `<subdir>/docs/` is `README.md` (developer landing) and `CLAUDE.md` (agent context). Everything else goes in that subdir's `docs/`.
+- **`CLAUDE.md` requires a sibling `README.md`** in the same directory — README is the precondition; agent context does not stand without a human landing.
+
+Anything under any `docs/` directory is always fine. Enforced mechanically by [`scripts/check_file_placement.py`](scripts/check_file_placement.py) (run from `make docs` in a consuming project). This is the federation backbone for the TODO model: the per-concern docs (`LABELS.md`, `VOTES.md`, …) are not top-level-eligible, so they live in `docs/`, and the top-level `TODO.md` resolver points into them.
+
 ## The five document checks
 
 1. **Cogency.** Do the artifact's claims, examples, and definitions agree with each other and with the system they describe?
@@ -102,7 +123,7 @@ Repos without `[tool.importlinter]` exit 0 with one info line. The check is sile
 
 **Abstract-concrete split.** Axioms live separate from implementation. Do not fake generality by sprinkling specific examples into an abstract file — the file loses its abstraction without gaining grounding. If the examples are load-bearing, the file is concrete — rename it.
 
-**Docs are not scratchpads.** Every shipped artifact is a read-only reference a teammate can load cold and use. TODOs, "temporary" notes, and half-built sections belong in draft branches, not merged files.
+**Docs are not scratchpads.** Every shipped artifact is a read-only reference a teammate can load cold and use. Freeform "temporary" notes and half-built sections belong in draft branches, not merged files. The one sanctioned exception is a structured `## TODO` / `## PLAN` section conforming to [`../shared/TODO_FORMAT.md`](../shared/TODO_FORMAT.md): co-located with its concern, on the item schema, with a mandatory `Updated:` date and mechanical checking. That structure plus the freshness signal is exactly what separates tracked work from rotting scratch — a bare "TODO: fix later" is still banned.
 
 **Duplication is drift.** Two homes for the same rule means two places it will diverge. Pick one. Cross-reference the other. A codebase with duplicated rules is not "documented twice" — it is "documented zero times reliably." This is Tier 1 (eliminate the drift surface) of the broader doctrine in [../shared/DRIFT.md](../shared/DRIFT.md).
 

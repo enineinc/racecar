@@ -183,6 +183,16 @@ Everything else in the templates is uniform across racecar projects. Tool config
 - **`requires-python` matches `target-version` in black/mypy.** A drift here is an audit finding.
 - **`[project].version` is the sole source of truth for the project's version.** No separate `VERSION` file (see §8).
 
+### pylint canon
+
+The `[tool.pylint]` configuration is **identical across racecar projects** — like the rest of the tool config it lives in the library pyproject, not in a standalone `.pylintrc` (a root `.pylintrc` is rejected by the checker; this keeps one home for tool config and preserves the explicit-`--rcfile`, no-auto-discovery discipline of §7). The canonical block is in [`../templates/classic/library-pyproject.toml`](../templates/classic/library-pyproject.toml); `scripts/check_packaging.py` enforces it. The shape:
+
+- **Disable set is fixed.** A project may *append* its own disables, but every entry in the canonical `[tool.pylint."MESSAGES CONTROL"].disable` must be present: the pre-commit-plumbing noise codes, plus `duplicate-code` (R0801 fires on argparse / pydantic / dataclass boilerplate) and the two `use-implicit-booleaness` idioms.
+- **Docstrings: class and function required, module not.** `missing-module-docstring` is disabled — a module's role lives in its subsystem `README` / `DESIGN` / `SYSTEM` / `CLAUDE` doc, not a one-line restatement of the filename. `missing-class-docstring` (C0115) and `missing-function-docstring` (C0116) must **not** be disabled: a class docstring states what the abstraction is, the highest-value orientation per token; functions follow. Names exempt from the requirement, via `[tool.pylint.BASIC]`: private (`^_`), pytest functions (`test_*`), `Test*` classes, and bodies under `docstring-min-length` lines.
+- **Complexity caps are raised, not disabled.** `[tool.pylint.DESIGN]` bumps `max-args` / `max-locals` / `max-branches` etc. so cohesive data and CLI-builder code passes, while keeping the backstop. Disabling `too-many-*` outright is non-canon — raise the cap instead.
+- **`min-similarity-lines = 12`** clears the false positives that the default of 4 raises on idiomatic per-verb CLI scaffolding.
+- Django projects (Shape `pypkg+djapp` / `djapp`) append `"pylint_django"` to `[tool.pylint.MAIN].load-plugins`.
+
 ### Pyproject rules (djapp pyproject — Shape pypkg+djapp only)
 
 - **`[dependency-groups].runtime` declares the Django runtime deps.** Required.
@@ -376,6 +386,8 @@ Follows the [Keep a Changelog](https://keepachangelog.com/) format (an external 
 ```markdown
 # Changelog
 
+## [Unreleased]
+
 ## 0.2.0 - 2026-05-28
 
 ### Added
@@ -396,7 +408,7 @@ Follows the [Keep a Changelog](https://keepachangelog.com/) format (an external 
 Rules:
 
 - Date format `YYYY-MM-DD`.
-- No `## Unreleased` section unless the project actively cuts releases on a cadence; otherwise the next bump just goes at the top.
+- `## [Unreleased]` is canonical and accepted by the checker: it is the honest header for a repo that has not yet cut its first release (a freshly-scaffolded `CHANGELOG.md` is exactly `# Changelog` + `## [Unreleased]`, zero fabrication), and the accumulation point for changes between releases. When a version ships, rename it to `## X.Y.Z - YYYY-MM-DD` and open a fresh `## [Unreleased]` above.
 - Bullets explain *why*, not just *what*. The diff already explains *what*.
 - A `0.x.0` minor bump signals structural change or breaking API; a `0.x.y` patch bump signals fixes only. Above `1.0.0`, semver rules apply strictly.
 

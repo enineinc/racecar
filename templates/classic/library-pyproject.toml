@@ -1,6 +1,7 @@
 # templates/classic/library-pyproject.toml — the library pyproject.
 #
-# Where to put this depends on the project shape (PACKAGING.md §"Scope"):
+# Where to put this depends on the project shape (see racecar's
+# arch-coherence/PACKAGING.md, "Scope"):
 #
 #   shape src           -> copy to:  pyproject.toml         (repo root)
 #   shape pypkg         -> copy to:  pypkg/src/pyproject.toml
@@ -44,7 +45,8 @@ dependencies = [
 requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"
 
-# Canonical dev tool set per PACKAGING.md §6 (PEP 735 dependency group).
+# Canonical dev tool set per racecar's arch-coherence/PACKAGING.md, the
+# "Dev tooling" rules (PEP 735 dependency group).
 # Identical across racecar projects; modifying this list is a standards-change
 # conversation, not a project-by-project decision.
 [dependency-groups]
@@ -62,7 +64,7 @@ dev = [
     "validate-pyproject",
 ]
 
-# Shape-specific. See arch-coherence/PACKAGING.md §"Scope":
+# Shape-specific. See racecar's arch-coherence/PACKAGING.md, "Scope":
 #   shape src           ->  where = ["src"]
 #   shape pypkg         ->  where = ["."]              (relative to pypkg/src/)
 #   shape pypkg+djapp   ->  where = ["."]              (relative to pypkg/src/)
@@ -76,8 +78,63 @@ target-version = ["py312"]
 profile = "black"
 
 [tool.pylint."MESSAGES CONTROL"]
-# Project-specific disables go here; keep this list short and justified.
-# disable = ["missing-module-docstring"]
+# Canonical disable set — identical across racecar projects, enforced by
+# scripts/check_packaging.py (see arch-coherence/PACKAGING.md, "pylint canon").
+# Every entry below must be present. A project may append its own disables, but
+# the two docstring codes missing-class-docstring (C0115) and
+# missing-function-docstring (C0116) must NOT appear here: class and function
+# docstrings are required. Module docstrings are not — a module's role lives in
+# its subsystem README / DESIGN / SYSTEM / CLAUDE doc.
+disable = [
+    # meta / pre-commit plumbing — never a real finding
+    "raw-checker-failed",
+    "bad-inline-option",
+    "locally-disabled",
+    "file-ignored",
+    "suppressed-message",
+    "useless-suppression",
+    "deprecated-pragma",
+    "use-symbolic-message-instead",
+    # idiomatic-code false positives
+    "duplicate-code",  # R0801: argparse / pydantic / dataclass boilerplate
+    "use-implicit-booleaness-not-comparison-to-string",
+    "use-implicit-booleaness-not-comparison-to-zero",
+    # module docstrings — covered by the subsystem's README / DESIGN / SYSTEM / CLAUDE doc
+    "missing-module-docstring",
+]
+
+[tool.pylint.BASIC]
+# Names exempt from the docstring requirement: private (_x), pytest functions
+# (test_*), and Test* classes. Everything else public requires a docstring.
+no-docstring-rgx = "^_|^test_|^Test"
+# Functions / classes with fewer lines than this are exempt (trivial one-liners).
+docstring-min-length = 6
+
+[tool.pylint.DESIGN]
+# Raised caps, not disables — keep the backstop, allow cohesive data/CLI builders.
+max-args = 6
+max-attributes = 10
+max-locals = 25
+max-branches = 17
+max-bool-expr = 8
+
+[tool.pylint.SIMILARITIES]
+# Default 4 flags idiomatic per-verb CLI scaffolding; 12 clears those.
+min-similarity-lines = 12
+ignore-docstrings = true
+
+[tool.pylint.MAIN]
+py-version = "3.12"
+# Django projects (shape pypkg+djapp / djapp) append "pylint_django".
+load-plugins = ["pylint_pytest"]
+
+[tool.pylint.MASTER]
+# Repo-relative regexes to skip. The doc-coherence pre-pass (scripts/check_docs.py)
+# also reads this list: the check scripts vendored under scripts/ are copied
+# verbatim from racecar and carry §N citations to racecar's own canon, which do
+# not resolve in this repo. Excluding scripts/ keeps the pre-pass policing this
+# project's own docs and config, not vendored racecar internals.
+ignore-paths = ["^scripts/"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "."]

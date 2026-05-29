@@ -45,6 +45,27 @@ repos:
         pass_filenames: false
         always_run: true
 
+      - id: todo-format
+        name: shared/TODO_FORMAT.md — TODO item schema (id / Prio / Depends / Updated)
+        entry: python scripts/check_todo_format.py
+        language: python
+        pass_filenames: false
+        always_run: true
+
+      - id: claude-md-shape
+        name: doc-coherence/README.md — root CLAUDE.md carries the four canonical sections
+        entry: python scripts/check_claude_shape.py
+        language: python
+        pass_filenames: false
+        always_run: true
+
+      - id: file-placement
+        name: doc-coherence/README.md — markdown docs placement (top-level whitelist / subdir README+CLAUDE)
+        entry: python scripts/check_file_placement.py
+        language: python
+        pass_filenames: false
+        always_run: true
+
       - id: no-cross-module-string-relations
         name: arch-coherence/DJANGO.md §2 — no cross-module string ORM relations (skipped if no manage.py)
         entry: bash -c 'if [ -f manage.py ]; then python scripts/check_string_relations.py; fi'

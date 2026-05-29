@@ -65,6 +65,31 @@ CANON_MYPY_PYTHON = "3.12"
 CANON_BUILD_REQUIRES = ["setuptools>=64"]
 CANON_BUILD_BACKEND = "setuptools.build_meta"
 
+# pylint canon (PACKAGING.md, "pylint canon"). Every code below must appear in
+# [tool.pylint."MESSAGES CONTROL"].disable; a project may add more.
+CANON_PYLINT_REQUIRED_DISABLE = {
+    "raw-checker-failed",
+    "bad-inline-option",
+    "locally-disabled",
+    "file-ignored",
+    "suppressed-message",
+    "useless-suppression",
+    "deprecated-pragma",
+    "use-symbolic-message-instead",
+    "duplicate-code",
+    "use-implicit-booleaness-not-comparison-to-string",
+    "use-implicit-booleaness-not-comparison-to-zero",
+    "missing-module-docstring",
+}
+# These must NOT be disabled: class + function docstrings are required.
+CANON_PYLINT_FORBIDDEN_DISABLE = {
+    "missing-class-docstring",
+    "missing-function-docstring",
+}
+# Standalone pylint config files — forbidden; config lives in the library
+# pyproject [tool.pylint] (PACKAGING.md, "pylint canon" + §7).
+FORBIDDEN_PYLINTRC = [".pylintrc", "pylintrc", "pypkg/src/.pylintrc", "djapp/.pylintrc"]
+
 # Forbidden top-level [tool.<key>] blocks (per §1 §2).
 FORBIDDEN_TOOL_KEYS = {"uv", "ruff", "poetry", "pdm"}
 FORBIDDEN_HATCH_SUBKEYS = {"envs"}
@@ -79,6 +104,9 @@ REQUIRED_PRECOMMIT_HOOKS = {
     "validate-pyproject",
     "no-upward-imports-in-business-modules",
     "doc-coherence-mechanical-pre-pass",
+    "todo-format",
+    "claude-md-shape",
+    "file-placement",
 }
 
 REQUIRED_MAKEFILE_TARGETS = {
@@ -422,7 +450,62 @@ def check_library_pyproject(root: Path, pyproject_path: Path) -> tuple[list[Find
             )
         )
 
+    findings.extend(_check_pylint_canon(tool, label))
+
     return findings, data
+
+
+def _pylint_disable(tool: dict[str, Any]) -> list[str] | None:
+    """The pylint disable list, or None if no pylint config is present.
+
+    Tolerates the section spelling variants pylint accepts in pyproject
+    (``MESSAGES CONTROL`` / ``messages_control``) and a bare ``disable`` under
+    ``[tool.pylint]``.
+    """
+    pylint = tool.get("pylint")
+    if not isinstance(pylint, dict):
+        return None
+    for key in ("MESSAGES CONTROL", "messages_control", "MESSAGES_CONTROL", "messages control"):
+        sect = pylint.get(key)
+        if isinstance(sect, dict) and "disable" in sect:
+            return [str(x) for x in (sect.get("disable") or [])]
+    if "disable" in pylint:
+        return [str(x) for x in (pylint.get("disable") or [])]
+    return None
+
+
+def _check_pylint_canon(tool: dict[str, Any], label: str) -> list[Finding]:
+    disable = _pylint_disable(tool)
+    if disable is None:
+        return [
+            Finding(
+                "Blocker",
+                label,
+                "[tool.pylint] disable",
+                'missing canonical pylint disable set; see PACKAGING.md "pylint canon"',
+            )
+        ]
+    findings: list[Finding] = []
+    present = set(disable)
+    for code in sorted(CANON_PYLINT_REQUIRED_DISABLE - present):
+        findings.append(
+            Finding(
+                "Blocker",
+                label,
+                "[tool.pylint] disable",
+                f'missing required disable {code!r}; see PACKAGING.md "pylint canon"',
+            )
+        )
+    for code in sorted(CANON_PYLINT_FORBIDDEN_DISABLE & present):
+        findings.append(
+            Finding(
+                "Blocker",
+                label,
+                "[tool.pylint] disable",
+                f"{code!r} must not be disabled — class/function docstrings are required",
+            )
+        )
+    return findings
 
 
 def _djapp_first_party_roots(root: Path) -> list[str]:
@@ -743,6 +826,22 @@ def check_forbidden_lockfiles(root: Path) -> list[Finding]:
     return findings
 
 
+def check_forbidden_pylintrc(root: Path) -> list[Finding]:
+    findings: list[Finding] = []
+    for name in FORBIDDEN_PYLINTRC:
+        if (root / name).is_file():
+            findings.append(
+                Finding(
+                    "Blocker",
+                    name,
+                    "standalone-pylintrc",
+                    'pylint config lives in the library pyproject [tool.pylint], '
+                    'not a standalone file; see PACKAGING.md "pylint canon"',
+                )
+            )
+    return findings
+
+
 # ---------------------------------------------------------------------------
 # .gitignore
 # ---------------------------------------------------------------------------
@@ -870,8 +969,10 @@ def check_precommit(root: Path) -> list[Finding]:
 # CHANGELOG.md
 # ---------------------------------------------------------------------------
 
+# A released entry (`## X.Y.Z - YYYY-MM-DD`) or the honest `## [Unreleased]`
+# header a freshly-scaffolded changelog carries before its first release.
 _CHANGELOG_HEADER_RE = re.compile(
-    r"^## \d+\.\d+\.\d+(?:[-+][\w.-]+)? - \d{4}-\d{2}-\d{2}",
+    r"^## (?:\[Unreleased\]|\d+\.\d+\.\d+(?:[-+][\w.-]+)? - \d{4}-\d{2}-\d{2})",
     re.MULTILINE,
 )
 
@@ -893,7 +994,7 @@ def check_changelog(root: Path) -> list[Finding]:
                 "Finding",
                 "CHANGELOG.md",
                 "header-format",
-                "no `## X.Y.Z - YYYY-MM-DD` heading found (PACKAGING.md §8)",
+                "no `## [Unreleased]` or `## X.Y.Z - YYYY-MM-DD` heading found (PACKAGING.md §8)",
             )
         ]
     return []
@@ -929,6 +1030,7 @@ def run_all(root: Path) -> list[Finding]:
     findings.extend(check_legacy_version_file(root, has_canonical_version=has_canonical_version))
     findings.extend(check_requirements(root, shape))
     findings.extend(check_forbidden_lockfiles(root))
+    findings.extend(check_forbidden_pylintrc(root))
     findings.extend(check_gitignore(root))
     findings.extend(check_makefile(root))
     findings.extend(check_precommit(root))

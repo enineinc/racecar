@@ -60,6 +60,22 @@ target-version = ["py312"]
 [tool.isort]
 profile = "black"
 
+[tool.pylint."MESSAGES CONTROL"]
+disable = [
+    "raw-checker-failed",
+    "bad-inline-option",
+    "locally-disabled",
+    "file-ignored",
+    "suppressed-message",
+    "useless-suppression",
+    "deprecated-pragma",
+    "use-symbolic-message-instead",
+    "duplicate-code",
+    "use-implicit-booleaness-not-comparison-to-string",
+    "use-implicit-booleaness-not-comparison-to-zero",
+    "missing-module-docstring",
+]
+
 [tool.mypy]
 python_version = "3.12"
 strict = true
@@ -170,6 +186,15 @@ repos:
         entry: x
         language: system
       - id: doc-coherence-mechanical-pre-pass
+        entry: x
+        language: system
+      - id: todo-format
+        entry: x
+        language: system
+      - id: claude-md-shape
+        entry: x
+        language: system
+      - id: file-placement
         entry: x
         language: system
 """
@@ -622,3 +647,10 @@ def test_missing_changelog_with_strict_is_blocker(tmp_path: Path) -> None:
     result = _run(repo, "--strict")
     assert result.returncode == 1
     assert "CHANGELOG.md" in result.stdout
+
+
+def test_unreleased_only_changelog_passes_strict(tmp_path: Path) -> None:
+    """A freshly-scaffolded `# Changelog` + `## [Unreleased]` is honest and clean."""
+    repo = _seed_src(tmp_path, **{"CHANGELOG.md": "# Changelog\n\n## [Unreleased]\n"})
+    result = _run(repo, "--strict")
+    assert result.returncode == 0, result.stdout

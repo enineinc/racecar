@@ -88,6 +88,9 @@ check: fmt-check lint test ## Fast gate (~30s; pre-commit cadence)
 check-full: ## Full gate (parallel; pre-push / CI cadence) — adds typecheck + arch + docs
 	@$(MAKE) -j fmt-check lint test typecheck arch docs
 
+audit: ## pip-audit dependency vulnerability scan (standalone; run weekly / on-demand)
+	$(PYTHON) -m pip_audit
+
 fix: fmt ## Auto-fix formatting (isort + black)
 
 fmt: ## Format in place (isort orders imports, then black formats)
@@ -120,7 +123,11 @@ typecheck: ## mypy
 arch: ## lint-imports + §1 upward + §3 CLI tree + packaging canon (+ Django string-relations)
 	$(BIN)/lint-imports --config $(LIB_PYPROJECT)
 	$(PYTHON) scripts/check_upward_imports.py $$(find $(PKG) -name '*.py')
-	$(PYTHON) scripts/check_cli_commands.py $(PKG)
+	@if [ -n "$$(find $(PKG) -name '__main__.py' -print -quit 2>/dev/null)" ]; then \
+	  $(PYTHON) scripts/check_cli_commands.py $(PKG); \
+	else \
+	  echo "arch: skipping check_cli_commands ($(PKG) has no __main__.py — no CLI surface)"; \
+	fi
 	$(PYTHON) scripts/check_packaging.py
 	@if [ -n "$(DJAPP)" ] && [ -f $(DJAPP)/manage.py ]; then \
 	  $(PYTHON) scripts/check_string_relations.py; \
@@ -128,8 +135,11 @@ arch: ## lint-imports + §1 upward + §3 CLI tree + packaging canon (+ Django st
 	  echo "arch: skipping check_string_relations (DJAPP unset or no manage.py)"; \
 	fi
 
-docs: ## doc-coherence mechanical pre-pass (link / §N / vocabulary drift)
+docs: ## doc-coherence pre-pass (links / §N / vocab) + TODO + CLAUDE shape + placement
 	$(PYTHON) scripts/check_docs.py
+	$(PYTHON) scripts/check_todo_format.py
+	$(PYTHON) scripts/check_claude_shape.py
+	$(PYTHON) scripts/check_file_placement.py
 
 clean: ## Remove caches, *.pyc, .DS_Store, build artifacts (never the venv)
 	find . -path ./.git -prune -o -path './$(VENV)' -prune -o \
