@@ -90,12 +90,20 @@ import argparse
 import ast
 import importlib
 import json
+import os
 import re
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from types import ModuleType
 from typing import Any, NamedTuple
+
+# Default thread-pool size for parallel subprocess probes. Each probe is a
+# cold `python -m <pkg> ...` spawn that spends most of its wall time blocked
+# in the kernel, so we oversubscribe relative to CPU count. Capped at 32 to
+# avoid FD-table pressure on large trees.
+_DEFAULT_MAX_WORKERS = min(32, (os.cpu_count() or 4) * 4)
 
 _LINE_RE = re.compile(r"^\s+python -m (?P<path>\S+)\s{2,}(?P<desc>.+?)\s*$")
 
@@ -123,11 +131,45 @@ Node = dict[str, Any]
 # ---------- discovery helpers -------------------------------------------- #
 
 
-def _import_main(pkg: str) -> ModuleType | None:
+# Cache of `_import_main` results so a `__main__.py` that crashes at import
+# time doesn't get its side effects replayed every time we ask about it. The
+# structural walk is single-threaded, so no lock is needed. The cache lives
+# for the life of the process — fine because the tool runs one-shot per
+# invocation and each `audit_cli_tree` call sees a stable filesystem.
+_IMPORT_MAIN_CACHE: dict[str, tuple[ModuleType | None, str | None]] = {}
+
+
+def _import_main(pkg: str) -> tuple[ModuleType | None, str | None]:
+    """Import `<pkg>.__main__` and report what happened.
+
+    Returns `(module, error)`:
+
+    - `(module, None)` — import succeeded.
+    - `(None, None)` — no `__main__.py` file (clean `ModuleNotFoundError`).
+    - `(None, "<TypeName>: <msg>")` — `__main__.py` exists but raised
+      during import. Any non-`ModuleNotFoundError` exception is captured
+      as a structural violation rather than killed the audit. This shows
+      up when a `__main__.py` does real work at module scope (a separate
+      §3 anti-pattern — code must live behind `main()`, guarded by
+      `if __name__ == "__main__":`).
+    """
+    if pkg in _IMPORT_MAIN_CACHE:
+        return _IMPORT_MAIN_CACHE[pkg]
     try:
-        return importlib.import_module(f"{pkg}.__main__")
+        result: tuple[ModuleType | None, str | None] = (
+            importlib.import_module(f"{pkg}.__main__"),
+            None,
+        )
     except ModuleNotFoundError:
-        return None
+        result = (None, None)
+    except Exception as exc:
+        # Anything else — ValueError, ImportError-from-sub-import, KeyError
+        # in module-scope dict lookups, FileNotFoundError from reading config
+        # at import, etc. Record and continue; the violation lands on this
+        # node and recursion proceeds into siblings.
+        result = (None, f"{type(exc).__name__}: {exc}")
+    _IMPORT_MAIN_CACHE[pkg] = result
+    return result
 
 
 def _read_commands(mod: ModuleType) -> tuple[list[tuple[str, str]] | None, list[str]]:
@@ -331,6 +373,153 @@ def _run(pkg: str, *args: str) -> subprocess.CompletedProcess[str]:
 
 def _parse_listing(stdout: str) -> list[tuple[str, str]]:
     return [(m["path"], m["desc"]) for line in stdout.splitlines() if (m := _LINE_RE.match(line))]
+
+
+# ---------- subprocess probes (parallelised) ----------------------------- #
+#
+# The audit's wall-clock cost is dominated by cold `python -m <pkg> ...`
+# spawns: every node needs `--help`, every node with non-empty `commands()`
+# needs a no-args listing probe, and every entry in `subcommands()` needs a
+# `<sub> --help` probe. Serially that's O(N) cold interpreter starts.
+#
+# To overlap them we split the audit into two passes:
+#
+#   1. Structural walk (`_audit_package`) — imports, AST scans, classify,
+#      orphan scan, child recursion. No `_run` calls. Wherever a
+#      subprocess-derived violation would land, the walk drops a `_Probe`
+#      sentinel into the node's `violations` list and registers the same
+#      sentinel for the fan-out step.
+#   2. Fan-out + resolve (`audit_cli_tree`) — every probe is submitted to a
+#      shared `ThreadPoolExecutor` at once; results come back in any order;
+#      a final tree walk replaces each `_Probe` with the actual violation
+#      strings it produced.
+#
+# Doing the swap in-place inside `violations` preserves the per-node ordering
+# of the original implementation (subcommand-help cluster → parser-introspect
+# violations → AST-scan violations → `--help` violation → no-args cluster →
+# orphan violations), so existing exact-equality tests against the audit
+# tree are unaffected.
+
+
+class _Probe:
+    """Placeholder for a subprocess-derived violation cluster.
+
+    Inserted in a node's `violations` list during the structural walk; the
+    fan-out step swaps it for zero or more violation strings produced from
+    the resolved subprocess result. Identity (not value) is what matters —
+    each instance maps 1:1 to one probe.
+    """
+
+    __slots__ = ("kind", "pkg", "extra", "future")
+
+    def __init__(self, kind: str, pkg: str, extra: Any = None) -> None:
+        self.kind = kind
+        self.pkg = pkg
+        self.extra = extra
+        self.future: Any = None  # set by audit_cli_tree before resolution
+
+    def args(self) -> tuple[str, ...]:
+        """Positional arguments for `_run` — i.e. CLI args after the package."""
+        if self.kind == "help":
+            return ("--help",)
+        if self.kind == "noargs":
+            return ()
+        if self.kind == "sub_help":
+            return (self.extra, "--help")
+        raise AssertionError(f"unknown probe kind {self.kind!r}")
+
+
+def _violations_from_help(pkg: str, result: subprocess.CompletedProcess[str]) -> list[str]:
+    if result.returncode != 0:
+        return [
+            f"`python -m {pkg} --help` exited {result.returncode}; "
+            f"stderr: {result.stderr.strip()[:200]}"
+        ]
+    return []
+
+
+def _violations_from_sub_help(
+    pkg: str, sub_name: str, result: subprocess.CompletedProcess[str]
+) -> list[str]:
+    if result.returncode != 0:
+        return [
+            f"`subcommands()` lists `{sub_name}` but "
+            f"`python -m {pkg} {sub_name} --help` exited "
+            f"{result.returncode}; stderr: {result.stderr.strip()[:200]}"
+        ]
+    return []
+
+
+def _violations_from_noargs(
+    pkg: str,
+    commands: list[tuple[str, str]],
+    noargs: subprocess.CompletedProcess[str],
+) -> list[str]:
+    out: list[str] = []
+    if noargs.returncode != 0:
+        out.append(
+            f"`python -m {pkg}` (no args) exited {noargs.returncode}; "
+            f"stderr: {noargs.stderr.strip()[:200]}"
+        )
+        return out
+    if not noargs.stdout.strip():
+        out.append(f"`python -m {pkg}` (no args) exited 0 but produced no stdout")
+        if noargs.stderr.strip():
+            out.append("  (stderr was non-empty — listing may be going to the wrong stream)")
+        return out
+    printed = _parse_listing(noargs.stdout)
+    expected = [(f"{pkg}.{name}", desc) for name, desc in commands]
+    printed_set = {p for p, _ in printed}
+    expected_set = {p for p, _ in expected}
+    for path, _desc in expected:
+        if path not in printed_set:
+            out.append(f"`commands()` claims `{path}` but no-args output does not list it")
+    for path, _desc in printed:
+        if path not in expected_set:
+            out.append(f"no-args output lists `{path}` but `commands()` does not claim it")
+    printed_desc = dict(printed)
+    for path, desc in expected:
+        if path in printed_desc and printed_desc[path] != desc:
+            out.append(
+                f"description mismatch for `{path}`: commands()={desc!r}, printed={printed_desc[path]!r}"
+            )
+    return out
+
+
+def _violations_from_probe(probe: _Probe) -> list[str]:
+    result = probe.future.result()
+    if probe.kind == "help":
+        return _violations_from_help(probe.pkg, result)
+    if probe.kind == "sub_help":
+        return _violations_from_sub_help(probe.pkg, probe.extra, result)
+    if probe.kind == "noargs":
+        return _violations_from_noargs(probe.pkg, probe.extra, result)
+    raise AssertionError(f"unknown probe kind {probe.kind!r}")
+
+
+def _collect_probes(node: Node) -> list[_Probe]:
+    """Walk the tree gathering every `_Probe` placeholder, pre-order."""
+    probes: list[_Probe] = []
+    for v in node["violations"]:
+        if isinstance(v, _Probe):
+            probes.append(v)
+    for child in node["children"]:
+        probes.extend(_collect_probes(child))
+    return probes
+
+
+def _resolve_probes(node: Node) -> None:
+    """Replace every `_Probe` in this subtree's violations with the
+    violation strings it produced. Runs after futures are settled."""
+    resolved: list[str] = []
+    for v in node["violations"]:
+        if isinstance(v, _Probe):
+            resolved.extend(_violations_from_probe(v))
+        else:
+            resolved.append(v)
+    node["violations"] = resolved
+    for child in node["children"]:
+        _resolve_probes(child)
 
 
 def _classify(mod: ModuleType, commands: list[tuple[str, str]]) -> tuple[str, list[str]]:
@@ -551,9 +740,15 @@ def _audit_package(pkg: str, *, orphan: bool, seen: set[str]) -> Node:
         return node
     seen.add(pkg)
 
-    mod = _import_main(pkg)
+    mod, import_err = _import_main(pkg)
     if mod is None:
-        node["violations"].append("no __main__.py (not importable as `python -m ...`)")
+        if import_err is None:
+            node["violations"].append("no __main__.py (not importable as `python -m ...`)")
+        else:
+            node["violations"].append(
+                f"__main__.py exists but raised on import: {import_err} "
+                "(move work behind `main()` — module scope should be import-safe)"
+            )
         _descend_broken(node, pkg, seen)
         return node
     node["kind"] = "package"
@@ -580,13 +775,7 @@ def _audit_package(pkg: str, *, orphan: bool, seen: set[str]) -> Node:
             )
         node["subcommands"] = [[name, desc] for name, desc in subcommands]
         for sub_name, _sub_desc in subcommands:
-            sub_help = _run(pkg, sub_name, "--help")
-            if sub_help.returncode != 0:
-                node["violations"].append(
-                    f"`subcommands()` lists `{sub_name}` but "
-                    f"`python -m {pkg} {sub_name} --help` exited "
-                    f"{sub_help.returncode}; stderr: {sub_help.stderr.strip()[:200]}"
-                )
+            node["violations"].append(_Probe("sub_help", pkg, sub_name))
 
     # Opportunistic argparse-parser introspection (prototype). When the
     # leaf factors its parser construction into a `parser()` factory, walk
@@ -664,50 +853,25 @@ def _audit_package(pkg: str, *, orphan: bool, seen: set[str]) -> Node:
                 )
 
     # Uniform: --help exits 0 everywhere.
-    help_result = _run(pkg, "--help")
-    if help_result.returncode != 0:
-        node["violations"].append(
-            f"`python -m {pkg} --help` exited {help_result.returncode}; stderr: {help_result.stderr.strip()[:200]}"
-        )
+    node["violations"].append(_Probe("help", pkg))
 
     if commands:
-        noargs = _run(pkg)
-        if noargs.returncode != 0:
-            node["violations"].append(
-                f"`python -m {pkg}` (no args) exited {noargs.returncode}; stderr: {noargs.stderr.strip()[:200]}"
-            )
-        elif not noargs.stdout.strip():
-            node["violations"].append(f"`python -m {pkg}` (no args) exited 0 but produced no stdout")
-            if noargs.stderr.strip():
-                node["violations"].append("  (stderr was non-empty — listing may be going to the wrong stream)")
-        else:
-            printed = _parse_listing(noargs.stdout)
-            expected = [(f"{pkg}.{name}", desc) for name, desc in commands]
-            printed_set = {p for p, _ in printed}
-            expected_set = {p for p, _ in expected}
-            for path, _desc in expected:
-                if path not in printed_set:
-                    node["violations"].append(
-                        f"`commands()` claims `{path}` but no-args output does not list it"
-                    )
-            for path, _desc in printed:
-                if path not in expected_set:
-                    node["violations"].append(
-                        f"no-args output lists `{path}` but `commands()` does not claim it"
-                    )
-            printed_desc = dict(printed)
-            for path, desc in expected:
-                if path in printed_desc and printed_desc[path] != desc:
-                    node["violations"].append(
-                        f"description mismatch for `{path}`: commands()={desc!r}, printed={printed_desc[path]!r}"
-                    )
+        # Carry a snapshot of the commands() entries on the probe; the
+        # resolver needs them to diff the no-args listing.
+        node["violations"].append(_Probe("noargs", pkg, list(commands)))
 
     # Registered children.
     registered = set()
     for name, _desc in commands:
         registered.add(name)
         child_pkg = f"{pkg}.{name}"
-        if _import_main(child_pkg) is not None:
+        child_mod, child_import_err = _import_main(child_pkg)
+        if child_mod is not None or child_import_err is not None:
+            # `__main__.py` exists (cleanly imported or raised on import).
+            # Either way it's a package node; recurse so the audit logs the
+            # import failure on the child rather than mis-classifying it as
+            # a missing `__main__.py`. The cache prevents replaying the
+            # crashing import a second time.
             node["children"].append(_audit_package(child_pkg, orphan=False, seen=seen))
             continue
         # No __main__.py. Is the child a package (missing __main__.py) or a
@@ -781,7 +945,7 @@ def _audit_package(pkg: str, *, orphan: bool, seen: set[str]) -> Node:
 # ---------- public API --------------------------------------------------- #
 
 
-def audit_cli_tree(root: str) -> Node:
+def audit_cli_tree(root: str, *, max_workers: int | None = None) -> Node:
     """Walk the CLI tree rooted at `root` and return the enriched audit
     as a nested dict.
 
@@ -790,8 +954,23 @@ def audit_cli_tree(root: str) -> Node:
     resolved agent-facing fields (`command`, `role`, `description`).
     See `_enrich` and the module docstring for the schema. The returned
     Node is JSON-serialisable.
+
+    `max_workers` caps concurrency for the subprocess fan-out; defaults
+    to `_DEFAULT_MAX_WORKERS`. Pass `1` to force sequential probes (useful
+    when debugging or reproducing pre-parallel behaviour).
     """
     tree = _audit_package(root, orphan=False, seen=set())
+    probes = _collect_probes(tree)
+    if probes:
+        workers = max_workers if max_workers is not None else _DEFAULT_MAX_WORKERS
+        # Cap at probe count — no point spinning up idle threads.
+        workers = max(1, min(workers, len(probes)))
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            for probe in probes:
+                probe.future = ex.submit(_run, probe.pkg, *probe.args())
+            # Context-manager exit blocks until every submitted task finishes,
+            # so all futures are settled before we move on to resolution.
+        _resolve_probes(tree)
     _enrich(tree, parent_descriptions=None)
     return tree
 
@@ -918,10 +1097,20 @@ def main(argv: list[str]) -> int:
         help="Dotted package names (e.g. `gfem`) or filesystem paths to the package directory (e.g. `src/gfem`).",
     )
     parser.add_argument("--json", action="store_true", help="Emit the audit tree as JSON.")
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=None,
+        help=(
+            "Max threads for the subprocess fan-out. "
+            f"Defaults to {_DEFAULT_MAX_WORKERS} (min(32, cpus*4)). "
+            "Use 1 to force sequential probes."
+        ),
+    )
     args = parser.parse_args(argv)
 
     roots = [_resolve_root(r) for r in args.roots]
-    trees = [audit_cli_tree(root) for root in roots]
+    trees = [audit_cli_tree(root, max_workers=args.workers) for root in roots]
     all_violations: list[tuple[str, str]] = []
     for tree in trees:
         all_violations.extend(collect_violations(tree))
