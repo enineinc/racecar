@@ -8,7 +8,7 @@ ifdef VENV
 endif
 PYTHON := $(if $(VENV),$(VENV)/bin/python3,python3)
 
-.PHONY: install install-deps expert expert-uninstall check-docs check-subsystem-docs check-brief test check clean distclean obsidian obsidian-data obsidian-docs help
+.PHONY: install install-deps expert expert-uninstall check-docs check-subsystem-docs check-brief test check demo init clean distclean obsidian obsidian-data obsidian-docs help
 
 install: install-deps
 	./install
@@ -35,6 +35,40 @@ test:
 	$(PYTHON) -m pytest arch-coherence/tests doc-coherence/tests llm-summary/tests scripts/tests
 
 check: check-docs check-subsystem-docs test check-brief
+
+# One-command "see the value" demo. Runs the arch-coherence upward-import check
+# against examples/ — a deliberately-broken sample project (see examples/README.md)
+# — and presents the check's nonzero exit as SUCCESS: the demo succeeds by
+# demonstrating the catch. Always exits 0.
+DEMO_DIR     := examples
+ARCH_SCRIPTS := $(abspath arch-coherence/scripts)
+# Absolute interpreter — the demo `cd`s into examples/, so a venv-relative
+# python path would no longer resolve from there.
+DEMO_PYTHON  := $(if $(VENV),$(abspath $(VENV))/bin/python3,python3)
+demo:
+	@echo "racecar demo — running the upward-import check against $(DEMO_DIR)/ ..."
+	@echo "  ($(DEMO_DIR)/ is DELIBERATELY broken; the check is supposed to catch it)"
+	@echo
+	@out=$$(cd $(DEMO_DIR) && PYTHONPATH="$(ARCH_SCRIPTS)" \
+	    $(DEMO_PYTHON) "$(ARCH_SCRIPTS)/check_upward_imports.py" \
+	    $$(find src -name '*.py') 2>&1); status=$$?; \
+	  echo "$$out"; \
+	  count=$$(printf '%s\n' "$$out" | grep -c 'upward import forbidden' || true); \
+	  echo; \
+	  if [ $$status -ne 0 ]; then \
+	    echo "racecar caught $$count intentional violation(s) in $(DEMO_DIR)/ — demo succeeded."; \
+	    echo "This is the catch racecar gives you on real code. See examples/README.md."; \
+	  else \
+	    echo "racecar demo FAILED: the check passed, but examples/ is supposed to be broken."; \
+	    echo "Did someone fix the intentional violation? See examples/README.md."; \
+	    exit 1; \
+	  fi
+
+# Scaffold a new racecar-conforming project from templates/classic/. Pass
+# scaffolder flags via ARGS, e.g.:
+#   make init ARGS="--shape src --name widgets --package widgets --dest /tmp/widgets"
+init:
+	$(PYTHON) scripts/init_project.py $(ARGS)
 
 # Remove derived caches/build artifacts only. Never touches the virtualenv
 # (that is the explicit, separate `distclean`) and prunes .git + the venv so
@@ -103,6 +137,8 @@ help:
 	@echo "make check-brief      - validate the racecar-llm-summary brief bundle at docs/<repo>/<REPO>.md"
 	@echo "make test         - run the test suites under each skill"
 	@echo "make check        - run check-docs, check-subsystem-docs, test, and check-brief"
+	@echo "make demo         - run a racecar check against examples/ and show it catching a real violation"
+	@echo "make init ARGS=.. - scaffold a new conforming project from templates/classic/ (see scripts/init_project.py --help)"
 	@echo "make clean        - remove caches and build artifacts (never the venv)"
 	@echo "make distclean    - clean + remove the virtualenv"
 	@echo "make obsidian      - list the obsidian sync modes (obsidian-data / obsidian-docs)"

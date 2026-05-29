@@ -1,6 +1,7 @@
 # templates/classic/djapp-pyproject.toml -- the Django app pyproject.
 #
-# Applies to Shape pypkg+djapp only (PACKAGING.md §"Scope"). Copy to:
+# Applies to Shape pypkg+djapp only (see racecar's arch-coherence/PACKAGING.md,
+# "Scope"). Copy to:
 #
 #   djapp/pyproject.toml
 #

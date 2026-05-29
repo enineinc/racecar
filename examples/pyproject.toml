@@ -1,0 +1,27 @@
+# examples/pyproject.toml — minimal Shape `src` project for `make demo`.
+#
+# This is a DELIBERATELY BROKEN sample project. It exists so `make demo` can
+# show a racecar check catching a real architectural violation in one command.
+# See examples/README.md. Do not "fix" the breakage — it is the point.
+#
+# The breakage lives in src/widgets/gadget.py (an upward import that
+# arch-coherence/PYTHON.md §1 forbids and check_upward_imports.py flags).
+
+[project]
+name = "widgets"
+version = "0.1.0"
+description = "Deliberately-broken sample project for the racecar demo."
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [{ name = "racecar demo", email = "demo@example.com" }]
+dependencies = []
+
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.importlinter]
+root_package = "widgets"

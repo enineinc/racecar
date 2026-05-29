@@ -57,22 +57,38 @@ def _find_repo_root() -> Path:
 REPO_ROOT = _find_repo_root()
 
 
+# Where the project's pyproject.toml lives, in lookup order. Shapes `src` and
+# `djapp` keep it at the repo root; shapes `pypkg` and `pypkg+djapp` have no
+# root pyproject and put the library pyproject at `pypkg/src/pyproject.toml`.
+# First existing file wins. This is a minimal, self-contained probe of the two
+# known homes — not full shape detection (that lives in arch-coherence's
+# check_packaging.py, which check_docs deliberately does not import: the two
+# scripts sit in different lens directories in racecar's own tree, so the
+# cross-lens import would not resolve when check_docs runs there).
+PYPROJECT_CANDIDATES = ("pyproject.toml", "pypkg/src/pyproject.toml")
+
+
 def _ignore_patterns() -> tuple[re.Pattern[str], ...]:
     """Repo-relative regex patterns to skip.
 
-    Honors ``[tool.pylint.MASTER].ignore-paths`` in ``pyproject.toml`` so the
-    script doesn't drown the report in vendored third-party drift the project
-    has already declared out-of-scope. No pyproject / no key -> empty tuple.
+    Honors ``[tool.pylint.MASTER].ignore-paths`` in the project's
+    ``pyproject.toml`` so the script doesn't drown the report in vendored
+    third-party drift the project has already declared out-of-scope. Reads the
+    root ``pyproject.toml`` if present, else falls back to the library pyproject
+    at ``pypkg/src/pyproject.toml`` (shapes ``pypkg`` / ``pypkg+djapp``). No
+    pyproject / no key -> empty tuple.
     """
-    pyproject = REPO_ROOT / "pyproject.toml"
-    if not pyproject.is_file():
-        return ()
-    try:
-        data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
-    except (tomllib.TOMLDecodeError, OSError):
-        return ()
-    raw = data.get("tool", {}).get("pylint", {}).get("MASTER", {}).get("ignore-paths", [])
-    return tuple(re.compile(p) for p in raw if isinstance(p, str))
+    for candidate in PYPROJECT_CANDIDATES:
+        pyproject = REPO_ROOT / candidate
+        if not pyproject.is_file():
+            continue
+        try:
+            data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+        except (tomllib.TOMLDecodeError, OSError):
+            return ()
+        raw = data.get("tool", {}).get("pylint", {}).get("MASTER", {}).get("ignore-paths", [])
+        return tuple(re.compile(p) for p in raw if isinstance(p, str))
+    return ()
 
 
 IGNORE_PATTERNS = _ignore_patterns()

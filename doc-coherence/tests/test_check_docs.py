@@ -137,3 +137,68 @@ def test_vocabulary_in_fenced_code_is_ignored(tmp_path: Path) -> None:
     )
     result = _run(repo)
     assert result.returncode == 0, result.stderr
+
+
+# `§` built from a part so this test file does not itself trip check_docs when
+# the script runs over racecar's own tree (the citation regex needs a real
+# U+00A7 char followed by a digit in the source text).
+_SECT = "§"
+
+
+def test_ignore_paths_excludes_scripts_dir_root_pyproject(tmp_path: Path) -> None:
+    """A `^scripts/` ignore-path in the ROOT pyproject suppresses citation scan there.
+
+    Mirrors shapes `src` / `djapp`: the vendored check scripts under `scripts/`
+    carry §N citations to racecar canon that do not resolve in a consumer; the
+    consumer's pyproject declares `scripts/` out-of-scope.
+    """
+    repo = _seed_repo(tmp_path)
+    (repo / "pyproject.toml").write_text(
+        '[tool.pylint.MASTER]\nignore-paths = ["^scripts/"]\n', encoding="utf-8"
+    )
+    scripts = repo / "scripts"
+    scripts.mkdir()
+    # A vendored script citing a canon file that does not exist in this repo.
+    (scripts / "check_vendored.py").write_text(
+        f'"""Enforces PYTHON.md {_SECT}1 (racecar canon, absent here)."""\n',
+        encoding="utf-8",
+    )
+    result = _run(repo)
+    assert result.returncode == 0, result.stderr
+    assert "check_docs: OK" in result.stdout
+
+
+def test_ignore_paths_read_from_pypkg_src_pyproject(tmp_path: Path) -> None:
+    """Shapes `pypkg` / `pypkg+djapp` have NO root pyproject — the library
+    pyproject lives at `pypkg/src/pyproject.toml`. check_docs must read
+    ignore-paths from there so `scripts/` is still excluded."""
+    repo = _seed_repo(tmp_path)
+    lib = repo / "pypkg" / "src"
+    lib.mkdir(parents=True)
+    (lib / "pyproject.toml").write_text(
+        '[tool.pylint.MASTER]\nignore-paths = ["^scripts/"]\n', encoding="utf-8"
+    )
+    scripts = repo / "scripts"
+    scripts.mkdir()
+    (scripts / "check_vendored.py").write_text(
+        f'"""Enforces PYTHON.md {_SECT}1 (racecar canon, absent here)."""\n',
+        encoding="utf-8",
+    )
+    result = _run(repo)
+    assert result.returncode == 0, result.stderr
+    assert "check_docs: OK" in result.stdout
+
+
+def test_no_ignore_paths_still_scans_scripts(tmp_path: Path) -> None:
+    """Without an ignore-paths entry, a vendored script's stale §N citation is
+    still caught — the lever is opt-in, the default scans everything."""
+    repo = _seed_repo(tmp_path)
+    scripts = repo / "scripts"
+    scripts.mkdir()
+    (scripts / "check_vendored.py").write_text(
+        f'"""Enforces MISSINGCANON.md {_SECT}1 (no such file here)."""\n',
+        encoding="utf-8",
+    )
+    result = _run(repo)
+    assert result.returncode == 1
+    assert "MISSINGCANON.md" in result.stderr
