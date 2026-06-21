@@ -21,8 +21,9 @@
 #   <where>              setuptools package source path; see table below
 #   layered DAG rows     replace with the project's actual peers and leaves
 #
-# Lockfile: generated from this file by `pip-tools` (`make lock`). The
-# committed `requirements.txt` is the resolved lockfile.
+# Lockfiles are optional and not part of canon (PACKAGING.md §5): a committed
+# `requirements.txt` is validated-if-present but never required, and there is no
+# `make lock` target — projects that want one generate it with their own tool.
 #
 # Dev deps are declared in PEP 735 `[dependency-groups]`, not in
 # `[project.optional-dependencies]`. Requires pip >= 25.1 to install the
@@ -35,8 +36,7 @@ description = "<one-line description>"
 requires-python = ">=3.12"
 authors = [{ name = "<your name>", email = "<email>" }]
 dependencies = [
-    # direct runtime imports only -- pip-tools resolves transitives into
-    # requirements.txt. Pin major / minor; let pip-compile pick the patch.
+    # direct runtime imports only. Pin major / minor as needed.
     "<runtime dep>",
 ]
 
@@ -59,12 +59,13 @@ dev = [
     "pytest-cov",
     "pip-audit",
     "import-linter",
-    "pip-tools",
     "pre-commit",
     "validate-pyproject",
+    "pyyaml>=6.0",                 # frontmatter parser for check_brief.py (racecar-llm-summary briefs)
 ]
 django = [
     # Django-specific dev tools. Install with: make install-django
+    "djhtml",                     # canonical Django/Jinja template-tag reindenter (racecar canon); idempotent, community OSS
     "coverage>=7.4",              # Django test runner needs coverage directly (pytest-cov is pytest-only)
     "django-debug-toolbar>=4.0",
     "drf-spectacular[sidecar]>=0.27",

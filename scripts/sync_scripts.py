@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Sync canonical racecar check scripts into an existing adopter repo.
 
-Copies the eight check scripts from their canonical racecar homes into
+Copies the canonical racecar check scripts from their homes into
 <dest>/scripts/<basename>.py. Scripts that are already up-to-date are left
 untouched. Scripts that differ are overwritten; new scripts are created.
 
@@ -24,20 +24,58 @@ Exit codes: 0 always (sync is not a gate).
 from __future__ import annotations
 
 import argparse
+import subprocess
 import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-# Scripts synced to every adopter repo.
+
+def canon_ref() -> str:
+    """Human label for the racecar canon state: short git SHA, marked '-dirty'
+    when the checkout has uncommitted changes.
+
+    The synced scripts are compared by CONTENT, not by this label; the ref exists
+    only so the staleness hook can say which racecar a repo is in sync with. The
+    '-dirty' marker keeps it from claiming a clean commit the working tree does not
+    match (during racecar development the checkout is normally dirty). Falls back to
+    the VERSION label when git is unavailable. One home: session_check_sync imports
+    this so the stamp and the hook agree.
+    """
+    try:
+        sha = subprocess.run(
+            ["git", "-C", str(REPO_ROOT), "rev-parse", "--short", "HEAD"],
+            capture_output=True, text=True, check=True,
+        ).stdout.strip()
+        dirty = subprocess.run(
+            ["git", "-C", str(REPO_ROOT), "status", "--porcelain"],
+            capture_output=True, text=True, check=True,
+        ).stdout.strip()
+        return f"{sha}-dirty" if dirty else sha
+    except (OSError, subprocess.CalledProcessError):
+        v = REPO_ROOT / "VERSION"
+        return f"v{v.read_text(encoding='utf-8').strip()}" if v.is_file() else "unknown"
+
+# Scripts synced to every adopter repo. This set must equal the canonical
+# check-script set every adopter needs to run its own gate locally: a script that
+# racecar runs ON an adopter's behalf but that the adopter cannot run itself
+# couples the adopter to the racecar checkout (the bug this list exists to avoid).
+#   - check_subsystem_docs.py: stdlib; no-ops without import-linter contracts.
+#     Wired into the template `docs:` target.
+#   - check_brief.py: validates the adopter's own docs/summary/<REPO>.md. It needs
+#     pyyaml, which is a canonical dev tool (PACKAGING.md §6); the template `docs:`
+#     target runs it guarded so it no-ops when the repo has no brief.
 CHECK_SCRIPTS = (
     "arch-coherence/scripts/check_upward_imports.py",
     "arch-coherence/scripts/check_cli_commands.py",
     "arch-coherence/scripts/check_packaging.py",
+    "arch-coherence/scripts/check_face_orchestration.py",
     "doc-coherence/scripts/check_docs.py",
+    "doc-coherence/scripts/check_subsystem_docs.py",
     "doc-coherence/scripts/check_todo_format.py",
     "doc-coherence/scripts/check_claude_shape.py",
     "doc-coherence/scripts/check_file_placement.py",
+    "llm-summary/scripts/check_brief.py",
     "scripts/clean_files.sh",
 )
 
@@ -56,6 +94,9 @@ TEMPLATE_FILES = (
     ("templates/classic/pre-commit-config.yaml", ".pre-commit-config.yaml"),
     ("templates/classic/gitignore", ".gitignore"),
     ("templates/classic/install_system_deps.sh", "scripts/install_system_deps.sh"),
+    # Human README skeleton (who-what -> Getting Started -> Using -> when/where/why).
+    # Create-if-missing only: a repo with a README keeps it untouched.
+    ("templates/classic/README.md", "README.md"),
 )
 
 
@@ -133,6 +174,13 @@ def sync(dest: Path, dry_run: bool, templates: bool = False) -> None:
             removed += 1
             if not dry_run:
                 old.unlink()
+
+    # Stamp the racecar ref synced from (short SHA, '-dirty' if the checkout had
+    # uncommitted changes). The SessionStart staleness hook reports it; the
+    # byte-compare is the real signal.
+    if not dry_run:
+        scripts_dir.mkdir(parents=True, exist_ok=True)
+        (scripts_dir / ".racecar-version").write_text(canon_ref() + "\n", encoding="utf-8")
 
     templates_created = _sync_templates(dest, dry_run) if templates else 0
 

@@ -3,7 +3,7 @@
 #
 # Pure bash entrypoint. Checks for python3 upfront, then:
 #
-# 1. Symlinks ~/.claude/skills/racecar{,-arch-coherence,-doc-coherence,-eng-review,-llm-summary,-normalize,-doctor,-commit}
+# 1. Symlinks ~/.claude/skills/racecar{,-arch-coherence,-doc-coherence,-eng-review,-llm-summary,-normalize,-doctor,-commit,-commit-decompose,-commit-preflight}
 #    into this checkout, so the /racecar* slash commands resolve.
 # 2. Runs scripts/sync_claude_md.py to manage the pointer block in
 #    ~/.claude/CLAUDE.md and racecar's hooks in ~/.claude/settings.json:
@@ -11,8 +11,8 @@
 #    PreCompact + SessionStart(compact) — which append to / reconcile a
 #    project's .claude/HISTORY.md (no-op unless that file exists), and the
 #    standards-loader SessionStart hook on matchers startup/resume/clear/
-#    compact, which inlines README.md + shared/*.md as additionalContext so
-#    those docs are present on every session boundary.
+#    compact, which inlines CLAUDE.md + shared/*.md as additionalContext so
+#    the machine baseline is present on every session boundary.
 #
 # Idempotent. A symlink already pointing at the right target is left alone.
 # A symlink pointing somewhere else, or a regular file at the target path,
@@ -87,8 +87,11 @@ for entry in \
     "racecar-eng-review:$RACECAR_ROOT/eng-review" \
     "racecar-llm-summary:$RACECAR_ROOT/llm-summary" \
     "racecar-normalize:$RACECAR_ROOT/normalize" \
+    "racecar-upgrade:$RACECAR_ROOT/upgrade" \
     "racecar-doctor:$RACECAR_ROOT/doctor" \
-    "racecar-commit:$RACECAR_ROOT/commit"; do
+    "racecar-commit:$RACECAR_ROOT/commit" \
+    "racecar-commit-decompose:$RACECAR_ROOT/commit-decompose" \
+    "racecar-commit-preflight:$RACECAR_ROOT/commit-preflight"; do
     name="${entry%%:*}"
     target="${entry#*:}"
     if ! link_one "$name" "$target"; then

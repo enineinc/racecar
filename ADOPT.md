@@ -25,7 +25,7 @@ From the racecar repo root:
 
 Substitute `pypkg+djapp`, `myproject`, and the dest path for your project. Optional flags: `--version`, `--description`, `--author`, `--email`. See `python scripts/init_project.py --help`.
 
-The scaffolder writes: the Makefile (shape vars set), library pyproject (placeholders filled), djapp pyproject (Shape `pypkg+djapp` only), `.pre-commit-config.yaml`, `.gitignore`, a skeleton `__init__.py`, and all eight check scripts under `scripts/`.
+The scaffolder writes: the Makefile (shape vars set), library pyproject (placeholders filled), djapp pyproject (Shape `pypkg+djapp` only), `.pre-commit-config.yaml`, `.gitignore`, a skeleton `__init__.py`, and the canonical check scripts under `scripts/`.
 
 **2. Edit the importlinter contract**
 
@@ -62,7 +62,7 @@ Preview without writing first:
 
     make sync-scripts DEST=/path/to/existing/repo DRY_RUN=--dry-run
 
-The sync copies only the eight canonical check scripts into `<dest>/scripts/`. It leaves any project-specific scripts in that directory untouched. Unchanged scripts are reported but not rewritten.
+The sync copies only the canonical check scripts into `<dest>/scripts/`. It leaves any project-specific scripts in that directory untouched. Unchanged scripts are reported but not rewritten.
 
 **Optionally deliver missing scaffolding** — add `--templates` (direct invocation):
 
@@ -118,6 +118,6 @@ Add `##@` markers only for targets that are not racecar canon. Leave canon targe
 
 ## Keeping in sync
 
-The eight check scripts are the canonical source. When racecar updates them, update each adopter repo using Path B or Path C and commit the results. Path B requires a local racecar clone; Path C works from any machine with Python and curl.
+The canonical check scripts are the source of truth. When racecar updates them, update each adopter repo using Path B or Path C and commit the results. Path B requires a local racecar clone; Path C works from any machine with Python and curl.
 
 The Makefile and pyproject templates have a **create-if-missing** path only (`--templates`); an existing copy is never overwritten by any sync. To pick up template changes in an existing file, review `diff -u templates/classic/Makefile <repo>/Makefile` manually and merge intentionally — or fix finding-by-finding from `check_packaging.py` output, which names the expected value per violation.

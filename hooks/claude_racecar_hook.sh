@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # PostToolUse hook for Claude Code: when a Read tool call targets
-# `racecar/README.md`, re-run `sync_claude_md.py` so the pointer in
-# ~/.claude/CLAUDE.md stays aligned with this checkout.
+# `racecar/README.md` or `racecar/CLAUDE.md`, re-run `sync_claude_md.py` so
+# the pointer in ~/.claude/CLAUDE.md stays aligned with this checkout.
 #
 # Claude Code passes the tool invocation as JSON on stdin. We extract
-# `tool_input.file_path` and act only when it matches racecar/README.md.
-# Any other Read is ignored. Always exits 0 so the hook never blocks the
-# tool call.
+# `tool_input.file_path` and act only when it matches racecar/README.md or
+# racecar/CLAUDE.md. Any other Read is ignored. Always exits 0 so the hook
+# never blocks the tool call.
 #
 # Wire it from ~/.claude/settings.json — see racecar/README.md "Pointer sync".
 
@@ -24,7 +24,7 @@ else
 fi
 
 case "$file_path" in
-  */racecar/README.md)
+  */racecar/README.md | */racecar/CLAUDE.md)
     python3 "$sync_script" >/dev/null 2>&1 || true
     ;;
 esac

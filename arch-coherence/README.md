@@ -4,11 +4,33 @@ Accessed via [`../README.md`](../README.md). If you arrived here directly, read 
 
 Apply this lens to verify a system's architectural DAG: imports are acyclic, dependencies flow in a single direction, layers do not leak, peer edges do not form cycles. For Python, `import-linter` mechanizes the properties; this lens is the reviewer-facing version and also checks whether the documented architecture matches what the code actually does.
 
+## The architecture racecar prescribes: one library, many faces
+
+The axioms below protect a specific shape. State the shape first, in plain terms, because every rule in this file exists to serve it.
+
+**What the shape is.** A racecar project is one library exposed through several thin faces. Three tiers, each with one job:
+
+- **`lib`, the worker.** The engine: compute, fetch, transform, persist. It does the actual work and knows nothing about who calls it. No input parsing, no credential prompting, no defaulting.
+- **`api`, the orchestration.** The worker plus the policy that makes it callable without ceremony: resolve inputs, seed credentials, apply defaults, dispatch to the right worker. This is the one home for that policy.
+- **faces, the adapters.** `cli`, `mcp`, `django`, and any other entry point. A face does exactly three things: translate input from its transport, call `api`, render the result in its transport's idiom. No policy lives here.
+
+```
+                   ┌──> cli  (__main__)
+   lib ──> api ────┼──> mcp
+                   └──> django
+```
+
+The arrow reads "provides for": `lib` provides for `api`, `api` provides for each face. The import edges run the reverse (a face imports `api`, `api` imports `lib`), and the resulting graph is a DAG.
+
+**Why the shape is this and not flatter.** Remove the `api` tier and the orchestration policy has nowhere to live but inside each face. With three faces that is three copies of "resolve inputs, seed credentials, default, dispatch," and three copies is three places the policy drifts out of sync (Tier 1 drift, see [../shared/DRIFT.md](../shared/DRIFT.md)). The `api` tier exists so that policy has exactly one home and the faces hold none of it. That is the entire reason for the structure. The four axioms below are how a reviewer verifies the structure stays honest.
+
+The full doctrine (a face is a wrapper on `api`; the canonical file names that make faces autodiscoverable; the single gated `layers` contract plus the advisory detector that *surfaces* — not walls — face-reaches-past-`api` choices; the role-identification tiers; and the placement principle) lives in [FACES.md](FACES.md).
+
 These axioms assume a single rooted package tree. Multi-root monorepos are not addressed here; guidance will appear when a concrete pattern emerges.
 
 Pair with [eng-review](../eng-review/README.md) for software-engineering hygiene and [doc-coherence](../doc-coherence/README.md) for prose, cross-references, and file naming.
 
-For language-specific coherence, see [PYTHON.md](PYTHON.md) (module structure, imports, enforcement) and [DJANGO.md](DJANGO.md) (service layer, view layering). The CLI contract — `__main__.py` patterns plus `commands()` / `subcommands()` / `parser()` plus audit JSON schema — has its own document: [CLI.md](CLI.md). The project-shell contract — `pyproject.toml` (PEP 517/518/621), `Makefile`, virtualenv discipline, `requirements.txt` via `pip-compile`, racecar's dev tool set, and the PSF/PyPA + community OSS governance rule that excludes VC-backed tooling — lives in [PACKAGING.md](PACKAGING.md). PACKAGING.md is one opinion of how to package, parameterized over four supported project shapes (`src`, `pypkg`, `pypkg+djapp`, `djapp`) that share the same infrastructure (pyproject.toml at repo root, requirements.txt lockfile, `make check` gate, racecar dev tool set, no VC-backed tooling).
+For language-specific coherence, see [PYTHON.md](PYTHON.md) (module structure, imports, enforcement) and [DJANGO.md](DJANGO.md) (service layer, view layering). The CLI contract — `__main__.py` patterns plus `commands()` / `subcommands()` / `parser()` plus audit JSON schema — has its own document: [CLI.md](CLI.md). The faces doctrine introduced above is detailed in full in [FACES.md](FACES.md). The project-shell contract — `pyproject.toml` (PEP 517/518/621), `Makefile`, virtualenv discipline, an optional `requirements.txt` lockfile (validate-if-present, not canon-generated), racecar's dev tool set, and the PSF/PyPA + community OSS governance rule that excludes VC-backed tooling — lives in [PACKAGING.md](PACKAGING.md). PACKAGING.md is one opinion of how to package, parameterized over four supported project shapes (`src`, `pypkg`, `pypkg+djapp`, `djapp`) that share the same infrastructure (pyproject.toml at repo root, `make check` gate, racecar dev tool set, no VC-backed tooling).
 
 ## How to use this file
 

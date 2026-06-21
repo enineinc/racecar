@@ -5,9 +5,9 @@
 #
 #   djapp/pyproject.toml
 #
-# This file is intentionally minimal: it exists so pip-tools can resolve a
-# `djapp/requirements.txt` lockfile and so the racecar checker can audit
-# the declared Django runtime deps.
+# This file is intentionally minimal: it exists so the racecar checker can audit
+# the declared Django runtime deps (and, if a project opts into an optional
+# `djapp/requirements.txt`, so that lockfile has a declared source).
 #
 # It deliberately does not declare:
 #   [project]         -- djapp is not a publishable package; no version, no name
@@ -22,8 +22,8 @@
 # The import-linter contract in the library pyproject prevents the library
 # from importing django even though django is installed in the shared venv.
 #
-# Requires pip >= 25.1 for `pip install --group runtime`. Lockfile generated
-# via `make lock` (runs `pip-compile --group runtime djapp/pyproject.toml`).
+# Requires pip >= 25.1 for `pip install --group runtime`. A lockfile is optional
+# and not part of canon (PACKAGING.md §5); generate it with your own tool if wanted.
 
 [tool.black]
 target-version = ["py312"]
@@ -36,7 +36,7 @@ profile = "black"
 
 [dependency-groups]
 runtime = [
-    # Django and its app-runtime peers. Pin major; let pip-compile pick patch.
+    # Django and its app-runtime peers. Pin major / minor as needed.
     "django>=5.0,<6.0",
     # Add the rest of the djapp's runtime dependencies here.
     # "djangorestframework>=3.15",

@@ -1,11 +1,11 @@
 ---
 generator:
   name: racecar-llm-summary
-  version: "0.7.0"
+  version: "0.8.0"
 target:
   repo: racecar
-  sha: 98de435
-  date: 2026-05-31
+  sha: 6b2038b
+  date: 2026-06-21
 bundle:
   - RACECAR.md
 
@@ -37,8 +37,8 @@ entities:
   - name: MechanicalCheck
     case: none
     lifecycle: realized
-    purpose: A stdlib-only Python script that catches deterministic drift the model is not asked to think about.
-    notes: "Seven ship: check_docs, check_subsystem_docs (doc-coherence); check_upward_imports, check_cli_commands, check_dj_model_ref_as_string, check_packaging (arch-coherence); check_brief (llm-summary)."
+    purpose: A stdlib-only Python script that catches deterministic drift the model is not asked to think about. Most gate (exit 1 on violation); check_face_orchestration and check_config_drift are ADVISORY (exit 0 by default) — gate defects, surface choices.
+    notes: "Twelve: check_docs, check_subsystem_docs, check_todo_format, check_claude_shape, check_file_placement (doc-coherence); check_upward_imports, check_cli_commands, check_dj_model_ref_as_string, check_packaging (arch-coherence, gating); check_face_orchestration (arch-coherence, advisory faces detector); check_brief (llm-summary). All synced to adopters via sync_scripts/init_project EXCEPT check_config_drift (scripts/, racecar-run-only: diffs an adopter's Makefile/pre-commit against templates/classic, needs the racecar checkout)."
 
   - name: Finding
     case: none
@@ -68,7 +68,7 @@ entities:
     case: on_disk_managed
     lifecycle: realized
     purpose: A `hooks.*` entry in `~/.claude/settings.json` that wires a racecar hook into the Claude Code permission and event pipeline.
-    notes: "Six managed: PreToolUse Bash (compound-command-allow.sh), PostToolUse Read (claude_racecar_hook.sh), PreCompact (precompact_history.py) + SessionStart/compact (session_compact_history.py) [the decision-log pair], SessionStart startup/resume/clear/compact (session_load_standards.py — force-load baseline) and SessionStart startup/resume/clear/compact (session_discover_cli.py — CLI-surface snapshot). Identified by command basename so a moved checkout self-heals."
+    notes: "Seven managed: PreToolUse Bash (compound-command-allow.sh), PostToolUse Read (claude_racecar_hook.sh), PreCompact (precompact_history.py) + SessionStart/compact (session_compact_history.py) [the decision-log pair], and three SessionStart startup/resume/clear/compact hooks — session_load_standards.py (force-load baseline), session_discover_cli.py (CLI-surface snapshot), and session_check_sync.py (warns when this repo's synced check scripts are behind racecar canon). Identified by command basename so a moved checkout self-heals."
 
   - name: DecisionLog
     case: on_disk_managed
@@ -86,37 +86,37 @@ entities:
     case: content_tree
     lifecycle: realized
     purpose: A short YAML-fronted Markdown file (`SKILL.md`) that registers a slash command and points at its sibling README as the loader.
-    path_pattern: "<skill>/SKILL.md"
-    count: 6
+    path_pattern: "<skill>/SKILL.md (root router + arch-coherence, doc-coherence, eng-review, llm-summary, commit, commit-decompose, commit-preflight, doctor, normalize, upgrade, expert)"
+    count: 12
     validator: "Claude Code at skill registration time"
 
   - name: StandardDoc
     case: content_tree
     lifecycle: realized
     purpose: A living Markdown standard — lens README, language overlay, or shared convention — read into the agent's context on demand.
-    path_pattern: "<skill>/README.md, arch-coherence/{PYTHON,DJANGO,CLI,PACKAGING}.md, eng-review/{PYTHON,DJANGO}.md, shared/*.md (incl. DRIFT.md), expert/EXPERT.md, root README.md"
-    count: "~23"
+    path_pattern: "<skill>/README.md, arch-coherence/{PYTHON,DJANGO,CLI,PACKAGING,FACES}.md, eng-review/{PYTHON,DJANGO}.md, shared/*.md (incl. DRIFT.md), expert/EXPERT.md, root CLAUDE.md (machine baseline + resolver), root README.md (human storefront)"
+    count: "~24"
     validator: "doc-coherence/scripts/check_docs.py (+ check_subsystem_docs.py)"
 
   - name: ProjectTemplate
     case: content_tree
     lifecycle: realized
     purpose: A copy-into-consumer-project baseline that illustrates the framework's packaging canon. Example artifact, NOT racecar's own operational truth — canon lives in PACKAGING.md + the check scripts.
-    path_pattern: "templates/classic/{library-pyproject.toml, djapp-pyproject.toml, Makefile, pre-commit-config.yaml, gitignore}"
-    count: 5
+    path_pattern: "templates/classic/{library-pyproject.toml, djapp-pyproject.toml, Makefile, pre-commit-config.yaml, gitignore, README.md}"
+    count: 6
     validator: "arch-coherence/scripts/check_packaging.py (in the consumer project)"
-    notes: "Single canonical set (black + isort + pylint). The earlier ruff variant was dropped (commit 9ad5c27) under the PACKAGING.md governance rule excluding VC-backed tooling. The Makefile is parameterized over the four ProjectShapes via SRC/PKG/DJAPP/LIB_PYPROJECT/DJAPP_PYPROJECT."
+    notes: "Single canonical set (black + isort + pylint; djhtml added to the Django dev group as the canonical template-tag formatter, PACKAGING.md §6). The earlier ruff variant was dropped (commit 9ad5c27) under the PACKAGING.md governance rule excluding VC-backed tooling. The Makefile is parameterized over the four ProjectShapes via SRC/PKG/DJAPP/LIB_PYPROJECT/DJAPP_PYPROJECT; its fmt/fmt-check targets run djhtml gated on $(DJAPP)."
 
 relationships:
   - from: Router
     to: Lens
     cardinality: "1:N"
-    notes: "Root README.md (loaded by /racecar) lists topic rows pointing at each lens README."
+    notes: "Root CLAUDE.md (the force-loaded machine baseline) lists topic rows pointing at each lens README; /racecar loads it as the resolver."
 
   - from: Router
     to: Generator
     cardinality: "1:1"
-    notes: "Root README.md also routes to llm-summary even though it is not a lens."
+    notes: "Root CLAUDE.md also routes to llm-summary even though it is not a lens."
 
   - from: SkillManifest
     to: StandardDoc
@@ -156,7 +156,7 @@ relationships:
   - from: SettingsHook
     to: StandardDoc
     cardinality: "1:N"
-    notes: "The SessionStart standards-loader (session_load_standards.py) inlines README.md + every shared/*.md as additionalContext on startup/resume/clear/compact, so the baseline is present, not merely pointed at."
+    notes: "The SessionStart standards-loader (session_load_standards.py) inlines CLAUDE.md + every shared/*.md as additionalContext on startup/resume/clear/compact, so the machine baseline is present, not merely pointed at. README.md is the human storefront and is not loaded."
 
   - from: SettingsHook
     to: MechanicalCheck
@@ -178,7 +178,7 @@ external_surface:
     - verb: /racecar
       module: SKILL.md
       args: none
-      behavior: "Load the root resolver README; route from topic to lens or generator."
+      behavior: "Load the root resolver (CLAUDE.md); route from topic to lens or generator."
     - verb: /racecar-arch-coherence
       module: arch-coherence/SKILL.md
       args: freeform prompt
@@ -194,7 +194,11 @@ external_surface:
     - verb: /racecar-llm-summary
       module: llm-summary/SKILL.md
       args: "optional: subsystem list, target dir override, 'skip §3'"
-      behavior: "Discovery walk + bundle write to docs/$repo/$REPO.md, validated by check_brief.py."
+      behavior: "Discovery walk + bundle write to docs/summary/$REPO.md, validated by check_brief.py."
+    - verb: /racecar-upgrade
+      module: upgrade/SKILL.md
+      args: freeform prompt (the repo to upgrade)
+      behavior: "Detect divergence from current racecar mechanically, classify each Conform/Declare/Escalate (burden of proof on Conform), owner-authorized, idempotent, no clobber. Optional lib/api/faces uplift from existing structure."
     - verb: /racecar-expert-mode
       module: expert/SKILL.md
       args: none
@@ -202,7 +206,7 @@ external_surface:
     - verb: ./install
       module: install
       args: "none; env: CLAUDE_SKILLS_PATH, CLAUDE_MD_PATH, CLAUDE_SETTINGS_PATH"
-      behavior: "python3 precheck → symlink five skills under ~/.claude/skills/ → invoke sync_claude_md.py to manage the pointer block and six hooks. Idempotent; refuses to clobber foreign state."
+      behavior: "python3 precheck → symlink five skills under ~/.claude/skills/ → invoke sync_claude_md.py to manage the pointer block and seven hooks. Idempotent; refuses to clobber foreign state."
       exit: "0 ok / 1 on conflicts or missing python3"
     - verb: make install
       module: Makefile
@@ -319,17 +323,17 @@ User-facing primitives:
 
 | Module | Purpose |
 | --- | --- |
-| `arch-coherence/` | Architectural-coherence lens: four checks (acyclicity, direction, layer integrity, depth-plus-one) + Python/Django specifics (`PYTHON.md`, `DJANGO.md`) + the CLI contract (`CLI.md`) + the packaging canon (`PACKAGING.md`) + four enforcement scripts (`check_upward_imports`, `check_cli_commands`, `check_dj_model_ref_as_string`, `check_packaging`), each with its own test module. |
+| `arch-coherence/` | Architectural-coherence lens: four checks (acyclicity, direction, layer integrity, depth-plus-one) + Python/Django specifics (`PYTHON.md`, `DJANGO.md`) + the CLI contract (`CLI.md`) + the packaging canon (`PACKAGING.md`) + the faces doctrine (`FACES.md`: `lib → api → faces`, a face is a wrapper on `api`, named-file autodiscovery convention, the single gated `layers` contract, advisory detector) + five enforcement scripts (`check_upward_imports`, `check_cli_commands`, `check_dj_model_ref_as_string`, `check_packaging` gating; `check_face_orchestration` advisory), each with its own test module. |
 | `doc-coherence/` | Documentation-coherence lens: update protocol + review lens + two mechanical pre-passes — `check_docs` (link / anchor / §N / vocabulary drift) and `check_subsystem_docs` (every import-linter subsystem owns README + CLAUDE). |
 | `eng-review/` | Engineering-review wrapper: racecar pre-pass → gstack `/plan-eng-review` → racecar post-pass. |
 | `llm-summary/` | This generator's spec + the `check_brief.py` validator. |
 | `expert/` | Optional output-mode overlay: terse, high-density expert delivery. |
 | `shared/` | Cross-cutting docs loaded on demand: `OPERATIONAL`, `OWNERSHIP`, `VOICE`, `PERSONA`, `GLOSSARY`, `VOCABULARY` (severity/verdict literals), `DRIFT`, `COMMITS`, `TODO_FORMAT`. |
-| `scripts/` | Installer-internal tools: `sync_claude_md.py`, `expert_mode.py`, `sync_md_to_obsidian.py`. |
-| `hooks/` | Claude Code hooks wired into `~/.claude/settings.json`: two bash (`compound-command-allow.sh`, `claude_racecar_hook.sh`) and four Python (`precompact_history.py`, `session_compact_history.py`, `session_load_standards.py`, `session_discover_cli.py`). |
+| `scripts/` | racecar-internal tooling (not synced as checks): `sync_claude_md.py` (pointer + hooks), `init_project.py` (scaffolder, incl. `--vertical` and the README skeleton), `sync_scripts.py` (sync canonical checks into an adopter), `check_config_drift.py` (advisory Makefile/pre-commit drift vs templates/classic), `doctor.py`, `expert_mode.py`, `sync_md_to_obsidian.py`. |
+| `hooks/` | Claude Code hooks wired into `~/.claude/settings.json`: two bash (`compound-command-allow.sh`, `claude_racecar_hook.sh`) and five Python (`precompact_history.py`, `session_compact_history.py`, `session_load_standards.py`, `session_discover_cli.py`, `session_check_sync.py` — synced-script staleness warning). |
 | `templates/` | Copy-into-project starter files under `classic/` (a single canonical set). Example artifacts illustrating the packaging canon — not racecar's own operational truth. |
-| `docs/` | Generated briefs from this skill, including `docs/racecar/RACECAR.md` (this file). |
-| (root) | `README.md` (resolver), `SKILL.md` (router), `install`, `Makefile`, `pyproject.toml`, `VERSION`, `LICENSE`. |
+| `docs/` | Generated briefs from this skill at `docs/summary/<REPO>.md`, including `docs/summary/RACECAR.md` (this file). |
+| (root) | `CLAUDE.md` (machine baseline + resolver, force-loaded), `README.md` (human storefront), `SKILL.md` (router), `install`, `Makefile`, `pyproject.toml`, `VERSION`, `LICENSE`. |
 
 ### §1.3 Vendors
 
@@ -343,7 +347,7 @@ No paid SaaS, no cloud platforms. One sibling skill bundle is referenced by name
 
 Two runtimes share this repo, plus a quasi-runtime that executes in target projects.
 
-1. **Skill bundle (primary).** A set of Markdown documents loaded into a Claude Code agent's context window when the corresponding slash command fires. Entry points are six `SKILL.md` files — Claude Code reads YAML frontmatter (`name`, `description`) to register `/racecar`, `/racecar-arch-coherence`, `/racecar-doc-coherence`, `/racecar-eng-review`, `/racecar-llm-summary`, and (after `make expert`) `/racecar-expert-mode`. The skill body is a one-screen pointer at the relevant `README.md`. The model — not the bundle — does the work. The SessionStart standards-loader hook additionally force-loads the README + `shared/*.md` baseline so it is present, not merely routable.
+1. **Skill bundle (primary).** A set of Markdown documents loaded into a Claude Code agent's context window when the corresponding slash command fires. Entry points are eleven `SKILL.md` files — Claude Code reads YAML frontmatter (`name`, `description`) to register `/racecar` (router) plus `-arch-coherence`, `-doc-coherence`, `-eng-review`, `-llm-summary`, `-commit`, `-commit-decompose`, `-commit-preflight`, `-doctor`, `-normalize`, and (after `make expert`) `-expert-mode`. The skill body is a one-screen pointer at the relevant `README.md`. The model — not the bundle — does the work. The SessionStart standards-loader hook additionally force-loads the `CLAUDE.md` + `shared/*.md` machine baseline so it is present, not merely routable; `README.md` is the human storefront and is not loaded.
 
 2. **CLI bootstrap (secondary).** A bash entry point (`install`) plus three stdlib Python scripts under `scripts/` (`sync_claude_md.py`, `expert_mode.py`, `sync_md_to_obsidian.py`) that mutate `~/.claude/` state. `make` is the human surface; `./install` is the bash surface. Both end in `scripts/sync_claude_md.py`.
 
@@ -355,7 +359,7 @@ Two runtimes share this repo, plus a quasi-runtime that executes in target proje
 | Skill: arch lens | `arch-coherence/SKILL.md` | `/racecar-arch-coherence` | none |
 | Skill: doc lens | `doc-coherence/SKILL.md` | `/racecar-doc-coherence` | none |
 | Skill: eng wrapper | `eng-review/SKILL.md` | `/racecar-eng-review` | delegates to gstack |
-| Skill: generator | `llm-summary/SKILL.md` | `/racecar-llm-summary` | writes `docs/$repo/$REPO.md` in target repo |
+| Skill: generator | `llm-summary/SKILL.md` | `/racecar-llm-summary` | writes `docs/summary/$REPO.md` in target repo |
 | Skill: expert overlay | `expert/SKILL.md` | `/racecar-expert-mode` | session-scoped output behavior |
 | Installer | `install` (bash) | `./install` | `~/.claude/skills/`, `~/.claude/CLAUDE.md`, `~/.claude/settings.json` |
 | Mechanical pre-pass | `*/scripts/check_*.py` | `make check*` here, or pre-commit / Makefile in target | reads target repo |
@@ -363,7 +367,7 @@ Two runtimes share this repo, plus a quasi-runtime that executes in target proje
 | Hook: PostToolUse Read | `hooks/claude_racecar_hook.sh` | Claude Code, on every Read | re-fires `sync_claude_md.py` on match |
 | Hook: PreCompact | `hooks/precompact_history.py` | Claude Code, on compaction | appends marker to project HISTORY.md (opt-in) |
 | Hook: SessionStart(compact) | `hooks/session_compact_history.py` | Claude Code, post-compaction | prompts HISTORY.md reconciliation (opt-in) |
-| Hook: SessionStart(start/resume/clear/compact) | `hooks/session_load_standards.py` | Claude Code | injects README + shared/*.md as context |
+| Hook: SessionStart(start/resume/clear/compact) | `hooks/session_load_standards.py` | Claude Code | injects CLAUDE.md + shared/*.md as context |
 | Hook: SessionStart(start/resume/clear/compact) | `hooks/session_discover_cli.py` | Claude Code | injects summarized CLI-surface tree |
 
 ### §2.2 Entities
@@ -380,7 +384,7 @@ The system has **no database, no ORM, no `INSTALLED_APPS`** in its own source. T
 
 ### §2.3 Relationships
 
-There are no foreign keys — there is no relational store. The DAG above the frontmatter is logical: skill-manifest → README; router → lens (and → generator); lens → mechanical-check (with bidirectional `§N` and docstring citations); installer-script → managed-state; project-template → mechanical-check (via the consumer's `.pre-commit-config.yaml` and `Makefile`); settings-hook → standard-doc and → mechanical-check (the two SessionStart loaders).
+There are no foreign keys — there is no relational store. The DAG above the frontmatter is logical: skill-manifest → CLAUDE.md (resolver); router → lens (and → generator); lens → mechanical-check (with bidirectional `§N` and docstring citations); installer-script → managed-state; project-template → mechanical-check (via the consumer's `.pre-commit-config.yaml` and `Makefile`); settings-hook → standard-doc and → mechanical-check (the two SessionStart loaders).
 
 The implicit graph between installer scripts, hooks, and consumer artifacts is a star centered on `RACECAR_ROOT`:
 
@@ -395,7 +399,7 @@ The implicit graph between installer scripts, hooks, and consumer artifacts is a
 ~/.claude/skills/{racecar,    ~/.claude/CLAUDE.md          ~/.claude/skills/
  racecar-arch-coherence,        (main pointer block)        racecar-expert-mode
  racecar-doc-coherence,       ~/.claude/settings.json       ~/.claude/CLAUDE.md
- racecar-eng-review,            (six hook entries)            (expert pointer block)
+ racecar-eng-review,            (seven hook entries)            (expert pointer block)
  racecar-llm-summary}                  ^
                                        |  PostToolUse Read self-heal
                                        |  + SessionStart load/discover
@@ -412,15 +416,15 @@ See frontmatter `external_surface` for the full enumeration. Three surface entri
 
 #### §2.4.1 `./install`
 
-Bash, idempotent. Reads three env vars (`CLAUDE_SKILLS_PATH`, `CLAUDE_MD_PATH`, `CLAUDE_SETTINGS_PATH`) with `~/.claude/` defaults. On a fresh clone, the sequence is: `python3` precheck (prints an OS-specific install hint and exits 1 if missing) → for each of five `(skill-name, dir)` pairs, link `~/.claude/skills/<name>` → `<dir>` (refuse on conflict) → invoke `scripts/sync_claude_md.py` to write the pointer block and upsert the six hooks. A symlink already at the right target is left alone; one pointing elsewhere or a regular file at the path is refused and counted as a conflict (`exit 1`). See `install` and `scripts/sync_claude_md.py` for the symmetry between the bash phase (filesystem primitives) and the Python phase (structured rewriting of CLAUDE.md and settings.json).
+Bash, idempotent. Reads three env vars (`CLAUDE_SKILLS_PATH`, `CLAUDE_MD_PATH`, `CLAUDE_SETTINGS_PATH`) with `~/.claude/` defaults. On a fresh clone, the sequence is: `python3` precheck (prints an OS-specific install hint and exits 1 if missing) → for each of five `(skill-name, dir)` pairs, link `~/.claude/skills/<name>` → `<dir>` (refuse on conflict) → invoke `scripts/sync_claude_md.py` to write the pointer block and upsert the seven hooks. A symlink already at the right target is left alone; one pointing elsewhere or a regular file at the path is refused and counted as a conflict (`exit 1`). See `install` and `scripts/sync_claude_md.py` for the symmetry between the bash phase (filesystem primitives) and the Python phase (structured rewriting of CLAUDE.md and settings.json).
 
 #### §2.4.2 PostToolUse Read self-heal
 
-`hooks/claude_racecar_hook.sh` receives PostToolUse JSON on stdin and case-globs `*/racecar/README.md` against `.tool_input.file_path`. On match, it re-fires `sync_claude_md.py` with output silenced. The hook **always exits 0** so a malformed payload never blocks the Read. This is the mechanism by which the pointer block and the absolute paths inside the six hook entries self-heal whenever the checkout moves.
+`hooks/claude_racecar_hook.sh` receives PostToolUse JSON on stdin and case-globs `*/racecar/README.md` against `.tool_input.file_path`. On match, it re-fires `sync_claude_md.py` with output silenced. The hook **always exits 0** so a malformed payload never blocks the Read. This is the mechanism by which the pointer block and the absolute paths inside the seven hook entries self-heal whenever the checkout moves.
 
 #### §2.4.3 SessionStart loaders
 
-Two SessionStart hooks, both wired on four matchers (startup, resume, clear, compact) so they re-fire after `/clear` and auto-compaction. `session_load_standards.py` inlines `README.md` and every `shared/*.md` as `additionalContext`, framed so the agent treats the baseline as already present rather than as a routing table to consult later; the lens files stay load-on-demand by design. `session_discover_cli.py` finds CLI roots by scanning the filesystem (every direct-child dir of `<repo>/` and `<repo>/src/` with both `__init__.py` and `__main__.py` — deliberately ignoring `[project].name` since dist and import names differ), runs `check_cli_commands.py --json`, then summarizes the enriched tree (dropping kind / pattern codes / audit noise) into context.
+Two SessionStart hooks, both wired on four matchers (startup, resume, clear, compact) so they re-fire after `/clear` and auto-compaction. `session_load_standards.py` inlines `CLAUDE.md` (racecar's machine baseline, which carries the resolver) and every `shared/*.md` as `additionalContext`, framed so the agent treats the baseline as already present rather than as a routing table to consult later; `README.md` is the human storefront and stays unloaded, and the lens files stay load-on-demand by design. `session_discover_cli.py` finds CLI roots by scanning the filesystem (every direct-child dir of `<repo>/` and `<repo>/src/` with both `__init__.py` and `__main__.py` — deliberately ignoring `[project].name` since dist and import names differ), runs `check_cli_commands.py --json`, then summarizes the enriched tree (dropping kind / pattern codes / audit noise) into context.
 
 Short slash commands, `make` targets, and mechanical pre-pass scripts are fully captured in frontmatter and need no body gloss.
 
@@ -444,7 +448,7 @@ Cross-module contracts that are not user-callable:
 
 Racecar has no production / dev split — there is no deployed instance. Every knob is evaluated on the consumer machine.
 
-- `CLAUDE_SKILLS_PATH` / `CLAUDE_MD_PATH` / `CLAUDE_SETTINGS_PATH` — where `./install` writes skill symlinks / the pointer block / the six hook entries. Defaults `~/.claude/skills`, `~/.claude/CLAUDE.md`, `~/.claude/settings.json`.
+- `CLAUDE_SKILLS_PATH` / `CLAUDE_MD_PATH` / `CLAUDE_SETTINGS_PATH` — where `./install` writes skill symlinks / the pointer block / the seven hook entries. Defaults `~/.claude/skills`, `~/.claude/CLAUDE.md`, `~/.claude/settings.json`.
 - `STRING_RELATIONS_INSTALLED_APPS` — comma-separated app labels; overrides Django app discovery in `check_dj_model_ref_as_string.py` (test / CI mode; bypasses `manage.py shell`).
 - `OBSIDIAN_SYNC_ROOT` — destination root for `scripts/sync_md_to_obsidian.py`. Not wired into the Makefile. CLI flag `--dest` > env var > `dest_root` in `~/.config/obsidian-sync.toml`. No default.
 - `--claude-md` / `--target`, `--settings`, `--dry-run` — `sync_claude_md.py` CLI flags. CLI flag > env var > default.
@@ -457,9 +461,9 @@ No secrets. No environment-variant rows because there is no environment split.
 
 ### §2.7 Flows
 
-1. **Fresh install (`./install`).** python3 precheck; for each of five `(skill-name, dir)` pairs, link `~/.claude/skills/<name>` → `<dir>` (refuse on conflict); invoke `scripts/sync_claude_md.py`, which renders the pointer block, partitions `~/.claude/CLAUDE.md` on BEGIN/END markers, and upserts the six hooks into `~/.claude/settings.json` by command basename. Idempotent. Exit 0 if no conflicts; 1 otherwise.
+1. **Fresh install (`./install`).** python3 precheck; for each of five `(skill-name, dir)` pairs, link `~/.claude/skills/<name>` → `<dir>` (refuse on conflict); invoke `scripts/sync_claude_md.py`, which renders the pointer block, partitions `~/.claude/CLAUDE.md` on BEGIN/END markers, and upserts the seven hooks into `~/.claude/settings.json` by command basename. Idempotent. Exit 0 if no conflicts; 1 otherwise.
 
-2. **Baseline force-load (SessionStart hook).** On startup / resume / clear / compact, `session_load_standards.py` inlines `README.md` + every `shared/*.md` as `additionalContext`, framed as already-loaded; lenses stay load-on-demand. Always non-blocking.
+2. **Baseline force-load (SessionStart hook).** On startup / resume / clear / compact, `session_load_standards.py` inlines `CLAUDE.md` + every `shared/*.md` as `additionalContext`, framed as already-loaded; `README.md` (human storefront) stays unloaded and lenses stay load-on-demand. Always non-blocking.
 
 3. **CLI-surface discovery (SessionStart hook).** `session_discover_cli.py` walks up to `.git`, scans for CLI roots (dirs with `__init__.py` + `__main__.py`), runs `check_cli_commands.py --json` under the in-tree `.venv` (or `sys.executable`), summarizes the enriched tree, and injects it.
 
@@ -479,13 +483,13 @@ No secrets. No environment-variant rows because there is no environment split.
 
 11. **Cross-module string-relation check (`check_dj_model_ref_as_string.py`).** Read `root_packages`; obtain `INSTALLED_APPS`; AST-walk each root; flag string-target ORM relations; classify LIVE/NOOP; annotate UPWARD DAG cross. Self-references and `settings.AUTH_USER_MODEL` exempt.
 
-12. **Brief generation (`/racecar-llm-summary`).** Read `llm-summary/README.md` in full → discovery walk → draft body → derive frontmatter → write `docs/$repo/$REPO.md` → end with `## Confidence` → validate with `check_brief.py`. This brief is the literal artifact of Flow 12 against this repo.
+12. **Brief generation (`/racecar-llm-summary`).** Read `llm-summary/README.md` in full → discovery walk → draft body → derive frontmatter → write `docs/summary/$REPO.md` → end with `## Confidence` → validate with `check_brief.py`. This brief is the literal artifact of Flow 12 against this repo.
 
 ### §2.8 Seams
 
 Plugin / extension surfaces:
 
-- **Skill registration.** Add `<name>/SKILL.md` with `name:`/`description:` frontmatter, add a row to `install`'s symlink loop, add a row to the root resolver `README.md`. The pointer block rendered by `sync_claude_md.py:render_block` is intentionally generic and does not enumerate skills.
+- **Skill registration.** Add `<name>/SKILL.md` with `name:`/`description:` frontmatter, add a row to `install`'s symlink loop, add a row to the root resolver `CLAUDE.md`. The pointer block rendered by `sync_claude_md.py:render_block` is intentionally generic and does not enumerate skills.
 - **Hook contract.** Append another `upsert_hook(settings, event, matcher, command, basename)` call in `scripts/sync_claude_md.py:sync_settings`. Hooks are identified by command basename so a moved checkout self-heals. Recent examples: the SessionStart baseline-loader (commit `ff21b54`) and the SessionStart CLI-discovery hook (commit `3bb2ec9`).
 - **Mechanical check.** A new stdlib script under a lens's `scripts/`; a row in the template `pre-commit-config.yaml` under `repo: local` (or a Makefile `arch`/`docs` target for full-tree audits); and a doc section the docstring backrefs by `§N`. Recent examples: the packaging canon `check_packaging.py` wired into `make arch` + `validate-pyproject` pre-commit (commit `39fb900`), and `check_subsystem_docs.py` (commit `4b67ef5`).
 - **Output overlay.** A directory with `SKILL.md` + content `.md`, a manage-block script under `scripts/` using twin BEGIN/END markers, and a `make` install/uninstall target pair. Recent example: `racecar-expert-mode` (commit `6ce3338`).
@@ -498,24 +502,32 @@ Plugin / extension surfaces:
 - **VERSION-deprecation carve-out for non-package repos.** Commit `745cef1`. The canon says `[project].version` is the sole version source — but only where a `[project]` table exists. A docs/scripts/standards-framework repo (racecar itself) has no `[project]`, so VERSION is its legitimate version home and `check_packaging` no longer misfires on it.
 - **The §3 CLI surface is a three-contract / three-pattern model.** `arch-coherence/CLI.md` (commit `3bb2ec9`). `commands()`/`subcommands()`/`parser()` are pure data functions; `check_cli_commands.py --json` emits one enriched tree that every consumer (SessionStart hook, doc gen, CI) summarizes — single source of CLI truth.
 - **Parallelize the CLI audit.** Commit `98f7738`. Cold `python -m` probes dominated wall time; a structural walk drops `_Probe` sentinels that a thread pool resolves, preserving per-node ordering (so exact-equality tests pass). `__main__` import errors are captured as structural violations rather than killing the audit.
-- **Force-load the baseline every SessionStart.** Commit `ff21b54`. A CLAUDE.md pointer is only an instruction; inlining README + `shared/*.md` as `additionalContext` makes the baseline present, not merely routable. Lenses stay on-demand by design.
+- **Force-load the baseline every SessionStart.** Commit `ff21b54`. The pointer block is only an instruction; inlining the machine baseline (`CLAUDE.md` + `shared/*.md`) as `additionalContext` makes it present, not merely routable. README is the human storefront and is not loaded; lenses stay on-demand by design.
 - **Decision log as a tiered hook pair.** Commit `86aee48`. A deterministic `PreCompact` marker (spine) + a `SessionStart(compact)` reconciliation prompt (judgment). Opt-in per project via `.claude/HISTORY.md`.
 - **Completion-claim guardrails.** `shared/OPERATIONAL.md` rules 7–12 (commit `9ced60c`): never claim done without the production-path command + exit code; agent-workaround keywords are stop signals; cross-agent equal numbers must be checked; doc invariants need test code; tests routing around production are bugs; banned completion vocabulary.
 - **Subsystem-docs presence check.** Commit `4b67ef5`. Every import-linter subsystem must own a README (developer) + CLAUDE (agent); "major" is structural (a subdir) or size (`loc_threshold`).
 - **YAML frontmatter as the brief's relational store; class-level entities only.** `llm-summary/README.md`. A downstream LLM queries frontmatter deterministically; field tables blew the line budget and were rarely the interesting query. `check_brief.py` now also enforces spine/body SHA agreement (commit `938d27c`).
 - **Drift doctrine.** `shared/DRIFT.md`. Defense must be structural or automatic; resolve drift at the largest frame that explains the symptom; "duplication is drift" is Tier 1.
+- **Faces as named convention, not a wall.** `arch-coherence/FACES.md`. One library exposed through N thin faces (`lib → api → {cli, mcp, web/django}`); a **face is a wrapper on `api`**. The first pass made face→worker routing a hard `forbidden` import-linter contract; that was racecar breaking its own OWNERSHIP ("tooling confirms, the owner authorizes") and DRIFT ("detect and surface") doctrine. Recast (built on the `lib → api → faces` proving ground): **gate genuine defects** (acyclicity + direction stay one gated `layers` contract), **surface choices** (face reaching past `api` is advisory, not walled). The canonical file names (`lib.py`/`api.py`/`mcp.py`/`__main__.py`) are an **autodiscovery contract** — the Django `admin.py` model, fixed because the framework looks them up — not dogma. Role identification is declare-then-verify in three tiers (canonical name → `[tool.racecar.faces]` manifest → structural cut-vertex inference), LLM-last; non-classifiability is itself the drift finding.
+- **Advisory faces detector + scaffolder replace the wall.** `check_face_orchestration.py` is advisory (exit 0; `--strict` opts in) and identifies each vertical's `lib`/`api`/faces, flagging non-classifiable verticals and orchestration restated across faces. `scripts/init_project.py --vertical` scaffolds the canonical vertical pre-wired `lib → api → cli` (the `startapp` equivalent): the good shape is the default you receive (FACES.md §10). Scaffold + advisory detector + docs-that-teach is how convention spreads where enforcement does not.
+- **djhtml is the canonical Django-template formatter.** `arch-coherence/PACKAGING.md §6`. Idempotent by construction (it only reindents `{% %}` tags), permissively licensed, community OSS — chosen over the heavier, GPL, empirically-idempotent `djlint`. Lives in the Django dev group; `make fmt`/`fmt-check` run it gated on `$(DJAPP)`; `check_packaging` requires it in the django group for any repo with a `manage.py` (the propagation lever to existing Django adopters).
+- **README is for humans, CLAUDE.md for machines.** README is the readable storefront and is NOT force-loaded into agent context; `CLAUDE.md` is the machine baseline + resolver the SessionStart hook inlines, and the consuming-project pointer references. Modeled on gstack's README/AGENTS/CLAUDE split.
+- **Brief home is `docs/summary/<REPO>.md`.** Dropped the redundant `docs/<repo>/` segment (the repo name is already the host repo) and the Sphinx/MkDocs collision heuristic (an implicit detector racecar otherwise avoids). One fixed location; user override for the rare exception.
+- **Nuanced upgrade, not naive clobber.** The `racecar-upgrade` skill (`upgrade/README.md`) never assumes the existing repo is wrong. Every divergence from current racecar gets one of three verdicts: Conform (drift; bring to base), Declare (intentional; preserve and record in `[tool.racecar.overrides]`), Escalate (racecar's default is wrong; change the standard, repo untouched). Burden of proof on Conform; owner-authorized; idempotent. Mechanical floor: `scripts/check_config_drift.py` (portable stdlib Python — deliberately NOT a bash `declare -A` map, which breaks on macOS bash 3.2 — normalizing the per-project shape variables so they are not reported as drift).
+- **Adopter self-sufficiency for synced checks.** `check_subsystem_docs` and `check_brief` were racecar-only, so an adopter could not validate artifacts (its own subsystem docs, its own `docs/summary/` brief) without the racecar checkout. Both are now synced; `check_brief` needs `pyyaml`, which was promoted to a canonical dev tool (PACKAGING.md §6) to make the adopter's gate self-contained. The template `docs:` target runs `check_brief` guarded so a repo with no brief pays only the inert dependency.
+- **Standard README shape as a received template, not a gate.** Human READMEs follow who-what -> Getting Started -> Using -> when/where/why (`templates/classic/README.md`, scaffolded by `init_project`). No checker enforces the section names: forcing headings would be theater. The structure is the easy default you receive, per the FACES.md "make the right thing easy" principle.
 
 ### §2.10 Operational
 
 - **Install (fresh clone).** Requires `python3 ≥ 3.11` on `PATH` (stdlib only) and a writable `~/.claude/`. Run `./install`. Idempotent. Override targets via the three env vars.
 - **Bootstrap check.** Verify `~/.claude/settings.json` `hooks.PostToolUse` contains an entry whose command ends with `hooks/claude_racecar_hook.sh`. Root `README.md` documents this.
-- **Move the checkout.** Re-run `./install`; the PostToolUse Read hook also self-heals the pointer block and the six hook absolute paths whenever any `racecar/README.md` is read.
+- **Move the checkout.** Re-run `./install`; the PostToolUse Read hook also self-heals the pointer block and the seven hook absolute paths whenever any `racecar/README.md` is read.
 - **System dependencies.** `python3 ≥ 3.11` (`tomllib`). Optional `jq` for the Read hook (sed fallback); required `jq` for the Bash hook. `make` for the human surface. Consumer projects additionally need `pip ≥ 25.1` (PEP 735) — a template requirement, not racecar's own.
 - **Dev dependencies.** `pip install --group dev` (via `make install-deps`) pulls `black`/`isort`/`pylint`/`pytest`/`pyyaml>=6.0`. Only `pytest` and `pyyaml` exercise racecar's own surface; the formatters/linter are consumer-side defaults.
 - **Self-test.** Owner-driven, no `.github/workflows/`. `make check` = `check-docs` + `check-subsystem-docs` + `pytest` (eight modules) + `check-brief`. racecar itself is **not** one of the four ProjectShapes, so `check_packaging` is not run against racecar's own tree.
 - **Healthcheck / observability.** None — no service. Hook scripts never block; `sync_claude_md.py` prints `created` / `updated` / `already up to date`.
 - **Uninstall.** Not provided for the main install (symlinks + pointer survive a `git rm`). `make expert-uninstall` reverses the overlay.
-- **Tests.** Eight modules: `arch-coherence/tests/{test_check_cli_commands,test_check_packaging,test_check_dj_model_ref_as_string,test_check_upward_imports}.py`, `doc-coherence/tests/{test_check_docs,test_check_subsystem_docs}.py`, `llm-summary/tests/test_check_brief.py`, `scripts/tests/test_sync_claude_md.py`. Still untested: `expert_mode.py`, `sync_md_to_obsidian.py`, the two bash hooks, the four Python hooks, and `./install`.
+- **Tests.** Fifteen modules across `arch-coherence/tests`, `doc-coherence/tests`, `llm-summary/tests`, and `scripts/tests` — covering every check script plus `check_face_orchestration`, `init_project`, `doctor`, `sync_claude_md`, and `session_check_sync`. Still untested: `expert_mode.py`, `sync_md_to_obsidian.py`, the two bash hooks, four of the five Python hooks (`session_check_sync.py` is the tested one), and `./install`.
 
 ### §2.11 Weirdness
 
@@ -562,7 +574,8 @@ N/A — no deployed instance. The install surface is `./install`, `make`, and th
 - §2.2 (Entities): the `ProjectShape` entry treats the four shapes (`src` / `pypkg` / `pypkg+djapp` / `djapp`) as a closed set; if PACKAGING.md grows a fifth shape this brief will lag. Verify against `arch-coherence/PACKAGING.md §Scope` and the `detect_shape` branches in `arch-coherence/scripts/check_packaging.py`.
 - §2.1 / §2.4.3 (SessionStart hooks): the claim that both SessionStart loaders fire on exactly the four matchers (startup / resume / clear / compact) is taken from the `upsert_hook` calls in `scripts/sync_claude_md.py`; verify against the `SESSION_*` matcher constants and the `sync_settings` body there.
 - §2.5 (Internal contracts): the `subcommands()` / `parser()` "required on Pattern 2/3, forbidden on Pattern 1" rule is transcribed from `arch-coherence/CLI.md §"The three contracts"`; if `_classify` in `check_cli_commands.py` enforces it differently, the script is authoritative. Verify against the current `_classify` / contract-checking code.
-- §2.10 (Operational): the eight-test-module count and the `make check` chain are read from the root `Makefile` and the `git diff` since `c913bbe`; verify with `make test` and `grep -n 'check:' Makefile`.
+- §2.10 (Operational): the test-module count and the `make check` chain are read from the root `Makefile`; the working tree is ahead of committed `6b2038b` (this session added the faces recast, djhtml, docs/summary, and the README/CLAUDE split uncommitted). Verify with `make test` and `grep -n 'check:' Makefile`.
+- §2.9 / §2.2 (Faces): `check_face_orchestration.py`'s Tier-3 structural inference (api = cut vertex between faces and lib) is summarized from the rebuilt script; the exact articulation-point algorithm and the single-face `api==lib` collapse edge are authoritative in `arch-coherence/scripts/check_face_orchestration.py` (`_cut_vertices` / `_infer_api`). Verify there and in `arch-coherence/FACES.md §5`.
 
 **Not in this brief**
 

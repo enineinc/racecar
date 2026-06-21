@@ -2,7 +2,7 @@
 
 Two flavors:
 
-1. Smoke test against the repo's own brief at ``docs/racecar/RACECAR.md`` —
+1. Smoke test against the repo's own brief at ``docs/summary/RACECAR.md`` —
    the brief that exists in this checkout must validate clean. Catches
    regressions where a schema tweak in the script outpaces the brief.
 
@@ -11,7 +11,7 @@ Two flavors:
    the relevant validator fires.
 
 The script discovers the brief either by argv[1] or by walking up to find
-``.git`` then resolving ``docs/$repo/$REPO.md``. Tests pass the path
+``.git`` then resolving ``docs/summary/$REPO.md``. Tests pass the path
 explicitly to avoid relying on CWD.
 
 Run with:
@@ -28,7 +28,7 @@ import pytest
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "check_brief.py"
 REPO_ROOT = Path(__file__).resolve().parents[2]
-REAL_BRIEF = REPO_ROOT / "docs" / "racecar" / "RACECAR.md"
+REAL_BRIEF = REPO_ROOT / "docs" / "summary" / "RACECAR.md"
 
 
 def _run(*args: str) -> subprocess.CompletedProcess[str]:
@@ -45,7 +45,7 @@ def test_real_brief_validates_clean() -> None:
     """The checked-in brief must validate against the current schema."""
     result = _run(str(REAL_BRIEF))
     assert result.returncode == 0, (
-        f"docs/racecar/RACECAR.md failed check_brief:\n"
+        f"docs/summary/RACECAR.md failed check_brief:\n"
         f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
     )
 

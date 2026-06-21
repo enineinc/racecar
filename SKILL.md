@@ -5,7 +5,7 @@ description: Router for the racecar standards repo — an opinionated Python/Dja
 
 # racecar — Standards Router
 
-This skill is a routing table, not content. Load [`README.md`](README.md) for the full resolver; it points at the three lens dirs and the shared conventions (`shared/OWNERSHIP.md`, `shared/VOICE.md`, `shared/TODO_FORMAT.md`).
+This skill is a routing table, not content. Load [`CLAUDE.md`](CLAUDE.md) for the full resolver (racecar's machine baseline, force-loaded every session); it points at the lens dirs and the shared conventions (`shared/OWNERSHIP.md`, `shared/VOICE.md`, `shared/TODO_FORMAT.md`). [`README.md`](README.md) is the human-facing storefront.
 
 The three lenses, each its own skill:
 

@@ -15,7 +15,7 @@ Two idempotent operations against `~/.claude/`:
        (prompts the agent to reconcile <repo>/.claude/HISTORY.md from the
        transcript after compaction)
      - `SessionStart` (matchers startup/resume/clear/compact) →
-       `hooks/session_load_standards.py` (force-loads README + shared/*.md)
+       `hooks/session_load_standards.py` (force-loads CLAUDE.md + shared/*.md)
      - `SessionStart` (matchers startup/resume/clear/compact) →
        `hooks/session_discover_cli.py` (runs check_cli_commands.py --json
        on the consuming repo and injects the audit tree as
@@ -26,7 +26,7 @@ Two idempotent operations against `~/.claude/`:
 
 Every run rewrites both in place. Designed to be invoked manually
 (Makefile) or automatically (Claude Code PostToolUse hook on Read of
-`racecar/README.md`).
+`racecar/README.md` or `racecar/CLAUDE.md`).
 
 Discovery:
   - RACECAR_ROOT is the parent directory of `scripts/`, computed from
@@ -73,6 +73,7 @@ PRECOMPACT_HOOK_BASENAME = "precompact_history.py"
 SESSIONSTART_HOOK_BASENAME = "session_compact_history.py"
 SESSION_LOAD_HOOK_BASENAME = "session_load_standards.py"
 SESSION_DISCOVER_HOOK_BASENAME = "session_discover_cli.py"
+SESSION_CHECK_SYNC_HOOK_BASENAME = "session_check_sync.py"
 SESSION_LOAD_MATCHERS = ("startup", "resume", "clear", "compact")
 
 
@@ -80,23 +81,34 @@ SESSION_LOAD_MATCHERS = ("startup", "resume", "clear", "compact")
 
 
 def render_block(racecar_root: Path) -> str:
-    readme = racecar_root / "README.md"
+    claude_md = racecar_root / "CLAUDE.md"
     shared = racecar_root / "shared"
+    readme = racecar_root / "README.md"
     return (
         f"{BEGIN_MARKER}\n"
-        f"## Standards: racecar\n"
-        f"Racecar's baseline is FORCE-LOADED on every SessionStart by the "
+        f"## Standards: racecar (governs this repo)\n"
+        f"racecar is a deterministic code-review framework applied to this "
+        f"project. When doing AI-assisted work here, use its lenses and run "
+        f"its checks.\n\n"
+        f"Machine baseline (you, the agent): `{claude_md}` plus every `*.md` "
+        f"under `{shared}` are FORCE-LOADED every SessionStart by the "
         f"`session_load_standards` hook (wired by `./install` on matchers "
-        f"startup/resume/clear/compact). The baseline is `{readme}` plus "
-        f"every `*.md` under `{shared}` — operational discipline, persona, "
-        f"drift, voice, glossary, ownership, commits, TODO format. Treat "
-        f"the baseline as already loaded in this session; do not Read those "
-        f"files again.\n\n"
-        f"Use `{readme}` as the router for the lens files "
-        f"(`arch-coherence/`, `eng-review/`, `doc-coherence/`, "
-        f"`llm-summary/`). Lenses load ON DEMAND — Read the file the "
-        f"README points to when a task matches its topic; do not load "
-        f"lenses speculatively.\n"
+        f"startup/resume/clear/compact) — operational discipline, persona, "
+        f"drift, voice, glossary, ownership, commits, TODO format, plus the "
+        f"resolver. Treat the baseline as already loaded; do not Read those "
+        f"files again. Human overview: `{readme}`.\n\n"
+        f"Load a lens ON DEMAND when the task matches, never speculatively:\n"
+        f"- architecture / import cycles / layers / faces  -> /racecar-arch-coherence\n"
+        f"- code quality / Python-Django hygiene           -> /racecar-eng-review\n"
+        f"- docs / drift / link integrity                  -> /racecar-doc-coherence\n"
+        f"- repo brief for another LLM                      -> /racecar-llm-summary\n"
+        f"- commit + version bump                          -> /racecar-commit\n"
+        f"- before committing (dry-run the hooks)          -> /racecar-commit-preflight\n"
+        f"- split a working tree into commits              -> /racecar-commit-decompose\n"
+        f"- audit this project against racecar             -> /racecar-normalize\n"
+        f"- \"is racecar loaded?\"                           -> /racecar-doctor\n\n"
+        f"Enforce mechanically in THIS repo: `make arch` / `make check` plus "
+        f"pre-commit. A failure names file:line; fix it before proceeding.\n"
         f"{END_MARKER}\n"
     )
 
@@ -232,10 +244,11 @@ def sync_settings(
         SESSIONSTART_HOOK_BASENAME,
     )
 
-    # SessionStart standards-loader. CLAUDE.md's pointer to racecar's README is
-    # only an instruction; the agent may skip it. This hook inlines README.md +
-    # shared/*.md as additionalContext on every relevant session boundary so
-    # the standards are present whether or not the agent followed the pointer.
+    # SessionStart standards-loader. The pointer block above is only an
+    # instruction; the agent may skip it. This hook inlines racecar's machine
+    # baseline (CLAUDE.md + shared/*.md) as additionalContext on every relevant
+    # session boundary so the standards are present whether or not the agent
+    # followed the pointer.
     session_load_command = str(racecar_root / "hooks" / SESSION_LOAD_HOOK_BASENAME)
     session_load_changed = False
     for matcher in SESSION_LOAD_MATCHERS:
@@ -268,6 +281,23 @@ def sync_settings(
         ):
             session_discover_changed = True
 
+    # SessionStart sync-staleness hook. Warns when this repo's synced racecar
+    # check scripts have fallen behind canon (session_check_sync.py byte-compares
+    # them against the checkout). No-ops in a non-adopter repo or one in sync.
+    session_check_command = str(
+        racecar_root / "hooks" / SESSION_CHECK_SYNC_HOOK_BASENAME
+    )
+    session_check_changed = False
+    for matcher in SESSION_LOAD_MATCHERS:
+        if upsert_hook(
+            settings,
+            "SessionStart",
+            matcher,
+            session_check_command,
+            SESSION_CHECK_SYNC_HOOK_BASENAME,
+        ):
+            session_check_changed = True
+
     rendered = json.dumps(settings, indent=2) + "\n"
     changed = (
         pre_changed
@@ -276,6 +306,7 @@ def sync_settings(
         or sessionstart_changed
         or session_load_changed
         or session_discover_changed
+        or session_check_changed
         or (rendered != raw)
     )
 

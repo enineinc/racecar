@@ -22,8 +22,8 @@ Checks performed:
        ``cardinality`` (must be quoted: "1:1" / "1:N" / "M:N"); ``on_delete``
        and ``owner_side`` are optional.
      - ``external_surface`` (optional). Sub-keys ``http_routes`` /
-       ``cli_verbs`` / ``library_exports`` / ``webhooks`` / ``signals``;
-       enum members for HTTP ``method``.
+       ``cli_verbs`` / ``mcp_tools`` / ``library_exports`` / ``webhooks`` /
+       ``signals``; enum members for HTTP ``method``.
 
   2. Structural body checks:
      - Every §N.M with a body component appears as a heading at the depth
@@ -36,7 +36,7 @@ Checks performed:
        in the bundle directory — no orphans, no missing.
      - §2.4 frontmatter surface keys: any key with >5 entries must be a
        first-class recognized kind (``http_routes``, ``cli_verbs``,
-       ``library_exports``, ``webhooks``, ``signals``).
+       ``mcp_tools``, ``library_exports``, ``webhooks``, ``signals``).
      - Spine/body agreement: any snapshot SHA restated in the brief's
        preamble (body text before the first ``## §1`` heading) must match
        ``target.sha``. Commit SHAs cited in §2.9 design history are out of
@@ -48,7 +48,7 @@ Discovery:
     containing ``.git``. ``$repo`` is that directory's basename lowercased
     with any character outside ``[a-z0-9_-]`` replaced by ``-``; ``$REPO``
     is ``$repo`` uppercased. The brief is expected at
-    ``<repo-root>/docs/<$repo>/<$REPO>.md``.
+    ``<repo-root>/docs/summary/<$REPO>.md``.
 
 Output:
   - One finding per line, prefixed ``check_brief: <severity>: <message>``
@@ -103,10 +103,10 @@ def derive_repo_slug(repo_root: Path) -> tuple[str, str]:
 
 
 def discover_brief_path() -> Path | None:
-    """Return the conventional brief path ``docs/$repo/$REPO.md`` or None."""
+    """Return the conventional brief path ``docs/summary/$REPO.md`` or None."""
     root = find_repo_root()
-    slug, slug_upper = derive_repo_slug(root)
-    candidate = root / "docs" / slug / f"{slug_upper}.md"
+    _, slug_upper = derive_repo_slug(root)
+    candidate = root / "docs" / "summary" / f"{slug_upper}.md"
     return candidate if candidate.is_file() else None
 
 
@@ -171,6 +171,7 @@ MUTABILITY_VALUES = {"read-only", "mutable"}
 SURFACE_KINDS = {
     "http_routes",
     "cli_verbs",
+    "mcp_tools",
     "library_exports",
     "webhooks",
     "signals",
@@ -686,8 +687,8 @@ def main(argv: list[str] | None = None) -> int:
         discovered = discover_brief_path()
         if discovered is None:
             root = find_repo_root()
-            slug, slug_upper = derive_repo_slug(root)
-            expected = root / "docs" / slug / f"{slug_upper}.md"
+            _, slug_upper = derive_repo_slug(root)
+            expected = root / "docs" / "summary" / f"{slug_upper}.md"
             f.error(f"discovery: no brief found at conventional path {expected}")
             return emit(f)
         brief_path = discovered

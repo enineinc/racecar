@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 """SessionStart hook — force-load racecar's cross-cutting baseline into context.
 
-The CLAUDE.md pointer alone is only an instruction; the agent may treat
-racecar's README as a routing table to consult later, not as loaded standards
-present right now. This hook inlines README.md and every shared/*.md as
-`additionalContext` and frames them so the agent recognizes them as already
-loaded — not as a preview or table of contents.
+The pointer in the consuming project's CLAUDE.md is only an instruction; the
+agent may treat racecar as a routing table to consult later, not as loaded
+standards present right now. This hook inlines racecar's machine baseline
+(CLAUDE.md and every shared/*.md) as `additionalContext` and frames them so the
+agent recognizes them as already loaded — not as a preview or table of contents.
+README.md is racecar's human-facing storefront and is deliberately NOT loaded.
 
 Framing rule:
-  - Racecar's baseline (README router + shared/*.md) is ALWAYS loaded by
+  - Racecar's baseline (CLAUDE.md router + shared/*.md) is ALWAYS loaded by
     this hook on every SessionStart.
   - The lens files (arch-coherence/, eng-review/, doc-coherence/,
-    llm-summary/) are LOADED ON DEMAND per the README's routing table —
-    by design; the README itself says "Do not load component files
-    speculatively."
+    llm-summary/) are LOADED ON DEMAND per CLAUDE.md's routing table —
+    by design; CLAUDE.md itself says "do not load lenses speculatively."
   - The correct answer to "is racecar loaded?" is "yes — baseline is
     present; lenses load when a task selects them."
 
@@ -48,9 +48,9 @@ def load_token(items: list[tuple[Path, str]]) -> str:
 
 def collect_baseline() -> list[tuple[Path, str]]:
     items: list[tuple[Path, str]] = []
-    readme = RACECAR_ROOT / "README.md"
-    if readme.is_file():
-        items.append((readme, readme.read_text()))
+    claude_md = RACECAR_ROOT / "CLAUDE.md"
+    if claude_md.is_file():
+        items.append((claude_md, claude_md.read_text()))
     shared = RACECAR_ROOT / "shared"
     if shared.is_dir():
         for path in sorted(shared.glob("*.md")):
@@ -84,15 +84,16 @@ def main() -> int:
         f"{file_list}\n"
         "\n"
         "What 'loaded' means for racecar:\n"
-        "  - Baseline (the files above: README router + shared/*.md) is "
+        "  - Baseline (the files above: CLAUDE.md router + shared/*.md) is "
         "ALWAYS loaded on every SessionStart by the session_load_standards "
         "hook. This is the always-on layer — operational discipline, "
         "persona, drift doctrine, voice, glossary, ownership, commit rules, "
         "TODO format.\n"
         "  - Lenses (arch-coherence/, eng-review/, doc-coherence/, "
-        "llm-summary/) load on demand. The README is the router — when a "
-        "task matches a topic, Read the lens file it points to. Per the "
-        "README itself: do not load lens files speculatively.\n"
+        "llm-summary/) load on demand. CLAUDE.md is the router — when a "
+        "task matches a topic, Read the lens file it points to. Per CLAUDE.md "
+        "itself: do not load lens files speculatively. (README.md is the "
+        "human storefront and is not loaded here.)\n"
         "\n"
         "If asked 'is racecar loaded?' the answer is YES — and the evidence "
         "is the load token above. Reproduce the token and one substantive "

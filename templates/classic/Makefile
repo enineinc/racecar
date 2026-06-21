@@ -67,7 +67,7 @@ PYTEST_ARGS ?=
 RACECAR_ROOT ?= $(HOME)/dev/vishalapte/racecar
 
 .DEFAULT_GOAL := help
-.PHONY: help venv install install-dev lock check check-full fix fmt fmt-check lint \
+.PHONY: help venv install install-dev check check-full fix fmt fmt-check lint \
         test coverage typecheck arch audit docs clean distclean sync system-deps
 
 help: ## Show this help
@@ -104,21 +104,20 @@ check: fmt-check lint test ## Fast gate (~30s; pre-commit cadence)
 check-full: ## Full gate (parallel; pre-push / CI cadence) — adds typecheck + arch + docs
 	@$(MAKE) -j fmt-check lint test typecheck arch docs
 
-lock: ## Regenerate requirements.txt lockfile from runtime deps in pyproject.toml
-	$(PYTHON) -m piptools compile --no-emit-index-url --output-file requirements.txt $(LIB_PYPROJECT)
-
 audit: ## pip-audit dependency vulnerability scan (standalone; run weekly / on-demand)
 	$(PYTHON) -m pip_audit --strict
 
-fix: fmt ## Auto-fix formatting (isort + black)
+fix: fmt ## Auto-fix formatting (isort + black; djhtml for Django templates)
 
-fmt: ## Format in place (isort orders imports, then black formats)
+fmt: ## Format in place (isort orders imports, black formats, djhtml reindents Django templates)
 	$(PYTHON) -m isort --settings-file $(LIB_PYPROJECT) $(SRC) $(DJAPP)
 	$(PYTHON) -m black --config $(LIB_PYPROJECT) $(SRC) $(DJAPP)
+	$(if $(DJAPP),$(BIN)/djhtml $(DJAPP))
 
 fmt-check: ## Check formatting only — no writes
 	$(PYTHON) -m isort --check-only --settings-file $(LIB_PYPROJECT) $(SRC) $(DJAPP)
 	$(PYTHON) -m black --check --config $(LIB_PYPROJECT) $(SRC) $(DJAPP)
+	$(if $(DJAPP),$(BIN)/djhtml --check $(DJAPP))
 
 lint: ## pylint (summary view: count by message code) + no-upward-imports
 	@out=$$($(PYTHON) -m pylint --rcfile $(LIB_PYPROJECT) $(SRC) $(DJAPP) 2>&1); status=$$?; \
@@ -140,7 +139,7 @@ coverage: ## pytest with branch coverage; HTML report at htmlcov/index.html
 typecheck: ## mypy
 	$(PYTHON) -m mypy --config-file $(LIB_PYPROJECT) $(SRC)
 
-arch: ## lint-imports + §1 upward + §3 CLI tree + packaging canon (+ Django string-relations)
+arch: ## lint-imports + §1 upward + §3 CLI tree + packaging canon + faces gap (+ Django string-relations)
 	$(if $(DJAPP),PYTHONPATH=$(DJAPP) )$(BIN)/lint-imports --config $(LIB_PYPROJECT)
 	$(PYTHON) scripts/check_upward_imports.py $$(find $(PKG) $(DJAPP) -name '*.py')
 	@if [ -n "$$(find $(PKG) -name '__main__.py' -print -quit 2>/dev/null)" ]; then \
@@ -149,17 +148,24 @@ arch: ## lint-imports + §1 upward + §3 CLI tree + packaging canon (+ Django st
 	  echo "arch: skipping check_cli_commands ($(PKG) has no __main__.py — no CLI surface)"; \
 	fi
 	$(PYTHON) scripts/check_packaging.py
+	$(PYTHON) scripts/check_face_orchestration.py
 	@if { [ -n "$(DJAPP)" ] && [ -f "$(DJAPP)/manage.py" ]; } || [ -f manage.py ]; then \
 	  $(PYTHON) scripts/check_dj_model_ref_as_string.py; \
 	else \
 	  echo "arch: skipping check_dj_model_ref_as_string (no manage.py found — not a Django project)"; \
 	fi
 
-docs: ## doc-coherence pre-pass (links / §N / vocab) + TODO + CLAUDE shape + placement
+docs: ## doc-coherence pre-pass (links / §N / vocab) + subsystem docs + TODO + CLAUDE shape + placement + brief
 	$(PYTHON) scripts/check_docs.py
+	$(PYTHON) scripts/check_subsystem_docs.py
 	$(PYTHON) scripts/check_todo_format.py
 	$(PYTHON) scripts/check_claude_shape.py
 	$(PYTHON) scripts/check_file_placement.py
+	@if ls docs/summary/*.md >/dev/null 2>&1; then \
+	  $(PYTHON) scripts/check_brief.py; \
+	else \
+	  echo "docs: skipping check_brief (no docs/summary/ brief)"; \
+	fi
 
 clean: ## Remove caches, *.pyc, .DS_Store, build artifacts (never the venv)
 	bash scripts/clean_files.sh

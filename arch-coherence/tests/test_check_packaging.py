@@ -50,9 +50,9 @@ dev = [
     "pytest-cov",
     "pip-audit",
     "import-linter",
-    "pip-tools",
     "pre-commit",
     "validate-pyproject",
+    "pyyaml>=6.0",
 ]
 
 [tool.black]
@@ -93,6 +93,10 @@ root_package = "myapp"
 # alone is a false green for this shape (isort cannot auto-detect first-party
 # packages over the second djapp tree); see PACKAGING.md §7.
 PYPKG_DJAPP_LIBRARY_PYPROJECT = CANON_LIBRARY_PYPROJECT.replace(
+    '    "pyyaml>=6.0",\n]\n',
+    '    "pyyaml>=6.0",\n]\n'
+    'django = [\n    "djhtml",\n]\n',
+).replace(
     '[tool.isort]\nprofile = "black"\n',
     '[tool.isort]\nprofile = "black"\n'
     'known_first_party = ["myapp", "apps", "core", "project"]\n'
@@ -108,7 +112,7 @@ runtime = ["django>=5.0,<6.0"]
 """
 
 CANON_MAKEFILE = """\
-.PHONY: help venv install install-dev lock check check-full fix fmt fmt-check lint \\
+.PHONY: help venv install install-dev check check-full fix fmt fmt-check lint \\
         test coverage typecheck arch audit docs clean distclean system-deps
 
 help: ## h
@@ -123,9 +127,6 @@ install: ## i
 install-dev: install ## i
 \t$(PIP) install --group pyproject.toml:dev
 \t$(BIN)/pre-commit install
-
-lock: ## l
-\t$(PYTHON) -m piptools compile --no-emit-index-url --output-file requirements.txt pyproject.toml
 
 check: fmt-check lint test ## fast gate
 \t@true
@@ -296,6 +297,21 @@ def test_canonical_pypkg_djapp_project_passes(tmp_path: Path) -> None:
     result = _run(repo)
     assert result.returncode == 0, (result.stdout, result.stderr)
     assert "packaging: OK" in result.stdout
+
+
+def test_pypkg_djapp_django_group_missing_djhtml_is_blocker(tmp_path: Path) -> None:
+    """Django shape (manage.py present) must carry djhtml in the django dev group
+    (PACKAGING.md §6). This is the lever that propagates the djhtml canon to every
+    existing Django adopter: their gate flags the gap until they add it."""
+    no_djhtml = PYPKG_DJAPP_LIBRARY_PYPROJECT.replace(
+        'django = [\n    "djhtml",\n]\n',
+        'django = [\n    "pylint-django>=2.5",\n]\n',
+    )
+    repo = _seed_pypkg_djapp(tmp_path, **{"pypkg/src/pyproject.toml": no_djhtml})
+    result = _run(repo)
+    assert result.returncode != 0, (result.stdout, result.stderr)
+    assert "[dependency-groups].django" in result.stdout
+    assert "djhtml" in result.stdout
 
 
 # ---------------------------------------------------------------------------

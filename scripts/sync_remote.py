@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Sync canonical racecar check scripts from GitHub into an adopter repo.
 
-Fetches the eight check scripts directly from the racecar GitHub repository
+Fetches the canonical check scripts directly from the racecar GitHub repository
 using urllib (stdlib — no pip required). Use this when you do not have a
 local racecar clone and want to update an existing adopter repo to the latest
 scripts (or a pinned ref).
@@ -40,6 +40,7 @@ CHECK_SCRIPTS = (
     "arch-coherence/scripts/check_upward_imports.py",
     "arch-coherence/scripts/check_cli_commands.py",
     "arch-coherence/scripts/check_packaging.py",
+    "arch-coherence/scripts/check_face_orchestration.py",
     "arch-coherence/scripts/check_dj_model_ref_as_string.py",
     "doc-coherence/scripts/check_docs.py",
     "doc-coherence/scripts/check_todo_format.py",

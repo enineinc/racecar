@@ -54,10 +54,15 @@ CANON_DEV_TOOLS = [
     "pytest-cov",
     "pip-audit",
     "import-linter",
-    "pip-tools",
     "pre-commit",
     "validate-pyproject",
+    "pyyaml",
 ]
+
+# Django shapes carry a second PEP 735 group, [dependency-groups].django. Only
+# djhtml is racecar-canonical there (the template formatter, PACKAGING.md §6);
+# the rest of that group is project-choice. Asserted only when the repo is Django.
+CANON_DJANGO_TOOLS = ["djhtml"]
 
 CANON_REQUIRES_PYTHON = ">=3.12"
 CANON_BLACK_TARGET = ["py312"]
@@ -113,7 +118,6 @@ REQUIRED_MAKEFILE_TARGETS = {
     "help",
     "install",
     "install-dev",
-    "lock",
     "check",
     "check-full",
     "fix",
@@ -224,6 +228,16 @@ def _rel_for_audit(root: Path, path: Path) -> str:
         return str(path)
 
 
+def _dist_name(requirement: str) -> str:
+    """Extract the bare distribution name from a PEP 508 requirement string.
+
+    "djhtml", "djhtml>=3.0", "drf-spectacular[sidecar]>=0.27" -> "djhtml" /
+    "djhtml" / "drf-spectacular". Used to match dependency entries against canon
+    without tripping over version specifiers, extras, or markers.
+    """
+    return re.split(r"[<>=!~;\[ ]", requirement, maxsplit=1)[0].strip().lower()
+
+
 def check_library_pyproject(root: Path, pyproject_path: Path) -> tuple[list[Finding], dict[str, Any] | None]:
     """Validate the library pyproject (root for src/djapp shapes, pypkg/src/ for pypkg shapes).
 
@@ -314,11 +328,13 @@ def check_library_pyproject(root: Path, pyproject_path: Path) -> tuple[list[Find
         )
     else:
         # PEP 735 allows {include-group = "..."} entries; treat those as opaque and
-        # match string entries against canon.
-        string_entries = {d for d in dev if isinstance(d, str)}
-        canon_set = set(CANON_DEV_TOOLS)
-        missing = canon_set - string_entries
-        extra = string_entries - canon_set
+        # match string entries against canon. Compare on distribution name (not the
+        # raw string) so a project may pin a version ("pyyaml>=6.0") without the
+        # pin reading as a different tool than canon's unpinned "pyyaml".
+        entry_names = {_dist_name(d) for d in dev if isinstance(d, str)}
+        canon_set = {_dist_name(t) for t in CANON_DEV_TOOLS}
+        missing = canon_set - entry_names
+        extra = entry_names - canon_set
         if missing:
             findings.append(
                 Finding(
@@ -336,6 +352,29 @@ def check_library_pyproject(root: Path, pyproject_path: Path) -> tuple[list[Find
                     "[dependency-groups].dev",
                     f"unexpected tools beyond canon: {sorted(extra)} -- propose a "
                     "standards change in PACKAGING.md §6 or remove",
+                )
+            )
+
+    # Django shapes must carry djhtml in [dependency-groups].django (PACKAGING.md
+    # §6). Keyed on manage.py so non-Django repos are never flagged. Entries may be
+    # version-pinned ("djhtml>=3.0"), so compare on the distribution name only.
+    is_django = (root / "manage.py").exists() or (root / "djapp" / "manage.py").exists()
+    if is_django:
+        django_group = groups.get("django")
+        django_names = (
+            {_dist_name(d) for d in django_group if isinstance(d, str)}
+            if isinstance(django_group, list)
+            else set()
+        )
+        missing_django = {t for t in CANON_DJANGO_TOOLS if t not in django_names}
+        if missing_django:
+            findings.append(
+                Finding(
+                    "Blocker",
+                    label,
+                    "[dependency-groups].django",
+                    f"Django shape must include canon tools: {sorted(missing_django)} "
+                    "(canonical Django-template formatter per PACKAGING.md §6)",
                 )
             )
 
@@ -993,18 +1032,6 @@ def check_makefile(root: Path) -> list[Finding]:
                 "Makefile",
                 "install-dev:pre-commit-install",
                 "install-dev must run 'pre-commit install' (PACKAGING.md §7)",
-            )
-        )
-
-    # lock must use pip-tools.
-    body = _target_body(text, "lock")
-    if body and "piptools compile" not in body:
-        findings.append(
-            Finding(
-                "Blocker",
-                "Makefile",
-                "lock:piptools-compile",
-                "lock must invoke 'piptools compile' (PACKAGING.md §7)",
             )
         )
 

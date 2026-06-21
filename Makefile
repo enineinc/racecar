@@ -159,7 +159,7 @@ help:
 	@echo "make doctor [FIX=--fix] - verify install/wiring/load layer by layer; --fix repairs wiring"
 	@echo "make check-docs       - run the mechanical pre-pass on this repo's own docs"
 	@echo "make check-subsystem-docs - verify every major subsystem in an import-linter layer owns README + CLAUDE"
-	@echo "make check-brief      - validate the racecar-llm-summary brief bundle at docs/<repo>/<REPO>.md"
+	@echo "make check-brief      - validate the racecar-llm-summary brief bundle at docs/summary/<REPO>.md"
 	@echo "make test         - run the test suites under each skill"
 	@echo "make check        - run check-docs, check-subsystem-docs, test, and check-brief"
 	@echo "make demo         - run a racecar check against examples/ and show it catching a real violation"

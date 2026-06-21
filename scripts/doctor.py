@@ -75,6 +75,7 @@ EXPECTED_WIRING: list[tuple[str, str, str]] = [
     for basename in (
         sync_claude_md.SESSION_LOAD_HOOK_BASENAME,
         sync_claude_md.SESSION_DISCOVER_HOOK_BASENAME,
+        sync_claude_md.SESSION_CHECK_SYNC_HOOK_BASENAME,
     )
     for matcher in sync_claude_md.SESSION_LOAD_MATCHERS
 ]
@@ -124,11 +125,13 @@ def expected_skills() -> dict[str, Path]:
 
 
 def _check_baseline_docs(report: Report) -> None:
-    readme = RACECAR_ROOT / "README.md"
-    if readme.is_file() and readme.stat().st_size > 0:
-        report.ok("files", f"{readme}")
+    # CLAUDE.md is the machine baseline the loader force-loads; README.md is the
+    # human storefront and is intentionally not part of the loaded baseline.
+    claude_md = RACECAR_ROOT / "CLAUDE.md"
+    if claude_md.is_file() and claude_md.stat().st_size > 0:
+        report.ok("files", f"{claude_md}")
     else:
-        report.fail("files", f"{readme} missing or empty")
+        report.fail("files", f"{claude_md} missing or empty")
 
     shared = RACECAR_ROOT / "shared"
     shared_md = sorted(shared.glob("*.md")) if shared.is_dir() else []

@@ -1,11 +1,11 @@
 ---
 name: racecar-normalize
-description: Sync canonical racecar check scripts into the current project, run all eight checkers, and report every finding so the user knows what to fix. Use when asked to "normalize for racecar", "validate against racecar", "what does racecar find in this project", "bring this project up to racecar standards", or any phrasing that implies auditing or updating an existing project against racecar conventions.
+description: Sync canonical racecar check scripts into the current project, run every checker, and report every finding so the user knows what to fix. Use when asked to "normalize for racecar", "validate against racecar", "what does racecar find in this project", "bring this project up to racecar standards", or any phrasing that implies auditing or updating an existing project against racecar conventions.
 ---
 
 # racecar-normalize
 
-Syncs the eight canonical racecar check scripts into the current project, runs all eight checkers plus `lint-imports`, and reports every finding. Does not fix anything without explicit consent per finding.
+Syncs the canonical racecar check scripts into the current project, runs every checker plus `lint-imports`, and reports every finding. Does not fix anything without explicit consent per finding.
 
 ## Step 1: locate the project root and identify the shape
 
@@ -48,13 +48,14 @@ Otherwise fetch remotely:
 
 Report the sync output verbatim (created / updated / unchanged / exists per file).
 
-## Step 3: run all eight checkers
+## Step 3: run the checkers
 
 Resolve `<scripts>` as `<project_root>/scripts` once. Use absolute paths for every invocation. Never `cd` into a subdirectory -- CWD must not matter.
 
     python <scripts>/check_upward_imports.py --root <project_root> $(find <project_root>/<src> -name '*.py' -not -path '*/migrations/*')
     python <scripts>/check_cli_commands.py <pkg>          # skip if no __main__.py exists anywhere
     python <scripts>/check_packaging.py --root <project_root>
+    python <scripts>/check_face_orchestration.py --root <project_root>   # no-ops without [tool.racecar.faces]; Findings only
     python <scripts>/check_dj_model_ref_as_string.py     # Django only: skip if no manage.py
     python <scripts>/check_docs.py
     python <scripts>/check_todo_format.py
@@ -67,7 +68,7 @@ For `check_dj_model_ref_as_string.py`: if `manage.py shell` fails to start (miss
 
 ## Step 4: run lint-imports
 
-After the eight checkers, attempt to run import-linter:
+After the checkers, attempt to run import-linter:
 
     lint-imports
 

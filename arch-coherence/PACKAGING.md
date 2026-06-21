@@ -10,6 +10,8 @@ PACKAGING.md is **one opinion** of how to package a Python project. It is opinio
 
 The opinion accommodates four project shapes. The choice of shape is local to the project; the rest of the opinion (PEP 621 + PEP 735 pyproject as sole source of truth, `make check-full` as CI gate, the dev tool set, `.venv/` discipline, no VC-backed tooling) is identical across all four. Shape is carried into the Makefile by several variables: `SRC` (where the Python source lives), `PKG` (the importable package path used by audits), `DJAPP` (the Django app directory, empty when not Django), `LIB_PYPROJECT` (path to the library pyproject), and `DJAPP_PYPROJECT` (path to the djapp pyproject, only for Shape pypkg+djapp).
 
+**Shapes are orthogonal to faces.** This file's shape axis answers *how the project is packaged*; the *faces axis* (how the one library is exposed: `cli` / `api` / `mcp` / `django`) is a separate concern with its own home in [`FACES.md`](FACES.md). A `src`-shape project can be `lib + cli + mcp`; the `djapp` shape is one packaging of the `django` face. Do not conflate the two axes; see [`FACES.md`](FACES.md) §8.
+
 | Shape | When to pick it | Library pyproject | djapp pyproject | `SRC` | `PKG` | `DJAPP` |
 |---|---|---|---|---|---|---|
 | **`src`** | Plain installable Python package; no Django | `pyproject.toml` (root) | — | `src` | `src/<pkg>` | *(unset)* |
@@ -72,6 +74,7 @@ This rule is racecar's, not PSF's. PSF does not maintain a "banned tools" list. 
 | Pyproject validator | `validate-pyproject` | community OSS (Bravalheri) |
 | Formatter | `black` | Łukasz Langa / PSF-adjacent; de facto community canon |
 | Import sorter | `isort` | community OSS |
+| Template formatter | `djhtml` | community OSS (Vens); Django/Jinja shapes only |
 | Linter | `pylint` | community OSS |
 | Type checker | `mypy` | community OSS; PEP 484 reference impl |
 | Test runner | `pytest` | community OSS |
@@ -272,16 +275,20 @@ dev = [
     "import-linter",      # DAG enforcement (see PYTHON.md §4)
     "pre-commit",         # git hooks
     "validate-pyproject", # PEP 621 schema validation (community OSS)
+    "pyyaml",             # frontmatter parser for check_brief.py (llm-summary briefs)
 ]
 ```
 
-**Status of each tool.** Eight of the eleven are mainstream de facto canon in modern Python: black, isort, pylint, mypy, pytest, pytest-cov, pip-audit, and pre-commit appear on the CI of most serious community projects. A reviewer at any modern Python shop will recognize them. The remaining three are racecar's specific commitments:
+**Status of each tool.** Eight of the twelve are mainstream de facto canon in modern Python: black, isort, pylint, mypy, pytest, pytest-cov, pip-audit, and pre-commit appear on the CI of most serious community projects. A reviewer at any modern Python shop will recognize them. The remaining four are racecar's specific commitments:
 
 - `import-linter` — [`PYTHON.md`](PYTHON.md) §4 makes the import-graph DAG an enforced architectural property.
 - `pylint-pytest` — racecar projects use pytest as the canonical test runner; the plugin suppresses W0621 (redefined-outer-name) false positives on fixture parameters, which would otherwise force every fixture-consuming test to carry a noisy disable.
 - `validate-pyproject` — defends against PEP 621 structural typos (e.g. `[project].naem`) that the racecar audits assume away.
+- `pyyaml` — the YAML frontmatter parser `check_brief.py` needs to validate an `llm-summary` brief. The brief lives in the adopter's own `docs/summary/<REPO>.md`, so the adopter must be able to validate it without the racecar checkout; that self-sufficiency is why `check_brief.py` is synced (it is the one synced check with a non-stdlib dependency, and `pyyaml` is its reason for being canon). The template `docs:` target runs `check_brief` guarded, so a repo with no brief pays only the inert dependency.
 
 `pip-tools` is intentionally not on the list: the canon does not include a lockfile-generation workflow (see §5). Projects that want a lockfile install pip-tools themselves or use `pip freeze`.
+
+**Django shapes add one formatter.** Shapes `pypkg+djapp` and `djapp` install a second PEP 735 group, `[dependency-groups].django`, for Django-only dev tools. Its one racecar-canonical entry is **`djhtml`** — an idempotent, permissively-licensed community-OSS reindenter for Django/Jinja template tags. `black` owns the Python; templates carry no Python to format, so `djhtml` is the template-side counterpart. It runs in `make fmt` / `make fmt-check` gated on `$(DJAPP)` (a no-op in non-Django shapes) and as a `types: [html]` pre-commit hook. `check_packaging.py` requires `djhtml` in the django group for any repo with a `manage.py`. The remainder of the django group (test, coverage, DRF helpers) is project-choice, not canon. `djhtml`, not the heavier `djlint`, is the canon: djlint's reformatter is a louder linter-first tool under a GPL license whose idempotence is empirical rather than structural; `djhtml` only reindents, so its idempotence is by construction.
 
 **Racecar's specific commitments.** Pinning the exact list (rather than letting projects choose between e.g. pylint and flake8) is racecar's call. It produces consistency across projects at the cost of some flexibility. Adding a tool to this list is a standards-change conversation, not a project-by-project decision.
 
@@ -347,7 +354,7 @@ Every project's `make help` lists the same targets:
 | `test` | `pytest -c $(LIB_PYPROJECT)`, scoped via `PYTEST_ARGS`; exit 5 (no tests collected) treated as success |
 | `coverage` | `pytest --cov=$(PKG) --cov-branch --cov-report=term-missing --cov-report=html`; HTML at `htmlcov/index.html` |
 | `typecheck` | `mypy --config-file $(LIB_PYPROJECT) $(SRC)` |
-| `arch` | `lint-imports --config $(LIB_PYPROJECT)`, `check_upward_imports`, `check_cli_commands`, `check_packaging` (+ `check_dj_model_ref_as_string` if Django) |
+| `arch` | `lint-imports --config $(LIB_PYPROJECT)`, `check_upward_imports`, `check_cli_commands`, `check_packaging`, `check_face_orchestration` (advisory; no-ops without faces verticals; see [`FACES.md`](FACES.md) §7) (+ `check_dj_model_ref_as_string` if Django) |
 | `docs` | `check_docs.py` mechanical pre-pass |
 | `system-deps` | Install system-level dependencies not available via pip (idempotent; called by `install`) |
 | `clean` | Remove caches and build artifacts — *never* data or `.venv` |

@@ -2,7 +2,7 @@
 
 Accessed via [`../README.md`](../README.md). If you arrived here directly, read that first.
 
-Generator (not a review lens). Produces a Markdown bundle in `docs/$repo/` designed to be **shared as a single file** — drag it into Claude, Gemini, or ChatGPT (mobile or desktop) and have a productive conversation about the system without source access. The intended consumer is **another person using their own LLM** to ask questions about your ideas and products, learn how the system works, and reason about next steps. The author also uses it themselves on mobile to noodle on refactors and direction without uploading the repo.
+Generator (not a review lens). Produces a Markdown bundle in `docs/summary/` designed to be **shared as a single file** — drag it into Claude, Gemini, or ChatGPT (mobile or desktop) and have a productive conversation about the system without source access. The intended consumer is **another person using their own LLM** to ask questions about your ideas and products, learn how the system works, and reason about next steps. The author also uses it themselves on mobile to noodle on refactors and direction without uploading the repo.
 
 Distinct from `CLAUDE.md` / `/init` (operational, in-repo, for an agent writing code), `/document-release` (post-ship CHANGELOG for human readers), and the racecar review lenses (compliance, not handoff). It is also **not** a reconstruction-grade specification — earlier iterations of this skill targeted full system rebuild; that use case proved theoretical and was killed. The brief now optimizes for **interview-quality**: a recipient can ask the LLM about the system and get grounded answers about concepts, design intent, and surface.
 
@@ -19,8 +19,8 @@ Do not use this skill for code-writing handoff (that's `CLAUDE.md`), formal rele
 - `$repo` = repo root basename, lowercased, with any character outside `[a-z0-9_-]` replaced by `-`. `$REPO` = `$repo` uppercased.
 - `$subsys` / `$SUBSYS` = subsystem dir basename, same rules.
 - Placeholders in this spec use `$X` notation; they are not shell variables.
-- Main brief: `docs/$repo/$REPO.md`.
-- Subsystem brief: `docs/$repo/$subsys/$REPO-$SUBSYS.md`.
+- Main brief: `docs/summary/$REPO.md`.
+- Subsystem brief: `docs/summary/$REPO-$SUBSYS.md`.
 - Intra-file references use `§N.M`; cross-file references within a bundle use bare filenames.
 - `## Confidence` lives in the main brief only.
 - Heading depth **in the brief**:
@@ -90,6 +90,11 @@ external_surface:
       args: <string>
       behavior: <string>
       exit: <int|string>        # optional — put a single exit code or short pattern here ("0" / "0|1" / "0 clean, 1 dirty"); only defer to body prose when exit semantics are flow-specific and need narrative
+  mcp_tools:                   # MCP tool server face (see arch-coherence/FACES.md)
+    - name: <string>           # required: the tool name the MCP client calls
+      module: <string>         # dotted path to the tool's handler
+      input_schema: <string>   # one-line shape of the tool's arguments
+      behavior: <string>
   library_exports:
     - name: <string>
       module: <string>
@@ -128,7 +133,7 @@ Where the repo already ships per-module design docs (`DESIGN.md`, `ARCHITECTURE.
 | §2.1 Runtime | Every root config file + every entry point in full. Read **every** settings module (dev, production, test). Name each runtime separately when a system ships more than one. |
 | §2.2 Entities | Find every persistent shape: ORM model classes, on-disk artifact types, structured content tree dimensions. Each entry needs a one-sentence purpose; no field tables. Mark `lifecycle: deprecated` for entities still in source but no longer authoritative; `lifecycle: planned` for documented-but-not-realized dimensions. |
 | §2.3 Relationships | FKs, M2M, polymorphic, JSON references at the class level. Cardinality (quoted), direction, owner side. `on_delete` only where applicable. |
-| §2.4 External surface | Every user-callable: HTTP route, CLI verb, library export, gRPC, webhook, signal. Split by kind in the frontmatter; one sub-key per kind. |
+| §2.4 External surface | Every user-callable: HTTP route, CLI verb, MCP tool, library export, gRPC, webhook, signal. Split by kind in the frontmatter; one sub-key per kind. |
 | §2.5 Internal contracts | Cross-module wire shapes: queue/event schemas, IPC formats, plugin/hook contracts. One bullet per contract — name, producer, consumer(s), one-line purpose. |
 | §2.6 Configuration | Env vars, feature flags, settings keys, secrets. One bullet or table row per — name + one-line effect. Mark `(prod-only)` / `(dev-only)` when dev and production diverge. |
 | §2.7 Flows | Each meaningful operation input→output as numbered prose. Idempotency and failure modes inline. |
@@ -148,7 +153,7 @@ Where the repo already ships per-module design docs (`DESIGN.md`, `ARCHITECTURE.
 | §2.1 Runtime | prose + entry-point table | CLI / library / service / daemon (one **or more**); entry points; state location |
 | §2.2 Entities | **frontmatter `entities`**; body §2.2 has narrative gloss (per-case overview, anything not capturable in YAML) | See [Frontmatter schema](#frontmatter-yaml). Class-level only — no fields. |
 | §2.3 Relationships | **frontmatter `relationships`**; body §2.3 has the ERD (ASCII or Mermaid) | See [Frontmatter schema](#frontmatter-yaml). |
-| §2.4 External surface | **frontmatter `external_surface.{http_routes, cli_verbs, library_exports, webhooks, signals}`**; body §2.4 has per-call detail for load-bearing routes only | See [Frontmatter schema](#frontmatter-yaml). One sub-key per surface kind. |
+| §2.4 External surface | **frontmatter `external_surface.{http_routes, cli_verbs, mcp_tools, library_exports, webhooks, signals}`**; body §2.4 has per-call detail for load-bearing routes only | See [Frontmatter schema](#frontmatter-yaml). One sub-key per surface kind. |
 | §2.5 Internal contracts | markdown bullets in body | name → producer → consumer(s), one-line purpose |
 | §2.6 Configuration | markdown bullets or table in body | name + one-line effect; mark `(prod-only)` / `(dev-only)` if diverges |
 | §2.7 Flows | numbered prose | sequence input→output; idempotency and failure modes inline |
@@ -184,11 +189,11 @@ Every rule in this spec serves at least one of these question classes — or nav
 
 ## Bundle lifecycle
 
-**Location.** Default `docs/$repo/`. If `docs/` already houses Sphinx (`conf.py`), MkDocs (`mkdocs.yml`), build outputs (`_build/`, `_static/`), an index (`index.md`), or ADRs (`decisions/`, `adr/`), surface the collision and fall back to `briefs/$repo/`. User override accepted.
+**Location.** `docs/summary/$REPO.md` is the canonical home. One fixed location, no repo-name segment (the filename already carries the system identity for standalone sharing). User override accepted: pass an explicit destination if a repo needs the brief elsewhere.
 
 **Re-run.** Ask before overwriting an existing `$REPO.md`. Sibling overflow files the new run did not produce are listed as orphans to the user (the user may have edited them); the validator treats orphans as errors so the bundle is internally consistent.
 
-**Subsystem briefs.** Invocation: `one brief per subsystem — <path1>, <path2>, …`. Each subsystem produces a self-contained bundle at `docs/$repo/$subsys/$REPO-$SUBSYS.md`. No top-level meta-brief in subsystem mode. Cross-references between sub-bundles use relative bare filenames.
+**Subsystem briefs.** Invocation: `one brief per subsystem — <path1>, <path2>, …`. Each subsystem produces a self-contained bundle at `docs/summary/$REPO-$SUBSYS.md`. No top-level meta-brief in subsystem mode. Cross-references between sub-bundles use relative bare filenames.
 
 **Handoff.** Generator's responsibility ends at write. The recipient drags the file (or files) into their chat.
 
@@ -226,9 +231,9 @@ End the main brief with `## Confidence`. Two parts, each introduced by a literal
 
 ```
 /racecar-llm-summary
-/racecar-llm-summary write the bundle to briefs/$repo/ instead of docs/$repo/
+/racecar-llm-summary write the bundle to briefs/ instead of docs/summary/
 /racecar-llm-summary skip §3 — pure library
 /racecar-llm-summary one brief per subsystem — apps/ingest, apps/serve, apps/admin
 ```
 
-Default: discover the current working directory, derive `$repo` / `$REPO` from the root basename, write `docs/$repo/$REPO.md` — or `briefs/$repo/` on `docs/` collision. Ask before overwriting an existing `$REPO.md`.
+Default: discover the current working directory, derive `$REPO` from the root basename, write `docs/summary/$REPO.md`. Ask before overwriting an existing `$REPO.md`.

@@ -23,6 +23,16 @@ repos:
         types: [python]
         exclude: '^scripts/'
 
+      # djhtml reindents Django/Jinja template tags. types: [html] scopes it so it
+      # only fires when HTML is staged — a no-op in repos without templates. Mirrors
+      # `make fmt`'s djhtml step. Pin via `pre-commit autoupdate` once adopted.
+      - id: djhtml
+        name: djhtml
+        entry: djhtml
+        language: python
+        additional_dependencies: [djhtml]
+        types: [html]
+
       - id: import-linter
         name: import-linter
         entry: bash -c 'VENV=; for d in .venv venv ../venv; do [ -d "$d" ] && VENV=$d && break; done; export PATH="${VENV:+$VENV/bin:}$PATH"; CONF=$(grep -E "^LIB_PYPROJECT[[:space:]]*[?:!]?=" Makefile | head -1 | sed "s/.*=[[:space:]]*//;s/[[:space:]]*//"); DJAPP=$(grep -E "^DJAPP[[:space:]]*[?:!]?=" Makefile | head -1 | sed "s/.*=[[:space:]]*//;s/[[:space:]]*//"); export PYTHONPATH="${DJAPP:+$DJAPP:}$PYTHONPATH"; lint-imports --config "$CONF"'

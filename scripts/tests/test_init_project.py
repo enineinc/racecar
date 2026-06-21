@@ -34,17 +34,14 @@ import pytest
 SCRIPT = Path(__file__).resolve().parents[1] / "init_project.py"
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-# (scaffold scripts/ basename, canonical source path relative to repo root).
-# Mirrors init_project.CHECK_SCRIPTS — the scaffold must copy each verbatim.
+# Derived from the ONE home (sync_scripts), not hand-maintained here — the scaffold
+# must copy every script init delivers (sync's canonical set + the Django check,
+# which init copies for all shapes), each verbatim.
+sys.path.insert(0, str(REPO_ROOT / "scripts"))
+import sync_scripts  # noqa: E402
+
 EXPECTED_CHECK_SCRIPTS = {
-    "check_upward_imports.py": "arch-coherence/scripts/check_upward_imports.py",
-    "check_cli_commands.py": "arch-coherence/scripts/check_cli_commands.py",
-    "check_packaging.py": "arch-coherence/scripts/check_packaging.py",
-    "check_dj_model_ref_as_string.py": "arch-coherence/scripts/check_dj_model_ref_as_string.py",
-    "check_docs.py": "doc-coherence/scripts/check_docs.py",
-    "check_todo_format.py": "doc-coherence/scripts/check_todo_format.py",
-    "check_claude_shape.py": "doc-coherence/scripts/check_claude_shape.py",
-    "check_file_placement.py": "doc-coherence/scripts/check_file_placement.py",
+    Path(s).name: s for s in sync_scripts.CHECK_SCRIPTS + sync_scripts.DJANGO_SCRIPTS
 }
 
 # Shape -> (library pyproject relative path, expected SRC value).
@@ -91,6 +88,34 @@ def _makefile_vars(makefile: Path) -> dict[str, str]:
             if stripped.startswith(prefix) and "?=" in stripped:
                 out[var] = stripped.split("?=", 1)[1].strip()
     return out
+
+
+def test_vertical_scaffolds_canonical_files(tmp_path: Path) -> None:
+    """--vertical pre-wires lib.py/api.py/__main__.py that the faces detector
+    classifies cleanly (FACES.md §10 make-the-right-thing-easy)."""
+    dest = tmp_path / "proj"
+    result = _run(
+        "--shape", "src", "--name", "athena", "--package", "athena",
+        "--dest", str(dest), "--vertical", "prices",
+    )
+    assert result.returncode == 0, result.stderr
+    vdir = dest / "src" / "athena" / "prices"
+    for fname in ("__init__.py", "lib.py", "api.py", "__main__.py"):
+        assert (vdir / fname).is_file(), f"missing {fname}"
+    # api imports lib; __main__ imports api (the lib -> api -> cli wiring).
+    assert "from .lib import run" in (vdir / "api.py").read_text()
+    assert "from . import api" in (vdir / "__main__.py").read_text()
+    # __init__ is namespace-only (docstring only, no code) per FACES.md §6.
+    assert (vdir / "__init__.py").read_text().count("\n") == 1
+
+    # The scaffold's own faces detector classifies the vertical cleanly.
+    detector = dest / "scripts" / "check_face_orchestration.py"
+    out = subprocess.run(
+        [sys.executable, str(detector), "--root", str(dest)],
+        capture_output=True, text=True, check=False,
+    )
+    assert out.returncode == 0, out.stdout
+    assert "OK (advisory)" in out.stdout
 
 
 @pytest.mark.parametrize("shape", list(SHAPE_LIB_PYPROJECT))
@@ -158,6 +183,13 @@ def test_scripts_dir_carries_check_scripts(shape: str, tmp_path: Path) -> None:
         assert copied.read_text(encoding="utf-8") == canonical, (
             f"scripts/{basename} diverges from canonical {rel_source} (must be verbatim)"
         )
+
+    # Support scripts the Makefile invokes beyond the check set — without these the
+    # scaffold's own `make clean` / `make system-deps` fail file-not-found.
+    assert (dest / "scripts" / "clean_files.sh").is_file(), f"clean_files.sh missing ({shape})"
+    assert (dest / "scripts" / "install_system_deps.sh").is_file(), (
+        f"install_system_deps.sh missing ({shape})"
+    )
 
 
 def test_djapp_pyproject_only_for_pypkg_djapp(tmp_path: Path) -> None:
