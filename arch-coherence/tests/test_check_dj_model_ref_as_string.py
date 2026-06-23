@@ -312,14 +312,34 @@ def test_missing_pyproject_errors(tmp_path: Path) -> None:
     assert "pyproject.toml not found" in result.stderr
 
 
-def test_missing_installed_apps_source_skips(tmp_path: Path) -> None:
+def test_clean_tree_needs_no_installed_apps_source(tmp_path: Path) -> None:
+    """Lazy boot: a clean tree exits 0 with NO INSTALLED_APPS source at all (no
+    manage.py, no override). There are no violations to classify, so Django is never
+    booted. This is the meridian case, an arch gate that does not hard-fail because an
+    inactive Django scaffold cannot boot."""
     _write(tmp_path / "pyproject.toml", _PYPROJECT)
     _write(tmp_path / "apps" / "activity" / "ib" / "models.py", _CLEAN_MODELS)
+    _write(tmp_path / "core" / "llm" / "models.py", _CLEAN_MODELS)
 
     result = _run(tmp_path, installed=None)
 
-    assert result.returncode == 0
-    assert "not a Django project" in result.stdout
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.stdout == ""
+
+
+def test_violation_unclassified_when_no_installed_apps_source(tmp_path: Path) -> None:
+    """Graceful degrade: a real string-ref violation with no INSTALLED_APPS source is
+    reported UNCLASSIFIED and exits 1, not 2. The static graph finding stands; only the
+    LIVE/NOOP enrichment is unavailable, so a boot that cannot run never fails the gate
+    by itself."""
+    _write(tmp_path / "pyproject.toml", _PYPROJECT)
+    _write(tmp_path / "apps" / "activity" / "ib" / "models.py", _INTRA_APP)
+
+    result = _run(tmp_path, installed=None)
+
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert result.stdout.startswith("UNCLASSIFIED")
+    assert "apps/activity/ib/models.py:5:" in result.stdout
 
 
 def test_pypkg_djapp_good_tree_passes(tmp_path: Path) -> None:

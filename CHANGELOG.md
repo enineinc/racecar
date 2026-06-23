@@ -4,6 +4,20 @@ All notable changes to racecar are recorded here, in the style of
 [Keep a Changelog](https://keepachangelog.com). racecar is pre-1.0, so a minor
 bump may carry breaking changes for adopters; those are marked **Breaking**.
 
+## 0.10.1 - 2026-06-23
+
+### Fixed
+- **The Django string-relation gate no longer requires Django to boot.**
+  `check_dj_model_ref_as_string` booted `manage.py shell` eagerly to resolve
+  `INSTALLED_APPS`, so an architecture gate (a static import-graph concern) hard-failed
+  whenever an inactive Django scaffold could not fully boot, for example a djapp that
+  lists dev-only apps it does not install. The boot is now lazy: the static AST walk
+  runs first, Django is booted only to classify violations that exist, and a boot that
+  does not complete degrades to an UNCLASSIFIED report (exit 1 on the finding) instead
+  of a configuration error (exit 2). A clean tree never boots. This restores
+  discrete-first: the deterministic pass does all it can before any runtime step.
+  Surfaced by a real adopter whose djapp could not boot in dev.
+
 ## 0.10.0 - 2026-06-23
 
 The shape-and-Makefile release: the project shape is now inferred from the

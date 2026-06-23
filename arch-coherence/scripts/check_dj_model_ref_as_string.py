@@ -21,19 +21,26 @@ Files under any `migrations/` directory are skipped: Django generates them
 mechanically and `app_label.model` strings are how migrations serialize
 relationships — they are not hand-written architectural choices.
 
-Each violation is classified against Django's `INSTALLED_APPS`:
+Finding a violation is a purely static AST concern; classifying it needs
+Django's `INSTALLED_APPS`. The static walk runs first, and Django is booted
+only when there is a violation to classify, so a clean tree never boots:
 
-  - LIVE — the file's containing app is in `INSTALLED_APPS`. Annotated with
+  - LIVE: the file's containing app is in `INSTALLED_APPS`. Annotated with
     the file's DAG layer (from `[tool.importlinter].contracts` of type
     `layers`) and, where resolvable, the target app's layer plus an UPWARD
     flag if the target sits above the file in the DAG.
-  - NOOP — the file's containing app is NOT in `INSTALLED_APPS`. Django will
+  - NOOP: the file's containing app is NOT in `INSTALLED_APPS`. Django will
     not load these models; the violation is dead code, but listed so the
     reader can decide between deletion and registration.
+  - UNCLASSIFIED: a violation was found but `INSTALLED_APPS` could not be
+    resolved (no `manage.py`, or `manage.py shell` did not boot). The static
+    finding stands and is reported; LIVE/NOOP is simply unavailable.
 
 `INSTALLED_APPS` is obtained via `python manage.py shell` (boots Django so
-dynamic settings resolve correctly). For tests or constrained environments,
-set `STRING_RELATIONS_INSTALLED_APPS` to a comma-separated override list.
+dynamic settings resolve correctly). A boot that does not complete degrades to
+the UNCLASSIFIED report rather than failing the gate: the static graph concern
+does not hang on the app booting. For tests or constrained environments, set
+`STRING_RELATIONS_INSTALLED_APPS` to a comma-separated override list.
 
 String references defeat the import graph: two models can reference each
 other without either import appearing, papering over a cycle that the
@@ -109,15 +116,18 @@ def _dag_layers(data: dict) -> list[str]:
     return []
 
 
-def _installed_apps(manage_py: Path | None) -> list[str]:
+def _installed_apps(manage_py: Path | None) -> list[str] | None:
+    """Resolve INSTALLED_APPS, or None when it cannot be determined. The override
+    short-circuits the boot (test / CI). Otherwise Django is booted via `manage.py
+    shell` so dynamic settings resolve. A missing `manage.py` or a boot that does not
+    complete returns None: the caller degrades to an unclassified report rather than
+    failing the gate, since the static graph concern does not depend on the app booting.
+    """
     override = os.environ.get("STRING_RELATIONS_INSTALLED_APPS")
     if override is not None:
         return [s.strip() for s in override.split(",") if s.strip()]
     if manage_py is None:
-        print(
-            "check_dj_model_ref_as_string: not a Django project (no manage.py) — skipping"
-        )
-        sys.exit(0)
+        return None
     result = subprocess.run(
         [sys.executable, manage_py.name, "shell", "-c", _INSTALLED_APPS_SCRIPT],
         cwd=manage_py.parent,
@@ -127,19 +137,20 @@ def _installed_apps(manage_py: Path | None) -> list[str]:
     )
     if result.returncode != 0:
         print(
-            f"check_dj_model_ref_as_string: manage.py shell failed "
-            f"(exit {result.returncode}):\n{result.stderr}",
+            f"check_dj_model_ref_as_string: manage.py shell did not boot "
+            f"(exit {result.returncode}); reporting violations unclassified:\n{result.stderr}",
             file=sys.stderr,
         )
-        sys.exit(2)
+        return None
     for line in result.stdout.splitlines():
         if line.startswith("__INSTALLED_APPS__="):
             return json.loads(line[len("__INSTALLED_APPS__=") :])
     print(
-        "check_dj_model_ref_as_string: could not parse INSTALLED_APPS from manage.py output",
+        "check_dj_model_ref_as_string: could not parse INSTALLED_APPS from manage.py "
+        "output; reporting violations unclassified",
         file=sys.stderr,
     )
-    sys.exit(2)
+    return None
 
 
 def _longest_prefix(dotted: str, candidates: list[str]) -> str | None:
@@ -266,24 +277,12 @@ def _find_package_dir(
     return min(matches, key=lambda p: len(p.relative_to(project_root).parts))
 
 
-def main() -> int:
-    """Run the check and return a process exit code (0 clean, nonzero on findings)."""
-    # detect_shape supplies the two things that are genuinely shape-determined: where
-    # the importlinter contract lives (the library pyproject) and where Django boots
-    # (manage.py). The package directories named in root_packages are not assumed from
-    # the shape; they are globbed from the tree (`_package_index`), so a root sitting
-    # under pypkg/src, under djapp/, or at the repo root is found wherever it actually is.
-    shape = detect_shape(Path.cwd())[0]
-    installed = _installed_apps(shape.manage_py)
-    data = _load_pyproject(shape.library_pyproject)
-    roots = _root_packages(data)
-    layers = _dag_layers(data)
-
-    live: list[str] = []
-    noop: list[str] = []
-
-    cwd = Path.cwd()
-    index = _package_index(cwd)
+def _collect_violations(
+    roots: list[str], index: dict[str, list[Path]], cwd: Path
+) -> list[tuple[str, str, str]]:
+    """Static pass: AST-walk each root package and return every forbidden string
+    reference as (display head, file dotted name, target), with no Django boot."""
+    found: list[tuple[str, str, str]] = []
     for root in roots:
         root_dir = _find_package_dir(root, index, cwd)
         if root_dir is None:
@@ -298,14 +297,53 @@ def main() -> int:
                 continue
             file_dotted = _file_to_dotted(path.relative_to(src_root))
             display = path.relative_to(cwd)
-            file_app = _longest_prefix(file_dotted, installed)
             for lineno, field_name, target in _violations(path):
                 head = f"{display}:{lineno}: {field_name} string reference forbidden: '{target}'"
-                if file_app is None:
-                    noop.append(head)
-                    continue
-                notes = _annotate(file_dotted, target, installed, layers)
-                live.append(head + (" [" + " · ".join(notes) + "]" if notes else ""))
+                found.append((head, file_dotted, target))
+    return found
+
+
+def main() -> int:
+    """Run the check and return a process exit code (0 clean, 1 on violations, 2 on
+    configuration error). The static AST walk runs first; Django is booted only to
+    classify violations that were actually found, and a boot that does not complete
+    degrades to an unclassified report rather than failing the gate. Discrete-first: the
+    deterministic pass does all it can, the runtime step is deferred to where its output
+    is needed."""
+    # detect_shape supplies the two genuinely shape-determined things: where the
+    # importlinter contract lives (the library pyproject) and where Django boots
+    # (manage.py). The package directories named in root_packages are globbed from the
+    # tree (`_package_index`), so a root under pypkg/src, djapp/, or the repo root is
+    # found wherever it actually is.
+    shape = detect_shape(Path.cwd())[0]
+    data = _load_pyproject(shape.library_pyproject)
+    roots = _root_packages(data)
+    layers = _dag_layers(data)
+
+    # Static pass: collect every forbidden string reference by AST, with no Django boot.
+    cwd = Path.cwd()
+    found = _collect_violations(roots, _package_index(cwd), cwd)
+    if not found:
+        return 0  # nothing to classify; booting Django would add no information
+
+    # Classify only now that there is something to classify. INSTALLED_APPS resolves
+    # dynamic settings, so it needs a Django boot; if that cannot be determined (no
+    # manage.py, or the boot did not complete) the violations are reported unclassified.
+    installed = _installed_apps(shape.manage_py)
+    if installed is None:
+        print("UNCLASSIFIED violations (Django did not boot; LIVE/NOOP unavailable):")
+        for head, _dotted, _target in found:
+            print(f"  {head}")
+        return 1
+
+    live: list[str] = []
+    noop: list[str] = []
+    for head, file_dotted, target in found:
+        if _longest_prefix(file_dotted, installed) is None:
+            noop.append(head)
+            continue
+        notes = _annotate(file_dotted, target, installed, layers)
+        live.append(head + (" [" + " · ".join(notes) + "]" if notes else ""))
 
     if live:
         print("LIVE violations (file's app is in INSTALLED_APPS):")
@@ -321,7 +359,7 @@ def main() -> int:
         for entry in noop:
             print(f"  {entry}")
 
-    return 1 if (live or noop) else 0
+    return 1
 
 
 if __name__ == "__main__":
