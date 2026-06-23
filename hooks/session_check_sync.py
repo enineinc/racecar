@@ -23,7 +23,13 @@ from pathlib import Path
 
 RACECAR_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RACECAR_ROOT / "scripts"))
-from sync_scripts import CHECK_SCRIPTS, canon_ref  # noqa: E402  (one home for both)
+# Import follows the sys.path insert above: the hook lives outside scripts/ and must
+# reach its sibling sync_scripts at runtime, which pylint cannot model statically.
+from sync_scripts import (  # noqa: E402 # pylint: disable=wrong-import-position,import-error
+    CHECK_SCRIPTS,
+    canon_ref,
+    delivered_files,
+)
 
 # Written into an adopter's scripts/ by sync_scripts.py: the racecar ref the repo
 # last synced from. Advisory context only; the content compare is the truth.
@@ -53,21 +59,24 @@ def sync_status(project_root: Path) -> tuple[list[str], list[str], str | None]:
     stale: list[str] = []
     missing: list[str] = []
     for rel in CHECK_SCRIPTS:
-        source = RACECAR_ROOT / rel
-        if not source.is_file():
-            continue
-        name = Path(rel).name
-        target = project_root / "scripts" / name
-        if not target.is_file():
-            missing.append(name)
-        elif target.read_bytes() != source.read_bytes():
-            stale.append(name)
+        # Each entry delivers its thin script plus any sibling _rules/ impl package;
+        # compare every delivered file so package drift is caught, not just the entry.
+        for source, dest_rel in delivered_files(rel):
+            target = project_root / "scripts" / dest_rel
+            name = str(dest_rel)
+            if not target.is_file():
+                missing.append(name)
+            elif target.read_bytes() != source.read_bytes():
+                stale.append(name)
     stamp = project_root / STAMP_REL
-    stamp_version = stamp.read_text(encoding="utf-8").strip() if stamp.is_file() else None
+    stamp_version = (
+        stamp.read_text(encoding="utf-8").strip() if stamp.is_file() else None
+    )
     return sorted(stale), sorted(missing), stamp_version
 
 
 def main() -> int:
+    """Emit the repo's sync-status notice (the SessionStart entry point)."""
     raw = sys.stdin.read()
     try:
         source = (json.loads(raw) if raw.strip() else {}).get("source", "")
@@ -96,7 +105,11 @@ def main() -> int:
     # systemMessage is the user-visible status; no additionalContext to keep the
     # agent's context uncluttered when there is nothing to do.
     if not stale and not missing:
-        print(json.dumps({"systemMessage": f"racecar: noop | {repo} in sync with racecar:{ref}"}))
+        print(
+            json.dumps(
+                {"systemMessage": f"racecar: noop | {repo} in sync with racecar:{ref}"}
+            )
+        )
         return 0
 
     # upgrade — adopter, drifted. Prompt the fix, loud (systemMessage) and in the
@@ -111,8 +124,14 @@ def main() -> int:
         f"/racecar-upgrade. Do not trust a green gate until resynced."
     )
     out = {
-        "systemMessage": f"racecar: upgrade | {repo} out-of-sync with racecar:{ref} ({n} script(s)) — run /racecar-upgrade",
-        "hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": notice},
+        "systemMessage": (
+            f"racecar: upgrade | {repo} out-of-sync with racecar:{ref} "
+            f"({n} script(s)) — run /racecar-upgrade"
+        ),
+        "hookSpecificOutput": {
+            "hookEventName": "SessionStart",
+            "additionalContext": notice,
+        },
     }
     print(json.dumps(out))
     return 0

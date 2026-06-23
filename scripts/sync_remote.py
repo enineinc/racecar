@@ -31,22 +31,19 @@ from __future__ import annotations
 
 import argparse
 import sys
+import urllib.error
 import urllib.request
 from pathlib import Path
 
 BASE_RAW = "https://raw.githubusercontent.com/vishalapte/racecar/{ref}/{path}"
 
-CHECK_SCRIPTS = (
-    "arch-coherence/scripts/check_upward_imports.py",
-    "arch-coherence/scripts/check_cli_commands.py",
-    "arch-coherence/scripts/check_packaging.py",
-    "arch-coherence/scripts/check_face_orchestration.py",
-    "arch-coherence/scripts/check_dj_model_ref_as_string.py",
-    "doc-coherence/scripts/check_docs.py",
-    "doc-coherence/scripts/check_todo_format.py",
-    "doc-coherence/scripts/check_claude_shape.py",
-    "doc-coherence/scripts/check_file_placement.py",
-)
+# The canonical delivered-file list lives in ONE home: scripts/racecar-manifest.txt,
+# generated from the real scripts by `sync_scripts.py --write-manifest` and pinned by
+# a test. The remote path FETCHES it rather than hardcoding a copy, which is exactly
+# how the old hardcoded list here silently drifted out of step with sync_scripts (and
+# never learned to deliver the sibling `_rules/` package modules). Each manifest line
+# is a repo-relative source path; a Django-only file carries a trailing ` django` tag.
+MANIFEST_REL = "scripts/racecar-manifest.txt"
 
 # Templates delivered create-if-missing only (--templates). Existing copies are
 # never overwritten: templates are per-project-customized example artifacts,
@@ -61,6 +58,7 @@ TEMPLATE_FILES = (
 
 
 def fetch(url: str) -> str:
+    """Fetch `url` over HTTPS and return the decoded UTF-8 body."""
     with urllib.request.urlopen(url) as resp:  # noqa: S310
         return resp.read().decode("utf-8")
 
@@ -76,7 +74,7 @@ def _sync_templates(dest: Path, ref: str, dry_run: bool) -> int:
         url = BASE_RAW.format(ref=ref, path=rel_source)
         try:
             content = fetch(url)
-        except Exception as exc:
+        except urllib.error.URLError as exc:
             print(f"  FETCH ERROR  {rel_source}: {exc}")
             continue
         note = "  — set the shape variables" if rel_target == "Makefile" else ""
@@ -90,23 +88,50 @@ def _sync_templates(dest: Path, ref: str, dry_run: bool) -> int:
     return created
 
 
+def _is_django_repo(dest: Path) -> bool:
+    """An adopter is a Django repo if it has a manage.py somewhere (mirrors sync_scripts)."""
+    return any(dest.rglob("manage.py"))
+
+
+def _manifest_entries(ref: str) -> list[tuple[str, bool]]:
+    """Fetch and parse the canonical manifest: (repo-relative source, is_django) pairs."""
+    raw = fetch(BASE_RAW.format(ref=ref, path=MANIFEST_REL))
+    entries: list[tuple[str, bool]] = []
+    for line in raw.splitlines():
+        parts = line.split()
+        if parts:
+            entries.append((parts[0], len(parts) > 1 and parts[1] == "django"))
+    return entries
+
+
 def sync(dest: Path, ref: str, dry_run: bool, templates: bool = False) -> None:
-    """Fetch canonical scripts from GitHub and write them into dest/scripts/."""
+    """Fetch canonical scripts from GitHub and write them into dest/scripts/.
+
+    Drives off the fetched manifest (one home for the delivered-file list), so the
+    remote path delivers exactly what `make sync` does, including the `_rules/`
+    package modules under their subdirectory and the Django-only checks when the
+    adopter has a manage.py.
+    """
     if not dest.is_dir():
         raise SystemExit(f"sync_remote: {dest} does not exist or is not a directory.")
 
     scripts_dir = dest / "scripts"
+    is_django = _is_django_repo(dest)
     created = updated = unchanged = 0
 
-    for rel_source in CHECK_SCRIPTS:
+    for rel_source, django_only in _manifest_entries(ref):
+        if django_only and not is_django:
+            continue
         url = BASE_RAW.format(ref=ref, path=rel_source)
         try:
             canonical = fetch(url)
-        except Exception as exc:
+        except urllib.error.URLError as exc:
             print(f"  FETCH ERROR  {rel_source}: {exc}")
             continue
 
-        target = scripts_dir / Path(rel_source).name
+        # Preserve the package subdirectory: a `_rules/` module lands under it, an
+        # entry script lands flat. The path tail after the lens `scripts/` is the dest.
+        target = scripts_dir / rel_source.rsplit("scripts/", 1)[-1]
 
         if target.exists():
             if target.read_text(encoding="utf-8") == canonical:
@@ -121,7 +146,7 @@ def sync(dest: Path, ref: str, dry_run: bool, templates: bool = False) -> None:
 
         print(f"  {label:<9} {target.relative_to(dest)}")
         if not dry_run:
-            scripts_dir.mkdir(parents=True, exist_ok=True)
+            target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(canonical, encoding="utf-8")
 
     templates_created = _sync_templates(dest, ref, dry_run) if templates else 0
@@ -135,6 +160,7 @@ def sync(dest: Path, ref: str, dry_run: bool, templates: bool = False) -> None:
 
 
 def parser() -> argparse.ArgumentParser:
+    """Build the command-line argument parser for the remote sync."""
     p = argparse.ArgumentParser(
         description="Sync canonical racecar check scripts from GitHub into an adopter repo.",
     )
@@ -165,6 +191,7 @@ def parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str]) -> int:
+    """Fetch canonical scripts from GitHub into the adopter repo; return an exit code."""
     args = parser().parse_args(argv)
     dest = args.dest.expanduser().resolve()
     sync(dest, ref=args.ref, dry_run=args.dry_run, templates=args.templates)

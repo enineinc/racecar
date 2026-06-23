@@ -1,14 +1,15 @@
 """Tests for scripts/init_project.py.
 
 The scaffolder copies templates/classic/ into a fresh project tree for one of
-the four racecar shapes, substituting placeholders and setting the Makefile's
-shape variables. These tests scaffold into tmp_path and assert:
+the four racecar shapes, substituting placeholders. These tests scaffold into
+tmp_path and assert:
 
   - Each of the four shapes lands the library pyproject at the shape-correct
     path with the root package substituted in.
-  - The djapp pyproject appears only for pypkg+djapp.
-  - The Makefile carries the shape-correct SRC / PKG / DJAPP / LIB_PYPROJECT /
-    DJAPP_PYPROJECT values.
+  - The djapp pyproject appears only for pypkg+djapp; the djapp shape ships a
+    manage.py (the Django marker the shape detection keys on).
+  - The owned Makefile is a thin include and racecar.mk is the canonical file,
+    byte-identical in every shape (shape is detected from the layout, not stored).
   - .gitignore and .pre-commit-config.yaml are written at root (with the
     leading dot) for every shape.
   - scripts/ carries the check scripts the Makefile arch:/docs: targets invoke,
@@ -24,6 +25,7 @@ Run with:
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import tomllib
@@ -62,7 +64,9 @@ def _run(*args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-def _scaffold(dest: Path, shape: str, package: str = "foo") -> subprocess.CompletedProcess[str]:
+def _scaffold(
+    dest: Path, shape: str, package: str = "foo"
+) -> subprocess.CompletedProcess[str]:
     return _run(
         "--shape",
         shape,
@@ -79,24 +83,21 @@ def _scaffold(dest: Path, shape: str, package: str = "foo") -> subprocess.Comple
     )
 
 
-def _makefile_vars(makefile: Path) -> dict[str, str]:
-    out: dict[str, str] = {}
-    for line in makefile.read_text().splitlines():
-        for var in ("SRC", "PKG", "DJAPP", "LIB_PYPROJECT", "DJAPP_PYPROJECT"):
-            prefix = f"{var} "
-            stripped = line.lstrip()
-            if stripped.startswith(prefix) and "?=" in stripped:
-                out[var] = stripped.split("?=", 1)[1].strip()
-    return out
-
-
 def test_vertical_scaffolds_canonical_files(tmp_path: Path) -> None:
     """--vertical pre-wires lib.py/api.py/__main__.py that the faces detector
     classifies cleanly (FACES.md §10 make-the-right-thing-easy)."""
     dest = tmp_path / "proj"
     result = _run(
-        "--shape", "src", "--name", "athena", "--package", "athena",
-        "--dest", str(dest), "--vertical", "prices",
+        "--shape",
+        "src",
+        "--name",
+        "athena",
+        "--package",
+        "athena",
+        "--dest",
+        str(dest),
+        "--vertical",
+        "prices",
     )
     assert result.returncode == 0, result.stderr
     vdir = dest / "src" / "athena" / "prices"
@@ -112,14 +113,60 @@ def test_vertical_scaffolds_canonical_files(tmp_path: Path) -> None:
     detector = dest / "scripts" / "check_face_orchestration.py"
     out = subprocess.run(
         [sys.executable, str(detector), "--root", str(dest)],
-        capture_output=True, text=True, check=False,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     assert out.returncode == 0, out.stdout
     assert "OK (advisory)" in out.stdout
 
 
+@pytest.mark.parametrize(
+    "extra",
+    [["--cli"], ["--vertical", "prices", "--vertical", "dispatch"]],
+    ids=["single-surface", "nested-surface"],
+)
+def test_scaffolded_cli_passes_check_cli_commands(
+    extra: list[str], tmp_path: Path
+) -> None:
+    """Realism coupling (the sweep's second gap): a real scaffold's CLI surface must
+    pass `check_cli_commands`, the CLI command-tree audit `make arch` runs. Both shapes:
+    single = one Pattern 3 leaf at the package root (`--cli`); nested = a Pattern 1
+    discovery root over leaf verticals (`--vertical`). This is the test the original
+    non-conformant scaffold failed (it emitted a `__main__.py` with no `commands()`);
+    a future scaffold that drops the contract fails here, in CI."""
+    dest = tmp_path / "proj"
+    assert (
+        _run(
+            "--shape",
+            "src",
+            "--name",
+            "athena",
+            "--package",
+            "athena",
+            "--dest",
+            str(dest),
+            *extra,
+        ).returncode
+        == 0
+    )
+    cli = dest / "scripts" / "check_cli_commands.py"
+    env = {**os.environ, "PYTHONPATH": str(dest / "src")}  # as after `make install`
+    out = subprocess.run(
+        [sys.executable, str(cli), "src/athena"],
+        cwd=dest,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert out.returncode == 0, out.stdout
+
+
 @pytest.mark.parametrize("shape", list(SHAPE_LIB_PYPROJECT))
-def test_shape_lands_library_pyproject_at_correct_path(shape: str, tmp_path: Path) -> None:
+def test_shape_lands_library_pyproject_at_correct_path(
+    shape: str, tmp_path: Path
+) -> None:
     dest = tmp_path / "proj"
     result = _scaffold(dest, shape)
     assert result.returncode == 0, result.stderr
@@ -133,26 +180,40 @@ def test_shape_lands_library_pyproject_at_correct_path(shape: str, tmp_path: Pat
     assert data["tool"]["importlinter"]["root_package"] == "foo"
 
 
+_TEMPLATE_RACECAR_MK = REPO_ROOT / "templates" / "classic" / "racecar.mk"
+
+
 @pytest.mark.parametrize("shape", list(SHAPE_LIB_PYPROJECT))
-def test_makefile_shape_variables(shape: str, tmp_path: Path) -> None:
+def test_makefile_fold_owned_include_plus_identical_racecar_mk(
+    shape: str, tmp_path: Path
+) -> None:
+    """The owned Makefile is a thin include; racecar.mk is the canonical file,
+    byte-identical in every shape (it self-detects the shape from the layout)."""
     dest = tmp_path / "proj"
     assert _scaffold(dest, shape).returncode == 0
+    assert "include racecar.mk" in (dest / "Makefile").read_text()
+    assert (dest / "racecar.mk").read_text() == _TEMPLATE_RACECAR_MK.read_text()
 
-    vars_ = _makefile_vars(dest / "Makefile")
-    rel_pyproject, expected_src = SHAPE_LIB_PYPROJECT[shape]
-    assert vars_["SRC"] == expected_src
-    assert vars_["PKG"] == f"{expected_src}/foo"
-    assert vars_["LIB_PYPROJECT"] == rel_pyproject
 
-    if shape in ("pypkg+djapp", "djapp"):
-        assert vars_["DJAPP"] == "djapp"
-    else:
-        assert vars_["DJAPP"] == ""
+@pytest.mark.parametrize("shape", list(SHAPE_LIB_PYPROJECT))
+def test_library_pyproject_declares_no_shape(shape: str, tmp_path: Path) -> None:
+    """Shape is governed by what is on disk, not a declared value: the scaffold writes
+    no `[tool.racecar].shape` (no shape token to set, forget, or let go stale)."""
+    dest = tmp_path / "proj"
+    assert _scaffold(dest, shape).returncode == 0
+    rel_pyproject, _ = SHAPE_LIB_PYPROJECT[shape]
+    data = tomllib.loads((dest / rel_pyproject).read_text())
+    assert "shape" not in data.get("tool", {}).get("racecar", {})
 
-    if shape == "pypkg+djapp":
-        assert vars_["DJAPP_PYPROJECT"] == "djapp/pyproject.toml"
-    else:
-        assert vars_["DJAPP_PYPROJECT"] == ""
+
+def test_djapp_scaffold_writes_manage_py(tmp_path: Path) -> None:
+    """The djapp shape ships a manage.py — the Django marker racecar.mk and
+    detect_shape both key on. Without it the scaffold would read as the `src` shape."""
+    dest = tmp_path / "proj"
+    assert _scaffold(dest, "djapp").returncode == 0
+    manage = dest / "djapp" / "manage.py"
+    assert manage.is_file()
+    assert "DJANGO_SETTINGS_MODULE" in manage.read_text()
 
 
 @pytest.mark.parametrize("shape", list(SHAPE_LIB_PYPROJECT))
@@ -180,16 +241,18 @@ def test_scripts_dir_carries_check_scripts(shape: str, tmp_path: Path) -> None:
         copied = dest / "scripts" / basename
         assert copied.is_file(), f"scripts/{basename} not created for shape {shape}"
         canonical = (REPO_ROOT / rel_source).read_text(encoding="utf-8")
-        assert copied.read_text(encoding="utf-8") == canonical, (
-            f"scripts/{basename} diverges from canonical {rel_source} (must be verbatim)"
-        )
+        assert (
+            copied.read_text(encoding="utf-8") == canonical
+        ), f"scripts/{basename} diverges from canonical {rel_source} (must be verbatim)"
 
     # Support scripts the Makefile invokes beyond the check set — without these the
     # scaffold's own `make clean` / `make system-deps` fail file-not-found.
-    assert (dest / "scripts" / "clean_files.sh").is_file(), f"clean_files.sh missing ({shape})"
-    assert (dest / "scripts" / "install_system_deps.sh").is_file(), (
-        f"install_system_deps.sh missing ({shape})"
-    )
+    assert (
+        dest / "scripts" / "clean_files.sh"
+    ).is_file(), f"clean_files.sh missing ({shape})"
+    assert (
+        dest / "scripts" / "install_system_deps.sh"
+    ).is_file(), f"install_system_deps.sh missing ({shape})"
 
 
 def test_djapp_pyproject_only_for_pypkg_djapp(tmp_path: Path) -> None:
@@ -216,7 +279,9 @@ def test_no_placeholder_survives_in_active_lines(tmp_path: Path) -> None:
         if line.strip() and not line.lstrip().startswith("#")
     ]
     for line in active:
-        assert "<" not in line or ">" not in line, f"placeholder left in active line: {line!r}"
+        assert (
+            "<" not in line or ">" not in line
+        ), f"placeholder left in active line: {line!r}"
 
 
 def test_refuses_to_clobber_non_empty_dest(tmp_path: Path) -> None:
@@ -234,6 +299,58 @@ def test_empty_dest_is_allowed(tmp_path: Path) -> None:
     dest.mkdir()
     assert _scaffold(dest, "src").returncode == 0
     assert (dest / "pyproject.toml").is_file()
+
+
+def test_bare_scaffold_writes_no_main(tmp_path: Path) -> None:
+    """Negative space: with neither --cli nor --vertical, the scaffold must NOT emit
+    any `__main__.py`. The non-conformant scaffold this suite hardened against shipped
+    a bare `__main__.py` (no `commands()`) by default; a bare main here would both fail
+    check_cli_commands and read as a faces vertical with no worker. Absence is correct."""
+    dest = tmp_path / "proj"
+    assert _scaffold(dest, "src").returncode == 0
+    mains = list((dest / "src" / "foo").rglob("__main__.py"))
+    assert mains == [], f"bare scaffold emitted a __main__.py: {mains}"
+
+
+def test_vertical_leaf_main_is_not_a_bare_main(tmp_path: Path) -> None:
+    """Negative space: the vertical's leaf `__main__.py` must NOT be the bare,
+    contract-less main the original scaffold shipped — it must declare `commands()`,
+    `parser()`, and `main()`. A regression that drops the CLI.md contract (emitting a
+    bare main again) is caught here, not just by the integration run."""
+    dest = tmp_path / "proj"
+    assert (
+        _run(
+            "--shape", "src", "--name", "athena", "--package", "athena",
+            "--dest", str(dest), "--vertical", "prices",
+        ).returncode
+        == 0
+    )
+    leaf = (dest / "src" / "athena" / "prices" / "__main__.py").read_text()
+    for token in ("def commands(", "def parser(", "def main("):
+        assert token in leaf, f"leaf __main__ missing the CLI.md contract token {token!r}"
+
+
+def test_cli_and_vertical_are_mutually_exclusive(tmp_path: Path) -> None:
+    """Negative space: --cli (single surface) and --vertical (nested surface) must NOT
+    both apply. Passing both is refused with a non-zero exit; no tree is scaffolded."""
+    dest = tmp_path / "proj"
+    result = _run(
+        "--shape", "src", "--name", "foo", "--package", "foo",
+        "--dest", str(dest), "--cli", "--vertical", "prices",
+    )
+    assert result.returncode != 0
+    assert "mutually exclusive" in result.stderr
+
+
+def test_non_djapp_shapes_write_no_manage_py(tmp_path: Path) -> None:
+    """Negative space: only the Django shapes ship manage.py — its presence is the
+    sole Django marker. A non-Django shape that emitted one would misdetect as djapp,
+    so the marker must be ABSENT for `src` and `pypkg`."""
+    for shape in ("src", "pypkg"):
+        dest = tmp_path / f"no-manage-{shape}"
+        assert _scaffold(dest, shape).returncode == 0
+        assert not (dest / "djapp" / "manage.py").exists()
+        assert list(dest.rglob("manage.py")) == []
 
 
 def test_bad_shape_is_rejected(tmp_path: Path) -> None:
