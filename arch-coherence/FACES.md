@@ -25,14 +25,12 @@ reads as a wall, that is a defect in the rule. The test applied throughout: *gat
 genuine defects, surface choices.* A cycle is a defect; a face reaching past `api`
 is a choice. The first earns a gate, the second earns a finding.
 
-This file's first pass made the face→worker routing a hard `forbidden`
-`import-linter` contract. That was racecar breaking its own
+Face→worker routing is a **named convention with an advisory detector**, not a hard
+`forbidden` `import-linter` contract. Walling it would break racecar's own
 [`OWNERSHIP.md`](../shared/OWNERSHIP.md) doctrine ("tooling confirms, the owner
 authorizes; a green ledger is confirmation, not a merge gate") and
-[`DRIFT.md`](../shared/DRIFT.md) ("detect and surface"). This version recasts the
-routing as a **named convention with an advisory detector**, built on the
-`lib → api → faces` proving ground. The names are fixed (an autodiscovery
-contract); the wall is gone.
+[`DRIFT.md`](../shared/DRIFT.md) ("detect and surface"). The names are fixed (an
+autodiscovery contract); the import shape is not.
 
 ## 1. The shape
 
@@ -44,7 +42,7 @@ contract); the wall is gone.
 
 The arrow reads **"provides for"**: `lib` provides for `api`, `api` provides for
 each face. **Import edges run the reverse**: a face imports `api`, `api` imports
-`lib`. The graph is a DAG; [check 1 Acyclicity](README.md#1-acyclicity-root-axiom)
+`lib`. The graph is a DAG; [check 1 Acyclicity](AXIOMS.md#1-acyclicity-root-axiom)
 is non-negotiable here as everywhere.
 
 Three roles:
@@ -112,9 +110,8 @@ lenses** (which module is the api? which is the worker?), so by Django's own log
 the face names should be fixed. `mcp.py`-mandatory-**if you have an mcp face** is
 exactly `admin.py`-mandatory-**if you have admin**. That is a contract, not dogma.
 
-What *was* dogma is the import wall (the old `forbidden` contract), and it is gone
-(§3). The names stay; the wall goes. A project that names its files differently is
-not in violation — it declares the mapping in a manifest (§4 Tier 2). The canonical
+The fixed thing is the names, not the import shape: there is no import wall (§3). A
+project that names its files differently is not in violation — it declares the mapping in a manifest (§4 Tier 2). The canonical
 name is the **default you receive** (§5), not a cage.
 
 ## 3. Per-vertical co-location
@@ -151,7 +148,7 @@ Two kinds of rule, and they get different machinery.
 
 **Gate genuine defects.** A cycle or an upward import is *incoherent* — like a type
 error, catching it is unambiguous help. **Acyclicity + direction stay a hard gate**,
-via a single `import-linter` `layers` contract (the [layer-integrity](README.md#3-layer-integrity)
+via a single `import-linter` `layers` contract (the [layer-integrity](AXIOMS.md#3-layer-integrity)
 axiom applied to the tiers). This is the **only gated import contract** the faces
 axis adds.
 
@@ -320,7 +317,7 @@ The `django` shape and the `django` face are two views of one thing: the shape s
 holding no orchestration of its own*.
 
 **Reconcile with llm-summary.** The brief's `external_surface` kinds
-([llm-summary/README.md](../llm-summary/README.md#frontmatter-yaml)) enumerate faces
+([llm-summary/README.md](../llm-summary/SPEC.md#frontmatter-yaml)) enumerate faces
 from the outside: `http_routes` (django), `cli_verbs` (cli), `library_exports`
 (api), plus `webhooks` and `signals`. The `mcp` face adds the `mcp_tools` kind.
 

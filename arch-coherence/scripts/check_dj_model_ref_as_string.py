@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """Enforce arch-coherence/DJANGO.md §2: no cross-module string references in ORM relations.
 
-Walks every package listed in `[tool.importlinter].root_packages` in
-pyproject.toml and flags any `ForeignKey`, `OneToOneField`, or
-`ManyToManyField` call whose target is a cross-module string literal. Three
+Reads `[tool.importlinter].root_packages` from the library pyproject (located
+via `detect_shape`: `pypkg/src/pyproject.toml` for the pypkg+djapp shape, the
+root pyproject for a standalone djapp) and walks each named package. The package
+directories are located by globbing the project tree, so a root under `pypkg/src`,
+under `djapp/`, or at the repo root is found wherever it lives, never assumed from
+the shape. It flags any `ForeignKey`, `OneToOneField`, or `ManyToManyField` call
+whose target is a cross-module string literal. Three
 forms are exempted because they cross no module boundary and so cannot hide
 a cycle:
 
@@ -52,6 +56,8 @@ import sys
 import tomllib
 from pathlib import Path
 
+from check_packaging import detect_shape
+
 RELATION_FIELDS = frozenset({"ForeignKey", "OneToOneField", "ManyToManyField"})
 
 _INSTALLED_APPS_SCRIPT = (
@@ -61,9 +67,12 @@ _INSTALLED_APPS_SCRIPT = (
 )
 
 
-def _load_pyproject() -> dict:
-    pyproject = Path("pyproject.toml")
-    if not pyproject.is_file():
+def _load_pyproject(pyproject: Path | None) -> dict:
+    # The importlinter config (root_packages, layers) lives in the LIBRARY pyproject,
+    # located via detect_shape: pypkg/src/pyproject.toml for pypkg+djapp, the root
+    # pyproject for a standalone djapp. The djapp pyproject is deps-only and never
+    # carries [tool.importlinter] (PACKAGING.md §"Pyproject rules").
+    if pyproject is None or not pyproject.is_file():
         print("check_dj_model_ref_as_string: pyproject.toml not found", file=sys.stderr)
         sys.exit(2)
     return tomllib.loads(pyproject.read_text(encoding="utf-8"))
@@ -74,13 +83,15 @@ def _root_packages(data: dict) -> list[str]:
         roots = data["tool"]["importlinter"]["root_packages"]
     except KeyError:
         print(
-            "check_dj_model_ref_as_string: [tool.importlinter].root_packages missing from pyproject.toml",
+            "check_dj_model_ref_as_string: [tool.importlinter].root_packages "
+            "missing from pyproject.toml",
             file=sys.stderr,
         )
         sys.exit(2)
     if not isinstance(roots, list) or not all(isinstance(r, str) for r in roots):
         print(
-            "check_dj_model_ref_as_string: [tool.importlinter].root_packages must be a list of strings",
+            "check_dj_model_ref_as_string: [tool.importlinter].root_packages "
+            "must be a list of strings",
             file=sys.stderr,
         )
         sys.exit(2)
@@ -98,22 +109,26 @@ def _dag_layers(data: dict) -> list[str]:
     return []
 
 
-def _installed_apps() -> list[str]:
+def _installed_apps(manage_py: Path | None) -> list[str]:
     override = os.environ.get("STRING_RELATIONS_INSTALLED_APPS")
     if override is not None:
         return [s.strip() for s in override.split(",") if s.strip()]
-    if not Path("manage.py").is_file():
-        print("check_dj_model_ref_as_string: not a Django project (no manage.py) — skipping")
+    if manage_py is None:
+        print(
+            "check_dj_model_ref_as_string: not a Django project (no manage.py) — skipping"
+        )
         sys.exit(0)
     result = subprocess.run(
-        [sys.executable, "manage.py", "shell", "-c", _INSTALLED_APPS_SCRIPT],
+        [sys.executable, manage_py.name, "shell", "-c", _INSTALLED_APPS_SCRIPT],
+        cwd=manage_py.parent,
         capture_output=True,
         text=True,
         check=False,
     )
     if result.returncode != 0:
         print(
-            f"check_dj_model_ref_as_string: manage.py shell failed (exit {result.returncode}):\n{result.stderr}",
+            f"check_dj_model_ref_as_string: manage.py shell failed "
+            f"(exit {result.returncode}):\n{result.stderr}",
             file=sys.stderr,
         )
         sys.exit(2)
@@ -215,32 +230,77 @@ def _annotate(
     return notes
 
 
+_SKIP_DIRS = frozenset(
+    {"venv", "node_modules", "__pycache__", "migrations", "build", "dist", "site-packages"}
+)
+
+
+def _package_index(project_root: Path) -> dict[str, list[Path]]:
+    """Map every directory name in the project to where it occurs on disk, one pruned
+    walk. Virtualenvs, caches, build output, migrations, and dotted dirs are skipped.
+
+    Package locations are GLOBBED rather than derived from the shape: `root_packages`
+    can sit under any source root (`pypkg/src` for a library package, `djapp/` for a
+    Django app, the repo root for a standalone djapp), so the directories are found
+    wherever they are instead of assuming a fixed per-shape layout.
+    """
+    index: dict[str, list[Path]] = {}
+    for dirpath, dirnames, _filenames in os.walk(project_root):
+        dirnames[:] = [
+            d for d in dirnames if d not in _SKIP_DIRS and not d.startswith(".")
+        ]
+        here = Path(dirpath)
+        index.setdefault(here.name, []).append(here)
+    return index
+
+
+def _find_package_dir(
+    name: str, index: dict[str, list[Path]], project_root: Path
+) -> Path | None:
+    """Return the on-disk directory for top-level package `name`, or None. When the
+    name occurs more than once, the shallowest path wins: the source-root-level
+    package, not a same-named nested subpackage."""
+    matches = index.get(name, [])
+    if not matches:
+        return None
+    return min(matches, key=lambda p: len(p.relative_to(project_root).parts))
+
+
 def main() -> int:
-    installed = _installed_apps()
-    data = _load_pyproject()
+    """Run the check and return a process exit code (0 clean, nonzero on findings)."""
+    # detect_shape supplies the two things that are genuinely shape-determined: where
+    # the importlinter contract lives (the library pyproject) and where Django boots
+    # (manage.py). The package directories named in root_packages are not assumed from
+    # the shape; they are globbed from the tree (`_package_index`), so a root sitting
+    # under pypkg/src, under djapp/, or at the repo root is found wherever it actually is.
+    shape = detect_shape(Path.cwd())[0]
+    installed = _installed_apps(shape.manage_py)
+    data = _load_pyproject(shape.library_pyproject)
     roots = _root_packages(data)
     layers = _dag_layers(data)
 
     live: list[str] = []
     noop: list[str] = []
 
+    cwd = Path.cwd()
+    index = _package_index(cwd)
     for root in roots:
-        root_dir = Path(root)
-        if not root_dir.is_dir():
+        root_dir = _find_package_dir(root, index, cwd)
+        if root_dir is None:
             print(
                 f"check_dj_model_ref_as_string: root package '{root}' not on disk; skipping",
                 file=sys.stderr,
             )
             continue
+        src_root = root_dir.parent
         for path in sorted(root_dir.rglob("*.py")):
             if "migrations" in path.parts:
                 continue
-            file_dotted = _file_to_dotted(path)
+            file_dotted = _file_to_dotted(path.relative_to(src_root))
+            display = path.relative_to(cwd)
             file_app = _longest_prefix(file_dotted, installed)
             for lineno, field_name, target in _violations(path):
-                head = (
-                    f"{path}:{lineno}: {field_name} string reference forbidden: '{target}'"
-                )
+                head = f"{display}:{lineno}: {field_name} string reference forbidden: '{target}'"
                 if file_app is None:
                     noop.append(head)
                     continue
@@ -255,7 +315,8 @@ def main() -> int:
         if live:
             print()
         print(
-            "NOOP modules (file's app is NOT in INSTALLED_APPS — Django will not load these models):"
+            "NOOP modules (file's app is NOT in INSTALLED_APPS — "
+            "Django will not load these models):"
         )
         for entry in noop:
             print(f"  {entry}")

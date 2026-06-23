@@ -145,3 +145,36 @@ def test_no_verticals_is_noop(tmp_path: Path) -> None:
     result = _run(tmp_path)
     assert result.returncode == 0
     assert "nothing to check" in result.stdout
+
+
+def test_bare_main_only_is_not_a_vertical(tmp_path: Path) -> None:
+    """Negative space (the bug this session): a package whose ONLY role file is
+    `__main__.py` (no co-located lib/api/mcp worker, no second sibling module) is NOT
+    a faces vertical — it is a CLI node (CLI.md Pattern 1 discovery root or a single-file
+    tool), with no lib->api structure to classify. The detector must NOT discover it,
+    and must NOT emit a non-classifiable / missing-api finding for it."""
+    files = {
+        "__main__.py": "import argparse\nif __name__ == '__main__':\n    pass\n",
+    }
+    repo = _seed(tmp_path, files)
+    result = _run(repo)
+    assert result.returncode == 0
+    assert "nothing to check" in result.stdout
+    assert "non-classifiable" not in result.stdout
+    assert "Findings" not in result.stdout
+
+
+def test_clean_vertical_emits_no_findings(tmp_path: Path) -> None:
+    """Negative space: a clean faces -> api -> lib vertical produces NO finding of any
+    rule — not just exit 0. Guards against a false api-not-cut-vertex / restated /
+    non-classifiable firing on a correctly wired tree."""
+    repo = _seed(tmp_path, _CLEAN)
+    result = _run(repo)
+    for rule in (
+        "api-not-cut-vertex",
+        "non-classifiable",
+        "ambiguous-api",
+        "restated-orchestration",
+    ):
+        assert rule not in result.stdout
+    assert "OK (advisory)" in result.stdout

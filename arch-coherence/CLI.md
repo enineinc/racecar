@@ -8,7 +8,7 @@ A racecar Python package's CLI surface is composed of `python -m <pkg>` invocati
 
 **Packages are the preferred CLI entries; runnable modules are also valid.** A package CLI entry is a directory with a `__main__.py`. A `.py` module with an `if __name__ == "__main__":` block is also a valid entry (`python -m fubar.foo.alpha.data`). Prefer a package once the CLI grows past one file or needs its own sub-commands; keep a module for simple single-file tools.
 
-**Unidirectional relationship.** The dependency graph is parent → child only. Parents know about their children (by registering their names). Children never reference parents. This is the CLI-layer expression of the direction axiom in [check 2 Direction](README.md#2-direction).
+**Unidirectional relationship.** The dependency graph is parent → child only. Parents know about their children (by registering their names). Children never reference parents. This is the CLI-layer expression of the direction axiom in [check 2 Direction](AXIOMS.md#2-direction).
 
 **Knowledge isolation.** Each `__main__.py` only declares what it directly contains — names of its immediate sub-packages (depth + 1). It does not enumerate grandchildren.
 
@@ -16,7 +16,7 @@ A racecar Python package's CLI surface is composed of `python -m <pkg>` invocati
 
 ## The three contracts
 
-Every `__main__.py` declares some subset of three module-level functions. The audit verifies them; absence-when-required is a violation.
+Every `__main__.py` declares some subset of three module-level functions. Absence-when-required is a violation.
 
 ### `commands()` — sub-package composition
 
@@ -57,7 +57,7 @@ This factoring is the only way the audit can introspect the parser; without it, 
 
 ## The three patterns
 
-Sample tree used throughout. Directories with `__main__.py` are CLI entry points.
+Sample tree used throughout.
 
 ```
 src/fubar/
@@ -172,7 +172,7 @@ if __name__ == "__main__":
     main()
 ```
 
-Note: `_print_commands()` must exist in every Pattern 1 and Pattern 2 `__main__.py`. The outward-downward rule ([check 2 Direction](README.md#2-direction)) forbids inheriting it from above; there is no guaranteed leaf below to reuse it from. The function is therefore explicit at every node — a direct expression of the architecture. Its *body*, however, is identical boilerplate, and that part may be shared.
+Note: `_print_commands()` must exist in every Pattern 1 and Pattern 2 `__main__.py`. The outward-downward rule ([check 2 Direction](AXIOMS.md#2-direction)) forbids inheriting it from above; there is no guaranteed leaf below to reuse it from. The function is therefore explicit at every node — a direct expression of the architecture. Its *body*, however, is identical boilerplate, and that part may be shared.
 
 **Optional — share the render body via `_cli.py`.** With a single dispatcher, inlining the body above is fine. Once a package has several `__main__.py` nodes the inlined body is duplicated across them, and pylint's `duplicate-code` (R0801) flags it on the path to a clean lint. Rather than re-derive the fix per project, copy [`lib/_cli.py`](lib/_cli.py) into the package source root (`<pkg>/_cli.py`) and delegate:
 
@@ -516,7 +516,7 @@ Slim (what the SessionStart hook injects):
 | Rule | Rationale |
 |------|-----------|
 | Packages are the preferred CLI entry; runnable `.py` modules with `if __name__ == "__main__":` are also valid | Packages scale to sub-commands; modules stay simple for single-file tools |
-| No inward references in `__main__.py` — no `from ..` | Prevents upward references that would couple children to parents (see [check 2 Direction](README.md#2-direction)) and mask circular deps (see [check 1 Acyclicity](README.md#1-acyclicity-root-axiom)) |
+| No inward references in `__main__.py` — no `from ..` | Prevents upward references that would couple children to parents (see [check 2 Direction](AXIOMS.md#2-direction)) and mask circular deps (see [check 1 Acyclicity](AXIOMS.md#1-acyclicity-root-axiom)) |
 | `commands()` returns relative names, not full paths | `__package__` constructs the path; names stay readable |
 | `commands()` lists immediate children — sub-packages or runnable modules | Either is a valid invocation target via `python -m {parent}.{child}` |
 | Parents register child names explicitly — no dynamic discovery | Explicit registration; no invisible capabilities |
