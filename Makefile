@@ -8,7 +8,7 @@ ifdef VENV
 endif
 PYTHON := $(if $(VENV),$(VENV)/bin/python3,python3)
 
-.PHONY: install install-deps expert expert-uninstall doctor check-docs check-subsystem-docs check-brief test check demo init sync-scripts sync-remote-test clean distclean obsidian obsidian-data obsidian-docs help
+.PHONY: install install-deps expert expert-uninstall doctor check-docs check-subsystem-docs check-brief lint test check demo init sync-scripts sync-remote-test clean distclean obsidian obsidian-data obsidian-docs help
 
 install: install-deps
 	./install
@@ -37,10 +37,21 @@ check-subsystem-docs:
 check-brief:
 	$(PYTHON) llm-summary/scripts/check_brief.py
 
+# Lint racecar's own delivered scripts to zero pylint findings. Scope: the
+# production check + sync/install scripts under scripts/ and each lens's
+# scripts/ dir — the code racecar ships and runs. Test files are excluded:
+# their sys.path sibling imports and protected-access on the modules under test
+# are inherent to test scaffolding, not defects. Caps that are genuinely too
+# tight are raised (with rationale) in [tool.pylint] in pyproject.toml, never
+# disabled. The rcfile carries the cap and message-control config.
+LINT_SCRIPTS := $(shell find scripts doc-coherence/scripts llm-summary/scripts arch-coherence/scripts -name '*.py' -not -path '*/tests/*')
+lint:
+	$(PYTHON) -m pylint --rcfile pyproject.toml $(LINT_SCRIPTS)
+
 test:
 	$(PYTHON) -m pytest arch-coherence/tests doc-coherence/tests llm-summary/tests scripts/tests
 
-check: check-docs check-subsystem-docs test check-brief
+check: check-docs check-subsystem-docs lint test check-brief
 
 # One-command "see the value" demo. Runs the arch-coherence upward-import check
 # against examples/ — a deliberately-broken sample project (see examples/README.md)
@@ -160,8 +171,9 @@ help:
 	@echo "make check-docs       - run the mechanical pre-pass on this repo's own docs"
 	@echo "make check-subsystem-docs - verify every major subsystem in an import-linter layer owns README + CLAUDE"
 	@echo "make check-brief      - validate the racecar-llm-summary brief bundle at docs/summary/<REPO>.md"
+	@echo "make lint          - pylint racecar's own delivered scripts to zero findings (tests excluded)"
 	@echo "make test         - run the test suites under each skill"
-	@echo "make check        - run check-docs, check-subsystem-docs, test, and check-brief"
+	@echo "make check        - run check-docs, check-subsystem-docs, lint, test, and check-brief"
 	@echo "make demo         - run a racecar check against examples/ and show it catching a real violation"
 	@echo "make init ARGS=.. - scaffold a new conforming project from templates/classic/ (see scripts/init_project.py --help)"
 	@echo "make sync-scripts DEST=<path> [TEMPLATES=--templates] - sync check scripts into an adopter repo; --templates adds missing scaffolding"

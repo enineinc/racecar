@@ -133,7 +133,9 @@ ignore-docstrings = true
 
 [tool.pylint.MAIN]
 py-version = "3.12"
-# Django projects (shape pypkg+djapp / djapp) append "pylint_django".
+# Library plugins only. pylint_django is NOT added here (it would load over the
+# library tree too); racecar.mk's `lint` target loads it on the djapp via
+# --load-plugins (PACKAGING.md §6).
 load-plugins = ["pylint_pytest"]
 
 [tool.pylint.MASTER]
