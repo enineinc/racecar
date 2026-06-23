@@ -4,6 +4,16 @@ All notable changes to racecar are recorded here, in the style of
 [Keep a Changelog](https://keepachangelog.com). racecar is pre-1.0, so a minor
 bump may carry breaking changes for adopters; those are marked **Breaking**.
 
+## 0.10.2 - 2026-06-23
+
+### Changed
+- **The llm-summary brief no longer carries `target.sha`.** The frontmatter snapshot
+  SHA was circular (a brief is written before its own commit exists, so it could only
+  ever name the parent) and low-value to the brief's reader, who asks the file what the
+  system is, not which commit. `check_brief` no longer requires or validates it;
+  `target.date` and `generator.version` remain as provenance. An existing brief that
+  still carries a sha validates fine, the field is ignored.
+
 ## 0.10.1 - 2026-06-23
 
 ### Fixed

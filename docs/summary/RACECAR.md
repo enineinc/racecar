@@ -1,10 +1,9 @@
 ---
 generator:
   name: racecar-llm-summary
-  version: "0.10.0"
+  version: "0.10.2"
 target:
   repo: racecar
-  sha: 58996ce
   date: 2026-06-23
 bundle:
   - RACECAR.md
@@ -277,7 +276,7 @@ external_surface:
     - name: check_brief
       module: llm-summary/scripts/check_brief.py
       signature: "python3 check_brief.py [<bundle-path>]"
-      behavior: "Validate frontmatter schema, required §N.M headings, ## Confidence markers, bundle membership, and spine/body SHA agreement for a racecar-llm-summary brief. Exit 0/1."
+      behavior: "Validate frontmatter schema, required §N.M headings, ## Confidence markers, and bundle membership for a racecar-llm-summary brief. Exit 0/1."
     - name: check_upward_imports
       module: arch-coherence/scripts/check_upward_imports.py
       signature: "python3 check_upward_imports.py <file> [<file>...]"
@@ -293,7 +292,7 @@ external_surface:
     - name: check_dj_model_ref_as_string
       module: arch-coherence/scripts/check_dj_model_ref_as_string.py
       signature: "python3 check_dj_model_ref_as_string.py"
-      behavior: "Read root_packages from the library pyproject (via detect_shape); glob each named package from the tree (found wherever it lives, not assumed at root); AST-walk every .py under it; flag ORM string-target FKs/O2O/M2M; classify LIVE vs NOOP against INSTALLED_APPS; annotate UPWARD DAG cross by layer."
+      behavior: "Read root_packages from the library pyproject (via detect_shape); glob each from the tree (found wherever it lives, not assumed at root); AST-walk every .py for ORM string-target FKs/O2O/M2M. This static walk runs first; Django is booted (manage.py shell) only to classify the violations it finds, so a clean tree never boots. Classify LIVE vs NOOP against INSTALLED_APPS and annotate UPWARD DAG cross by layer; if the boot does not complete, report the violations UNCLASSIFIED (exit 1) rather than failing the gate (discrete-first)."
 ---
 
 # Racecar — Knowledge Package
@@ -442,7 +441,7 @@ Cross-module contracts that are not user-callable:
 - **`[tool.racecar.subsystem-docs]`** → produced by consumer; consumed by `check_subsystem_docs.py`. Keys `loc_threshold` (int, default 1000) and `exclude` (list, added to defaults).
 - **`[tool.pylint.MASTER].ignore-paths`** → produced by consumer; consumed by `check_docs.py`. `list[regex]`. Absent → empty tuple.
 - **Pointer-block markers / Claude Code hook JSON** → as before: byte-exact BEGIN/END partition of `~/.claude/CLAUDE.md` by `sync_claude_md.py` / `expert_mode.py`; hook stdin `{"tool_input": {...}, "cwd": ...}`, PreToolUse may emit `permissionDecision: allow`. Both bash hooks always exit 0 — racecar never denies, only auto-allows or falls through.
-- **`racecar-llm-summary` output contract** → produced by `llm-summary/README.md`; consumed by this brief, downstream LLMs, and `check_brief.py` (which also enforces spine/body SHA agreement). Schema drift → `check_brief.py` exit 1.
+- **`racecar-llm-summary` output contract** → produced by `llm-summary/README.md`; consumed by this brief, downstream LLMs, and `check_brief.py`. Schema drift → `check_brief.py` exit 1.
 - **Delivered-file manifest** → `scripts/racecar-manifest.txt`, the single home for the list of files racecar ships to an adopter (entry scripts plus each checker's sibling `_rules/` package modules, Django-only checks tagged). Generated from `sync_scripts.delivered_files` via `--write-manifest`, pinned to the filesystem by a test. Produced by `sync_scripts`; consumed by `sync_remote` (the no-clone GitHub path, which fetches it rather than carrying its own list) and read by the staleness hook. The convention: a checker's `<stem>_rules/` package travels with its entry; nothing per-file is listed twice.
 
 ### §2.6 Configuration
@@ -482,7 +481,7 @@ No secrets. No environment-variant rows because there is no environment split.
 
 10. **Packaging audit (`check_packaging.py`).** Detect the ProjectShape; validate the library + djapp pyprojects, Makefile targets, `.gitignore`, `.pre-commit-config.yaml`, `requirements.txt`, `CHANGELOG`. Blockers fail; Findings fail only under `--strict`. The VERSION-deprecation Finding fires only where `[project].version` exists. Exit 0/1.
 
-11. **Cross-module string-relation check (`check_dj_model_ref_as_string.py`).** Read `root_packages`; obtain `INSTALLED_APPS`; AST-walk each root; flag string-target ORM relations; classify LIVE/NOOP; annotate UPWARD DAG cross. Self-references and `settings.AUTH_USER_MODEL` exempt.
+11. **Cross-module string-relation check (`check_dj_model_ref_as_string.py`).** Read `root_packages`; AST-walk each root for string-target ORM relations (static, no boot); only if any are found, obtain `INSTALLED_APPS` via `manage.py shell` to classify LIVE/NOOP, or report them UNCLASSIFIED (exit 1) if it cannot boot; annotate UPWARD DAG cross. Self-references and `settings.AUTH_USER_MODEL` exempt.
 
 12. **Brief generation (`/racecar-llm-summary`).** Read `llm-summary/README.md` in full → discovery walk → draft body → derive frontmatter → write `docs/summary/$REPO.md` → end with `## Confidence` → validate with `check_brief.py`. This brief is the literal artifact of Flow 12 against this repo.
 
@@ -507,7 +506,7 @@ Plugin / extension surfaces:
 - **Decision log as a tiered hook pair.** Commit `86aee48`. A deterministic `PreCompact` marker (spine) + a `SessionStart(compact)` reconciliation prompt (judgment). Opt-in per project via `.claude/HISTORY.md`.
 - **Completion-claim guardrails.** `shared/OPERATIONAL.md` rules 7–12 (commit `9ced60c`): never claim done without the production-path command + exit code; agent-workaround keywords are stop signals; cross-agent equal numbers must be checked; doc invariants need test code; tests routing around production are bugs; banned completion vocabulary.
 - **Subsystem-docs presence check.** Commit `4b67ef5`. Every import-linter subsystem must own a README (developer) + CLAUDE (agent); "major" is structural (a subdir) or size (`loc_threshold`).
-- **YAML frontmatter as the brief's relational store; class-level entities only.** `llm-summary/README.md`. A downstream LLM queries frontmatter deterministically; field tables blow the line budget and are rarely the interesting query. `check_brief.py` enforces spine/body SHA agreement (commit `938d27c`).
+- **YAML frontmatter as the brief's relational store; class-level entities only.** `llm-summary/README.md`. A downstream LLM queries frontmatter deterministically; field tables blow the line budget and are rarely the interesting query.
 - **Drift doctrine.** `shared/DRIFT.md`. Defense must be structural or automatic; resolve drift at the largest frame that explains the symptom; "duplication is drift" is Tier 1.
 - **Faces are a named convention, not a wall.** `arch-coherence/FACES.md`. One library exposed through N thin faces (`lib → api → {cli, mcp, web/django}`); a **face is a wrapper on `api`**. Face→worker routing is advisory, not a hard `forbidden` import-linter contract: walling it would break OWNERSHIP ("tooling confirms, the owner authorizes") and DRIFT ("detect and surface"). The split is **gate genuine defects** (acyclicity + direction are one gated `layers` contract) and **surface choices** (a face reaching past `api` is a finding). The canonical file names (`lib.py`/`api.py`/`mcp.py`/`__main__.py`) are an **autodiscovery contract** (the Django `admin.py` model, fixed because the framework looks them up), not dogma. Role identification is declare-then-verify in three tiers (canonical name → `[tool.racecar.faces]` manifest → structural cut-vertex inference), LLM-last; non-classifiability is itself the drift finding.
 - **An advisory detector plus a scaffolder carry the faces convention.** `check_face_orchestration.py` is advisory (exit 0; `--strict` opts in): it identifies each vertical's `lib`/`api`/faces and flags non-classifiable verticals and orchestration restated across faces. `scripts/init_project.py --vertical` scaffolds the canonical `lib → api → cli` vertical (the `startapp` equivalent), so the good shape is the default you receive (FACES.md §10). Scaffold plus advisory detector plus docs-that-teach is how a convention spreads where enforcement does not.
@@ -582,7 +581,7 @@ N/A — no deployed instance. The install surface is `./install`, `make`, and th
 - §2.2 (Entities): the `ProjectShape` entry treats the four shapes (`src` / `pypkg` / `pypkg+djapp` / `djapp`) as a closed set; if PACKAGING.md grows a fifth shape this brief will lag. Verify against `arch-coherence/PACKAGING.md §Scope` and the `detect_shape` branches in `arch-coherence/scripts/check_packaging.py`.
 - §2.1 / §2.4.3 (SessionStart hooks): the claim that both SessionStart loaders fire on exactly the four matchers (startup / resume / clear / compact) is taken from the `upsert_hook` calls in `scripts/sync_claude_md.py`; verify against the `SESSION_*` matcher constants and the `sync_settings` body there.
 - §2.5 (Internal contracts): the `subcommands()` / `parser()` "required on Pattern 2/3, forbidden on Pattern 1" rule is transcribed from `arch-coherence/CLI.md §"The three contracts"`; if `_classify` in `check_cli_commands.py` enforces it differently, the script is authoritative. Verify against the current `_classify` / contract-checking code.
-- §2.10 / frontmatter (snapshot point): this brief describes the 0.10.0 working tree, which is uncommitted on top of `58996ce` (the frontmatter `sha`, the 0.9.0 base the 0.10.0 work sits on). The 0.10.0 release commit does not exist yet, so the test-module count and `make check` chain are read from the working tree, not a commit. Verify with `make test` and `grep -n 'check:' Makefile`; re-stamp `target.sha` to the release commit after it lands if precision matters.
+- §2.10 / frontmatter (snapshot point): this brief is dated, not commit-pinned; it describes the working tree as of `target.date`. Counts such as the test-module total and the `make check` chain are read from the tree at that point, so verify against the live tree (`make test`, `grep -n 'check:' Makefile`) if this brief is not fresh.
 - §2.9 / §2.2 (Faces): `check_face_orchestration.py`'s Tier-3 structural inference (api = cut vertex between faces and lib) is summarized from the rebuilt script; the exact articulation-point algorithm and the single-face `api==lib` collapse edge are authoritative in `arch-coherence/scripts/check_face_orchestration.py` (`_cut_vertices` / `_infer_api`). Verify there and in `arch-coherence/FACES.md §5`.
 
 **Not in this brief**

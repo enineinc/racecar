@@ -57,7 +57,6 @@ generator:
   version: "0.2.0"
 target:
   repo: testrepo
-  sha: abc1234
   date: 2026-01-01
 bundle:
   - TESTREPO.md
@@ -73,15 +72,13 @@ entities:
 def _write_brief(
     tmp_path: Path,
     frontmatter: str = _MINIMAL_FRONTMATTER,
-    preamble: str = "",
 ) -> Path:
     bundle = tmp_path / "docs" / "testrepo"
     bundle.mkdir(parents=True)
     brief = bundle / "TESTREPO.md"
     body = (
         "# Brief\n\n"
-        + (f"{preamble}\n\n" if preamble else "")
-        + "## §1. Purpose\n\nbody.\n\n"
+        "## §1. Purpose\n\nbody.\n\n"
         "## §2. Architecture\n\nbody.\n\n"
         "## §3. Live access\n\nbody.\n\n"
         "## Confidence\n\n"
@@ -118,21 +115,3 @@ def test_invalid_semver_is_caught(tmp_path: Path) -> None:
     result = _run(str(brief))
     assert result.returncode == 1
     assert "version" in (result.stdout + result.stderr).lower()
-
-
-def test_preamble_sha_mismatch_is_caught(tmp_path: Path) -> None:
-    """A snapshot SHA in the preamble that disagrees with target.sha fails."""
-    # _MINIMAL_FRONTMATTER pins target.sha: abc1234.
-    brief = _write_brief(tmp_path, preamble="A snapshot of testrepo at `deadbee`.")
-    result = _run(str(brief))
-    assert result.returncode == 1
-    out = result.stdout + result.stderr
-    assert "snapshot SHA" in out
-    assert "deadbee" in out
-
-
-def test_preamble_matching_sha_not_flagged(tmp_path: Path) -> None:
-    """A preamble SHA equal to target.sha raises no spine/body finding."""
-    brief = _write_brief(tmp_path, preamble="A snapshot of testrepo at `abc1234`.")
-    result = _run(str(brief))
-    assert "snapshot SHA" not in (result.stdout + result.stderr)
