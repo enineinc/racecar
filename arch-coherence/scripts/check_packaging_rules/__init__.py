@@ -28,6 +28,7 @@ from ._findings import Finding
 from ._forbidden import check_forbidden_lockfiles, check_forbidden_pylintrc
 from ._gitignore import check_gitignore
 from ._makefile import check_makefile
+from ._optin import check_optin
 from ._precommit import check_precommit
 from ._pyproject import check_library_pyproject
 from ._requirements import check_requirements
@@ -47,6 +48,7 @@ __all__ = [
     "check_legacy_version_file",
     "check_library_pyproject",
     "check_makefile",
+    "check_optin",
     "check_precommit",
     "check_requirements",
     "detect_shape",
@@ -112,4 +114,5 @@ def run_all(root: Path) -> list[Finding]:
     findings += check_makefile(root)
     findings += check_precommit(root)
     findings += check_changelog(root)
+    findings += check_optin(root)
     return findings

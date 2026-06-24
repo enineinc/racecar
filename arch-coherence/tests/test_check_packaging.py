@@ -24,9 +24,26 @@ SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "check_packaging.py"
 
 sys.path.insert(0, str(SCRIPT.parent))
 import check_packaging  # noqa: E402
+from check_packaging_rules import check_optin  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
 import init_project  # noqa: E402
+
+
+def test_optin_silent_when_no_agent_file(tmp_path: Path) -> None:
+    # racecar does not scaffold or demand a per-repo CLAUDE.md; absent is silent.
+    assert check_optin(tmp_path) == []
+
+
+def test_optin_flags_agent_file_without_racecar(tmp_path: Path) -> None:
+    (tmp_path / "CLAUDE.md").write_text("# Project\n\nNo standards reference here.\n")
+    findings = check_optin(tmp_path)
+    assert [f.rule for f in findings] == ["missing-racecar-optin"]
+
+
+def test_optin_passes_when_racecar_referenced(tmp_path: Path) -> None:
+    (tmp_path / "CLAUDE.md").write_text("# Project\n\nThis repo applies racecar.\n")
+    assert check_optin(tmp_path) == []
 
 
 @pytest.mark.parametrize("shape", ["src", "pypkg", "pypkg+djapp", "djapp"])

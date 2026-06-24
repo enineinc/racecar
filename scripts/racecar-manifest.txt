@@ -10,6 +10,7 @@ arch-coherence/scripts/check_packaging_rules/_findings.py
 arch-coherence/scripts/check_packaging_rules/_forbidden.py
 arch-coherence/scripts/check_packaging_rules/_gitignore.py
 arch-coherence/scripts/check_packaging_rules/_makefile.py
+arch-coherence/scripts/check_packaging_rules/_optin.py
 arch-coherence/scripts/check_packaging_rules/_precommit.py
 arch-coherence/scripts/check_packaging_rules/_pyproject.py
 arch-coherence/scripts/check_packaging_rules/_requirements.py
