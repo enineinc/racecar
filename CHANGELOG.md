@@ -4,6 +4,34 @@ All notable changes to racecar are recorded here, in the style of
 [Keep a Changelog](https://keepachangelog.com). racecar is pre-1.0, so a minor
 bump may carry breaking changes for adopters; those are marked **Breaking**.
 
+## 0.10.4 - 2026-06-23
+
+### Fixed
+- **The packaging check stopped silently passing a broken Makefile setup.** racecar's
+  build is split in two: a shared `racecar.mk` (identical in every repo) and a thin
+  `Makefile` that pulls it in with `include racecar.mk`. The check that verifies this only
+  looked at whether `racecar.mk` existed on disk, not whether the `Makefile` actually
+  included it. So when an upgrade copied `racecar.mk` in next to an old all-in-one
+  `Makefile` that never included it, the shared build did nothing, the old Makefile kept
+  running everything, and the check passed anyway. That broken state is now a hard failure
+  (`racecar-mk-not-included`), separate from the gentler "this repo hasn't adopted the
+  split yet" notice (`no-racecar-mk`). This is what let `racecar-upgrade` leave a custom
+  Makefile in place instead of replacing it.
+
+### Changed
+- **`racecar-upgrade` now separates racecar's shared files from your project's own
+  choices.** When the tool finds a difference between your repo and racecar, it used to
+  lean toward keeping your version unless there was a strong reason to change it. That is
+  right for things your project genuinely decided (its architecture, its naming, its extra
+  build targets), but wrong for the files racecar ships identically to every repo (the
+  shared `racecar.mk`, the check scripts, the tool config, the pre-commit hooks). For
+  those, "different" just means "out of date," so the tool now always brings them current.
+  Blurring the two is what let an old custom Makefile survive an upgrade. One specific
+  consequence: an old repo keeps its whole build in a single Makefile, while the current
+  design splits it into a shared half and a project half. The docs had implied `make sync`
+  does that split for you. It does not; you do it by hand, and the docs now say so
+  (`upgrade/README.md`, `upgrade/SKILL.md`, `PACKAGING.md`).
+
 ## 0.10.3 - 2026-06-23
 
 ### Fixed

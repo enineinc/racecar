@@ -28,25 +28,47 @@ def _resolve_makefile_text(
 
     The Makefile fold (PACKAGING.md §7): canonical targets live in racecar.mk, which
     the owned Makefile includes. Returns (combined_text, findings). combined_text is
-    None when the repo declares the fold (includes racecar.mk) but the file is absent
-    — a Blocker that supersedes per-target validation. A repo with neither racecar.mk
-    nor an include predates the fold and is nudged, not blocked. racecar.mk is
-    identical in every repo and self-detects the shape, so there is no per-repo stamp
-    to validate.
+    None when validation should stop at a Blocker that supersedes per-target checks.
+
+    Four states, keyed on BOTH whether racecar.mk exists AND whether the Makefile
+    actually includes it (fold adoption is the include, not the file's mere presence):
+
+    - included + present  -> combine and validate the union (the adopted fold).
+    - included + absent    -> Blocker: the include resolves to nothing; `make sync`.
+    - not included + present -> Blocker: racecar.mk is inert dead weight while a
+      monolithic Makefile still drives the build. This is the half-migrated state an
+      upgrade leaves when sync drops racecar.mk beside a pre-fold Makefile; without
+      this branch the checker false-greened on `rcmk.exists()` alone.
+    - not included + absent -> Finding: predates the fold; nudge to `make sync`.
+
+    racecar.mk is identical in every repo and self-detects the shape, so there is no
+    per-repo stamp to validate.
     """
     rcmk = root / "racecar.mk"
     includes_rcmk = bool(
         re.search(r"^\s*-?include\s+racecar\.mk\b", mk_text, re.MULTILINE)
     )
-    if rcmk.exists():
-        return mk_text + "\n" + rcmk.read_text(encoding="utf-8"), []
     if includes_rcmk:
+        if rcmk.exists():
+            return mk_text + "\n" + rcmk.read_text(encoding="utf-8"), []
         return None, [
             Finding(
                 "Blocker",
                 "racecar.mk",
                 "missing-file",
                 "Makefile includes racecar.mk but it is absent; run `make sync` to regenerate it",
+            )
+        ]
+    if rcmk.exists():
+        return None, [
+            Finding(
+                "Blocker",
+                "Makefile",
+                "racecar-mk-not-included",
+                "racecar.mk is present but the Makefile does not `include` it; the "
+                "canonical build is inert and the monolithic Makefile still drives the "
+                "build. Add `include racecar.mk` and remove the canonical recipes from "
+                "the Makefile, keeping only project-specific targets (PACKAGING.md §7)",
             )
         ]
     return mk_text, [

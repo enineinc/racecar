@@ -786,6 +786,16 @@ def test_thin_makefile_missing_racecar_mk_is_blocker(tmp_path: Path) -> None:
     assert "make sync" in result.stdout
 
 
+def test_racecar_mk_present_but_not_included_is_blocker(tmp_path: Path) -> None:
+    """The half-migrated state an upgrade leaves: sync drops racecar.mk beside a
+    monolithic Makefile that never includes it, so the canonical build is inert. The
+    checker keyed fold adoption off rcmk.exists() alone and false-greened here."""
+    repo = _seed_src(tmp_path, Makefile=CANON_MAKEFILE)  # racecar.mk present, not incl.
+    result = _run(repo)
+    assert result.returncode == 1
+    assert "racecar-mk-not-included" in result.stdout
+
+
 # ---------------------------------------------------------------------------
 # pre-commit
 # ---------------------------------------------------------------------------

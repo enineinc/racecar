@@ -360,7 +360,7 @@ The build is split into two files so that the canonical half is never hand-maint
 
 Why the split: a single hand-filled template drifts. When the canonical machinery and the project's own customization share one file, trimming or editing the former to suit a project (the common, reasonable urge) silently diverges it from base. The fold removes the surface entirely — `racecar.mk` is the same bytes everywhere (so there is nothing per-repo to drift), and the project half is a separate owned file (so overwriting `racecar.mk` never clobbers it). Because the shape is computed live from what is on disk, there is no stored shape value, no stamp, and no "regenerate for the new shape" step: restructure the repo (e.g. add `pypkg/src/`) and the next `make` simply reads the new layout. `check_packaging` reads both files for the target contract.
 
-A repo that predates the fold (a single full Makefile, no `racecar.mk`) still passes; `check_packaging` nudges it to `make sync`. Migration extracts project-specific targets into the owned `Makefile` and drops in `racecar.mk`; it never clobbers a customized recipe.
+A repo that predates the fold (a single full Makefile, no `racecar.mk`) still passes; `check_packaging` nudges it to `make sync` (`no-racecar-mk`). Migration is a **manual upgrade step**, not something `sync` automates: `sync` only drops the canonical `racecar.mk` and never touches the existing `Makefile`. So adoption is finished by hand — extract project-specific targets into the owned `Makefile`, add `include racecar.mk`, and remove the canonical recipes the include now supplies (never clobbering a customized recipe). Until that hand-step runs, the repo is in the half-migrated state where `racecar.mk` sits inert beside a monolith that does not include it; `check_packaging` flags that state `racecar-mk-not-included` (a Blocker, because the canonical build is dead weight), distinct from the pre-fold nudge. See [`../upgrade/README.md`](../upgrade/README.md) step 4.
 
 ### Target surface
 
@@ -516,6 +516,7 @@ The script lives in racecar (`arch-coherence/scripts/check_packaging.py`) and is
 
 **Makefile:**
 - **Missing canonical target from §7** — Blocker. Includes `check`, `check-full`, `coverage`, `audit`, `docs`.
+- **`racecar.mk` present but the `Makefile` does not `include` it** (`racecar-mk-not-included`) — Blocker. The canonical build is inert and a monolithic `Makefile` still drives the build; this is the half-migrated state an upgrade leaves. Finish the fold (add the `include`, drop the canonical recipes). Distinct from the pre-fold nudge (`no-racecar-mk`, a Finding) and from an `include` whose target is absent (`racecar.mk` `missing-file`, a Blocker).
 - **Fast `check` chain missing `fmt-check`, `lint`, or `test`** — Finding.
 - **`clean` removes data, `.venv`, or anything outside the §7 contract** — Blocker.
 
