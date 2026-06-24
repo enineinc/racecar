@@ -13,6 +13,7 @@ Run with:
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -833,3 +834,89 @@ def test_unreleased_only_changelog_passes_strict(tmp_path: Path) -> None:
     repo = _seed_src(tmp_path, **{"CHANGELOG.md": "# Changelog\n\n## [Unreleased]\n"})
     result = _run(repo, "--strict")
     assert result.returncode == 0, result.stdout
+
+
+# ---------------------------------------------------------------------------
+# racecar.mk PKG derivation — the canonical Makefile resolves the importable
+# package dir, not the namespace source root. check_cli_commands rejects a bare
+# source root (no __init__.py), so PKG must descend pypkg/src -> pypkg/src/<pkg>.
+# ---------------------------------------------------------------------------
+
+RACECAR_MK = Path(__file__).resolve().parents[2] / "templates" / "classic" / "racecar.mk"
+
+
+def _resolve_make_var(tmp_path: Path, layout: dict[str, str], var: str) -> str:
+    """Seed `layout` under tmp_path with the REAL racecar.mk and return `print-<var>`."""
+    for name, content in layout.items():
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+    (tmp_path / "racecar.mk").write_text(
+        RACECAR_MK.read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    (tmp_path / "Makefile").write_text("include racecar.mk\n", encoding="utf-8")
+    result = subprocess.run(
+        ["make", "-s", f"print-{var}"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return result.stdout.strip()
+
+
+@pytest.mark.skipif(shutil.which("make") is None, reason="make not on PATH")
+@pytest.mark.parametrize(
+    "label,layout,expected_pkg",
+    [
+        ("src", {"pyproject.toml": "", "src/gfem/__init__.py": ""}, "src/gfem"),
+        (
+            "pypkg",
+            {"pypkg/src/pyproject.toml": "", "pypkg/src/gfem/__init__.py": ""},
+            "pypkg/src/gfem",
+        ),
+        (
+            "pypkg+djapp",
+            {
+                "pypkg/src/pyproject.toml": "",
+                "pypkg/src/gfem/__init__.py": "",
+                "djapp/manage.py": "",
+            },
+            "pypkg/src/gfem",
+        ),
+        # SRC is itself the package (flat layout): PKG stays at SRC.
+        ("flat-src", {"pyproject.toml": "", "src/__init__.py": ""}, "src"),
+        # Standalone djapp: SRC=. covers the whole tree; PKG stays `.`.
+        ("standalone-djapp", {"pyproject.toml": "", "manage.py": ""}, "."),
+        # No package found under the namespace root: fall back to SRC.
+        ("empty-src", {"pyproject.toml": "", "src/.keep": ""}, "src"),
+    ],
+)
+def test_racecar_mk_pkg_descends_to_package_dir(
+    tmp_path: Path, label: str, layout: dict[str, str], expected_pkg: str
+) -> None:
+    """racecar.mk derives PKG as the package dir under SRC for every shape, so the
+    CLI/coverage audits receive `pypkg/src/<pkg>` rather than the namespace root."""
+    assert _resolve_make_var(tmp_path, layout, "PKG") == expected_pkg, label
+
+
+@pytest.mark.skipif(shutil.which("make") is None, reason="make not on PATH")
+def test_racecar_mk_pkg_honors_owned_override(tmp_path: Path) -> None:
+    """An owned `PKG :=` before the include wins over the derivation (?=)."""
+    (tmp_path / "pyproject.toml").write_text("", encoding="utf-8")
+    (tmp_path / "src" / "gfem").mkdir(parents=True)
+    (tmp_path / "src" / "gfem" / "__init__.py").write_text("", encoding="utf-8")
+    (tmp_path / "racecar.mk").write_text(
+        RACECAR_MK.read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    (tmp_path / "Makefile").write_text(
+        "PKG := src/custom\ninclude racecar.mk\n", encoding="utf-8"
+    )
+    result = subprocess.run(
+        ["make", "-s", "print-PKG"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert result.stdout.strip() == "src/custom"

@@ -64,8 +64,23 @@ else
   LIB_PYPROJECT ?= pyproject.toml
 endif
 
+# PKG: the importable package directory the audits require — check_cli_commands
+# resolves a package dir (e.g. src/<pkg> -> the `<pkg>` package), NOT the namespace
+# source root (`src` has no __init__.py and is rejected), and coverage attributes to
+# the package. Auto-derived from SRC so no per-repo override is needed: SRC itself
+# when SRC is the whole tree (`.`) or is itself a package (has __init__.py); otherwise
+# the package directory found under SRC, falling back to SRC when none is found. This
+# descends `pypkg/src` -> `pypkg/src/<pkg>`, the case a flat `PKG ?= $(SRC)` left at
+# the namespace root. Override with `PKG := ...` before the include.
+ifeq ($(SRC),.)
+  PKG ?= .
+else ifneq ($(wildcard $(SRC)/__init__.py),)
+  PKG ?= $(SRC)
+else
+  PKG ?= $(patsubst %/,%,$(firstword $(dir $(wildcard $(SRC)/*/__init__.py)) $(SRC)/))
+endif
+
 # Shared defaults (no-op when a block above already set them).
-PKG ?= $(SRC)
 DJAPP ?=
 DJAPP_PYPROJECT ?=
 

@@ -4,6 +4,22 @@ All notable changes to racecar are recorded here, in the style of
 [Keep a Changelog](https://keepachangelog.com). racecar is pre-1.0, so a minor
 bump may carry breaking changes for adopters; those are marked **Breaking**.
 
+## 0.10.5 - 2026-06-24
+
+### Fixed
+- **The build now aims the package-level checks at the actual package, not the folder
+  above it.** racecar finds where your code lives (for the `pypkg` layout that is
+  `pypkg/src/`) and then needs the package *inside* it (`pypkg/src/<yourpkg>/`) to run
+  the CLI and coverage checks — the CLI audit imports the package, so it requires the
+  directory with the `__init__.py`, not the namespace folder above it. The build was
+  stopping at that outer folder (`PKG` defaulted to the source root for every layout).
+  The `pypkg` layout was always wrong this way; a flat `src/` layout only happened to
+  work because the source root and the package were the same directory. `racecar.mk` now
+  descends to the package directory automatically for every layout (`src/<pkg>`,
+  `pypkg/src/<pkg>`, nested Django apps), leaves the whole-tree (`.`) and flat cases
+  alone, and still lets you override `PKG` by hand. The docs table already promised this;
+  the build now matches it.
+
 ## 0.10.4 - 2026-06-23
 
 ### Fixed

@@ -399,7 +399,7 @@ Every project's `make help` lists the same targets:
 | `PIP` | `$(PYTHON) -m pip` | Installer |
 | `BIN` | `$(VENV)/bin` or `~/.local/bin` | Where to find tool entry-points (`lint-imports`, `pre-commit`) |
 | `SRC` | `src` | Source root to format/lint/type-check |
-| `PKG` | `$(SRC)` | Package path for architectural checks |
+| `PKG` | auto-derived: the package dir under `SRC` (`src/<pkg>`, `pypkg/src/<pkg>`), or `SRC` itself when `SRC` is `.` or is itself a package | Importable package dir the CLI/coverage/arch audits require (not the namespace source root) |
 | `DJAPP` | empty | Django app directory; triggers `check_dj_model_ref_as_string.py` when set |
 | `LIB_PYPROJECT` | `pyproject.toml` | Library pyproject path (location varies by shape — see §"Scope") |
 | `DJAPP_PYPROJECT` | empty | djapp pyproject path (only Shape pypkg+djapp) |
