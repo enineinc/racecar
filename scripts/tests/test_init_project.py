@@ -4,9 +4,9 @@ The scaffolder copies templates/classic/ into a fresh project tree for one of
 the four racecar shapes, substituting placeholders. These tests scaffold into
 tmp_path and assert:
 
-  - Each of the four shapes lands the library pyproject at the shape-correct
+  - Each of the three shapes lands the library pyproject at the shape-correct
     path with the root package substituted in.
-  - The djapp pyproject appears only for pypkg+djapp; the djapp shape ships a
+  - The server pyproject appears only for src+server; the server shape ships a
     manage.py (the Django marker the shape detection keys on).
   - The owned Makefile is a thin include and racecar.mk is the canonical file,
     byte-identical in every shape (shape is detected from the layout, not stored).
@@ -49,9 +49,8 @@ EXPECTED_CHECK_SCRIPTS = {
 # Shape -> (library pyproject relative path, expected SRC value).
 SHAPE_LIB_PYPROJECT = {
     "src": ("pyproject.toml", "src"),
-    "pypkg": ("pypkg/src/pyproject.toml", "pypkg/src"),
-    "pypkg+djapp": ("pypkg/src/pyproject.toml", "pypkg/src"),
-    "djapp": ("pyproject.toml", "djapp"),
+    "src+server": ("pyproject.toml", "src"),
+    "server": ("pyproject.toml", "server"),
 }
 
 
@@ -84,8 +83,8 @@ def _scaffold(
 
 
 def test_vertical_scaffolds_canonical_files(tmp_path: Path) -> None:
-    """--vertical pre-wires lib.py/api.py/__main__.py that the faces detector
-    classifies cleanly (FACES.md §10 make-the-right-thing-easy)."""
+    """--vertical pre-wires lib.py/api.py/__main__.py that the surfaces detector
+    classifies cleanly (SURFACES.md §10 make-the-right-thing-easy)."""
     dest = tmp_path / "proj"
     result = _run(
         "--shape",
@@ -106,11 +105,11 @@ def test_vertical_scaffolds_canonical_files(tmp_path: Path) -> None:
     # api imports lib; __main__ imports api (the lib -> api -> cli wiring).
     assert "from .lib import run" in (vdir / "api.py").read_text()
     assert "from . import api" in (vdir / "__main__.py").read_text()
-    # __init__ is namespace-only (docstring only, no code) per FACES.md §6.
+    # __init__ is namespace-only (docstring only, no code) per SURFACES.md §6.
     assert (vdir / "__init__.py").read_text().count("\n") == 1
 
-    # The scaffold's own faces detector classifies the vertical cleanly.
-    detector = dest / "scripts" / "check_face_orchestration.py"
+    # The scaffold's own surfaces detector classifies the vertical cleanly.
+    detector = dest / "scripts" / "check_surface_orchestration.py"
     out = subprocess.run(
         [sys.executable, str(detector), "--root", str(dest)],
         capture_output=True,
@@ -206,12 +205,12 @@ def test_library_pyproject_declares_no_shape(shape: str, tmp_path: Path) -> None
     assert "shape" not in data.get("tool", {}).get("racecar", {})
 
 
-def test_djapp_scaffold_writes_manage_py(tmp_path: Path) -> None:
-    """The djapp shape ships a manage.py — the Django marker racecar.mk and
+def test_server_scaffold_writes_manage_py(tmp_path: Path) -> None:
+    """The server shape ships a manage.py — the Django marker racecar.mk and
     detect_shape both key on. Without it the scaffold would read as the `src` shape."""
     dest = tmp_path / "proj"
-    assert _scaffold(dest, "djapp").returncode == 0
-    manage = dest / "djapp" / "manage.py"
+    assert _scaffold(dest, "server").returncode == 0
+    manage = dest / "server" / "manage.py"
     assert manage.is_file()
     assert "DJANGO_SETTINGS_MODULE" in manage.read_text()
 
@@ -255,17 +254,17 @@ def test_scripts_dir_carries_check_scripts(shape: str, tmp_path: Path) -> None:
     ).is_file(), f"install_system_deps.sh missing ({shape})"
 
 
-def test_djapp_pyproject_only_for_pypkg_djapp(tmp_path: Path) -> None:
-    for shape in ("src", "pypkg", "djapp"):
-        dest = tmp_path / f"no-djapp-{shape.replace('+', '_')}"
+def test_server_pyproject_only_for_src_server(tmp_path: Path) -> None:
+    for shape in ("src", "server"):
+        dest = tmp_path / f"no-server-pyproject-{shape}"
         assert _scaffold(dest, shape).returncode == 0
-        assert not (dest / "djapp" / "pyproject.toml").exists()
+        assert not (dest / "server" / "pyproject.toml").exists()
 
-    dest = tmp_path / "with-djapp"
-    assert _scaffold(dest, "pypkg+djapp").returncode == 0
-    djapp_pyproject = dest / "djapp" / "pyproject.toml"
-    assert djapp_pyproject.is_file()
-    data = tomllib.loads(djapp_pyproject.read_text())
+    dest = tmp_path / "with-server"
+    assert _scaffold(dest, "src+server").returncode == 0
+    server_pyproject = dest / "server" / "pyproject.toml"
+    assert server_pyproject.is_file()
+    data = tomllib.loads(server_pyproject.read_text())
     assert "runtime" in data["dependency-groups"]
     assert "project" not in data
 
@@ -305,7 +304,7 @@ def test_bare_scaffold_writes_no_main(tmp_path: Path) -> None:
     """Negative space: with neither --cli nor --vertical, the scaffold must NOT emit
     any `__main__.py`. The non-conformant scaffold this suite hardened against shipped
     a bare `__main__.py` (no `commands()`) by default; a bare main here would both fail
-    check_cli_commands and read as a faces vertical with no worker. Absence is correct."""
+    check_cli_commands and read as a surfaces vertical with no worker. Absence is correct."""
     dest = tmp_path / "proj"
     assert _scaffold(dest, "src").returncode == 0
     mains = list((dest / "src" / "foo").rglob("__main__.py"))
@@ -342,14 +341,14 @@ def test_cli_and_vertical_are_mutually_exclusive(tmp_path: Path) -> None:
     assert "mutually exclusive" in result.stderr
 
 
-def test_non_djapp_shapes_write_no_manage_py(tmp_path: Path) -> None:
-    """Negative space: only the Django shapes ship manage.py — its presence is the
-    sole Django marker. A non-Django shape that emitted one would misdetect as djapp,
-    so the marker must be ABSENT for `src` and `pypkg`."""
-    for shape in ("src", "pypkg"):
+def test_non_server_shapes_write_no_manage_py(tmp_path: Path) -> None:
+    """Negative space: only the Django shapes (src+server, server) ship manage.py — its
+    presence is the sole Django marker. The library-only shape `src` must NOT emit one, or
+    it would misdetect as a Django tree."""
+    for shape in ("src",):
         dest = tmp_path / f"no-manage-{shape}"
         assert _scaffold(dest, shape).returncode == 0
-        assert not (dest / "djapp" / "manage.py").exists()
+        assert not (dest / "server" / "manage.py").exists()
         assert list(dest.rglob("manage.py")) == []
 
 

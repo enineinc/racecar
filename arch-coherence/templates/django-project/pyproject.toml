@@ -1,0 +1,7 @@
+# Generated server pyproject (src+server). No [project] / [build-system]:
+# the server runs via manage.py / asgi.py and is not a wheel.
+[dependency-groups]
+runtime = [
+    "django>=6.0",
+    "uvicorn>=0.30",
+]

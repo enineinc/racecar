@@ -5,7 +5,6 @@ arch-coherence/scripts/check_packaging_rules/__init__.py
 arch-coherence/scripts/check_packaging_rules/_changelog.py
 arch-coherence/scripts/check_packaging_rules/_common.py
 arch-coherence/scripts/check_packaging_rules/_constants.py
-arch-coherence/scripts/check_packaging_rules/_djapp.py
 arch-coherence/scripts/check_packaging_rules/_findings.py
 arch-coherence/scripts/check_packaging_rules/_forbidden.py
 arch-coherence/scripts/check_packaging_rules/_gitignore.py
@@ -14,9 +13,11 @@ arch-coherence/scripts/check_packaging_rules/_optin.py
 arch-coherence/scripts/check_packaging_rules/_precommit.py
 arch-coherence/scripts/check_packaging_rules/_pyproject.py
 arch-coherence/scripts/check_packaging_rules/_requirements.py
+arch-coherence/scripts/check_packaging_rules/_server.py
 arch-coherence/scripts/check_packaging_rules/_shape.py
 arch-coherence/scripts/check_packaging_rules/_version.py
-arch-coherence/scripts/check_face_orchestration.py
+arch-coherence/scripts/check_surface_orchestration.py
+arch-coherence/scripts/check_surface_auth.py
 doc-coherence/scripts/check_docs.py
 doc-coherence/scripts/check_subsystem_docs.py
 doc-coherence/scripts/check_todo_format.py

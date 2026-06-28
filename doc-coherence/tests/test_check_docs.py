@@ -148,7 +148,7 @@ _SECT = "§"
 def test_ignore_paths_excludes_scripts_dir_root_pyproject(tmp_path: Path) -> None:
     """A `^scripts/` ignore-path in the ROOT pyproject suppresses citation scan there.
 
-    Mirrors shapes `src` / `djapp`: the vendored check scripts under `scripts/`
+    Mirrors shapes `src` / `server`: the vendored check scripts under `scripts/`
     carry §N citations to racecar canon that do not resolve in a consumer; the
     consumer's pyproject declares `scripts/` out-of-scope.
     """
@@ -168,14 +168,11 @@ def test_ignore_paths_excludes_scripts_dir_root_pyproject(tmp_path: Path) -> Non
     assert "check_docs: OK" in result.stdout
 
 
-def test_ignore_paths_read_from_pypkg_src_pyproject(tmp_path: Path) -> None:
-    """Shapes `pypkg` / `pypkg+djapp` have NO root pyproject — the library
-    pyproject lives at `pypkg/src/pyproject.toml`. check_docs must read
-    ignore-paths from there so `scripts/` is still excluded."""
+def test_ignore_paths_read_from_root_pyproject(tmp_path: Path) -> None:
+    """The library pyproject is at the repo root in every shape; check_docs reads
+    `[tool.pylint.MASTER].ignore-paths` from it so `scripts/` is still excluded."""
     repo = _seed_repo(tmp_path)
-    lib = repo / "pypkg" / "src"
-    lib.mkdir(parents=True)
-    (lib / "pyproject.toml").write_text(
+    (repo / "pyproject.toml").write_text(
         '[tool.pylint.MASTER]\nignore-paths = ["^scripts/"]\n', encoding="utf-8"
     )
     scripts = repo / "scripts"

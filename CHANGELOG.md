@@ -4,30 +4,140 @@ All notable changes to racecar are recorded here, in the style of
 [Keep a Changelog](https://keepachangelog.com). racecar is pre-1.0, so a minor
 bump may carry breaking changes for adopters; those are marked **Breaking**.
 
+## 0.13.0 - 2026-06-28
+
+### Changed
+- **"surface" is now canon; "face" is retired.** A racecar HTTP interface over `api` is a
+  **surface** (the noun already used in `external_surface` and the surface taxonomy); the code
+  that translates a transport into an `api` call is an **adapter**. The rename runs through the
+  canon: `FACES.md` → `SURFACES.md` ("the surfaces axis"), `scaffold_web_face*.py` →
+  `scaffold_surfaces*.py`, `check_face_orchestration.py` → `check_surface_orchestration.py`,
+  `faceguard` → `surfaceguard`. **Breaking** for adopters of the deploy surface: the binding key
+  `[tool.racecar.web_face]` → `[tool.racecar.surface]` and the write-rail env var
+  `RACECAR_WEB_FACE_ALLOW_WRITES` → `RACECAR_ALLOW_WRITES`; regenerate the server after upgrading.
+- **The shape model is `PYTHON_LIBRARY` × `DJANGO_PROJECT`.** A project is the product of the
+  library (`src/<pkg>`, the pyproject **always** at the repo root) and the Django deployable
+  (`server/`, marked by `server/manage.py`), yielding three shapes: `src` (library only),
+  `src+server` (library × Django), and `server` (standalone Django, no library). Detection is
+  duplicated in lockstep — `check_packaging_rules/_shape.py::detect_shape` (Python) and
+  `templates/classic/racecar.mk` (Make), held by `test_sync_scripts.py`. **Breaking:** the
+  deployable directory `djapp/` → `server/` throughout (settings, urls, run.sh, vhosts, the binding,
+  the docs); regenerate after upgrading.
+- **Renamed the role manifest to name what it holds.** The advisory detector's optional manifest moved
+  from `[tool.racecar.surfaces]` to `[tool.racecar.roles]`: it declares each vertical's module **roles**
+  (lib / api / surface) for role identification, so it is named for its content, not for the check that
+  reads it. This also de-collides it from `create-server`'s per-command generation binding
+  `[tool.racecar.surface]` (the old `surfaces`/`surface` pair differed by a single `s`, a latent footgun).
+  `check_surface_orchestration` reads the new key. **Breaking** only for a project that declared the
+  manifest (advisory, rarely used).
+
+### Removed
+- **The `pypkg/` shape and `racecar-reshape-to-pypkg` are gone.** 0.12.0's `src → pypkg/src`
+  migration is dropped: `migrate_shape.py` is deleted and the skill removed. The library is the
+  canon root `src/<pkg>` in every shape, with its pyproject at the repo root — no wrapper directory,
+  no shape migration. **Breaking** for anyone who reshaped to `pypkg/`: move `pypkg/<pkg>/src/<pkg>`
+  back to `src/<pkg>` and the library pyproject back to the repo root. (Workspace
+  `{packages,pypkg}/<pkg>/src/<pkg>` polymorphism is a recognized future, not this release.)
+
+### Added
+- **The server-cascade skills** (replacing the reshape → deploy pipeline). The lifecycle cascade is
+  `racecar-create-package` → `racecar-create-server` → `racecar-secure-server` →
+  `racecar-deploy-server` (each idempotent, each ensuring its precondition by invoking the one below);
+  `racecar-create-server` delegates the Django shell scaffold to the generic, reusable
+  `racecar-start-django-project`.
+  - **`racecar-create-package`**: scaffolds the `src/<pkg>` library, django-free and `-m`-runnable; the
+    greenfield root of the cascade.
+  - **`racecar-start-django-project`**: a **generic, location-free, racecar-agnostic** Django scaffold
+    (a standalone reusable skill) that lays down a vanilla Django project anywhere: a single
+    `project/settings.py`, an empty `project/urls.py`, asgi/wsgi, `manage.py`, an empty `apps/`. Bootable
+    (`manage.py check` passes); knows nothing about `src/`, `api`, or surfaces. `racecar-create-server`
+    delegates the `server/` scaffold to it. `render_shell(out)` / `scaffold_surfaces.py --shell-only --out server`.
+  - **`racecar-create-server`**: the racecar-specific composition — reads `src/<pkg>/api` and writes
+    the REST (`api.*`) + MCP (`mcp.*`) surfaces over it. `render_project` **replaces** the vanilla
+    `settings.py`/`urls.py` modules with the per-surface `settings/`/`urls/` packages and adds
+    `surfaceguard`, `project/auth.py`, `run.sh`, the vhosts, and the per-vertical adapters
+    (`render_project` = `_write_surface_shell` + `_write_surfaces`; surface output unchanged from
+    0.12.0). It writes only `server/`, never `src/`, and invokes `racecar-start-django-project` when
+    no shell exists.
+  - **`racecar-secure-server`**: the Authorization Server (below).
+  - **`racecar-deploy-server`**: a TODO stub — host/sysadmin deployment (TLS, processes, secrets), no
+    code generation yet.
+- **Auth canon (the doctrine and its gate, ahead of the implementation).** `arch-coherence/AUTH.md`:
+  a generated surface is **closed by default** — one OAuth 2.1 opaque-bearer path on both surfaces, a
+  separate WebAuthn hardware-key Authorization Server, per-tool scopes, no JWT.
+  `arch-coherence/scripts/check_surface_auth.py` fails a surface that ships anonymous or any command
+  with no scope; it bites before the rail exists, making "closed by default" mechanical. The
+  resource-surface rail lands with `racecar-create-server` (below).
+- **`racecar-secure-server` — the Authorization Server skill (Units A-D).** The third step of the
+  cascade (`create-package → create-server → secure-server → deploy-server`): it generates the OAuth
+  2.1 Authorization Server that issues the opaque bearer token
+  the surfaces validate. `auth.*` is a third ASGI process
+  generated *into* the server, the only stateful component and DB owner; the surfaces stay db-light and
+  reach it only by introspection over HTTP (so they never import it).
+  - **Unit A (OAuth core):** `scaffold_authserver.py` configures django-oauth-toolkit closed by
+    default — PKCE required, and the cardinal override `DEFAULT_SCOPES = []` (DOT defaults to the
+    wide-open `["__all__"]`) — plus RFC 8414 server metadata advertising S256. Opaque tokens, never
+    JWT; revocation (RFC 7009) and introspection (RFC 7662) come from DOT.
+  - **Unit B (WebAuthn hardware-key login):** FIDO2 login (py_webauthn) gates `/o/authorize` — a token
+    is issued only after a hardware-key assertion, and there is no password path. Enforced
+    hardware-key-only: cross-platform attachment, user-verification required, direct attestation, and
+    an AAGUID whitelist that fails closed when unset (synced/platform passkeys rejected). Usernameless
+    discoverable-credential login; the `WebAuthnCredential` store is the AS's only model.
+  - **Unit C (recovery):** multi-key, one-time backup codes, and an admin Temporary Access Pass
+    (issued by the `issue_tap` management command — no web admin login, so no password backdoor).
+    Recovery is doctrine-preserving: a redeemed code or pass grants a **recovery-only session** that
+    can enroll a new hardware key but never reach `/o/authorize`, enforced by the `TokenIssuanceGuard`
+    middleware (a recovery secret is never a token-issuing bypass of the hardware-key requirement).
+    Secrets are stored hashed; CSRF protection is on.
+  - **Unit D (client registration):** Dynamic Client Registration (RFC 7591) via `oauth_dcr` at
+    `/o/register/`, advertised in the RFC 8414 metadata, so an MCP client (Claude) self-registers its
+    redirect URIs and runs auth-code + PKCE-S256. CIMD (client-id-as-URL) is the spec-moving,
+    Claude-dependent preferred path and is validated at the pilot, not faked in the generator.
+  - The WebAuthn ceremony and the Claude OAuth flow are verified against a real authenticator and a
+    real MCP client at the gfem pilot (Stage 7).
+- **The resource-surface auth rail (`racecar-create-server`).** Both surfaces become OAuth 2.1 resource
+  servers, closed by default, the identity analog of the write rail. The generator now threads a
+  per-command `scope` through the binding (`--scaffold-binding` emits a default-deny stub) and emits
+  `project/auth.py`: it extracts the bearer token and validates it by introspection (RFC 7662) against
+  the AS, cached briefly, using the surface's own `introspection`-scoped client credential. With
+  introspection unconfigured it **fails closed** (refuses every call). The REST adapter returns 401
+  (no/invalid token) or 403 (insufficient scope); the MCP adapter gates every message, returns 401 +
+  `WWW-Authenticate`, and serves `/.well-known/oauth-protected-resource` (RFC 9728) so a client
+  discovers the AS. The OpenAPI document gains `securitySchemes` + per-operation `security`. The
+  Stage 3 gate that failed the anonymous surface now passes a regenerated scoped one.
+- **Scopes + audit.** Per-command scopes are now **auto-derived** `pkg:vertical:read|write` from the
+  verb (read for GET, write otherwise) when the binding omits one, with an explicit binding scope
+  overriding — ergonomic, still default-deny at the token. The write rail folds into scope (a write
+  verb's scope is a `:write` scope), `RACECAR_ALLOW_WRITES` retained as a global kill switch. Audit is
+  split to keep the surfaces db-light: an `AuditLog` model **in the AS** records auth events (login
+  success/failure, enrollment, recovery use) via a `record_event` helper, while the surfaces emit
+  structured **log lines** for every per-call allow/deny decision. (Splitting the docs generators
+  into `scaffold_surfaces_docs.py` kept the templates module under the size limit.)
+
 ## 0.12.0 - 2026-06-26
 
 ### Added
 - **Two stacked skills that turn a CLI-compliant project into a deployable REST + MCP
-  web service: `racecar-reshape` and `racecar-deploy`.** `racecar-reshape` (the shapes
+  web service: `racecar-reshape-to-pypkg` and `racecar-create-server`.** `racecar-reshape-to-pypkg` (the shapes
   axis) migrates a project's packaging shape from `src/` to `pypkg/src/` with a
   dry-run-by-default, idempotent path-rewrite that repairs the references the move
   breaks (relative doc links, `__file__.parents[N]` anchors, the library pyproject);
-  `racecar-upgrade` reuses it. `racecar-deploy` (the faces axis, which stacks on
-  reshape) inserts an `api` cut vertex and then generates a Django 6 ASGI web face over
-  it from one Interface Manifest (the CLI audit tree plus a `[tool.racecar.web_face]`
+  `racecar-upgrade` reuses it. `racecar-create-server` (the surfaces axis, which stacks on
+  reshape) inserts an `api` cut vertex and then generates a Django 6 ASGI surface over
+  it from one Interface Manifest (the CLI audit tree plus a `[tool.racecar.surface]`
   binding plus api signature introspection). The generated app is vertical-first: one
-  Django app per vertical co-locates both faces over a single `commands.py` binding,
+  Django app per vertical co-locates both surfaces over a single `commands.py` binding,
   and a single `apps/mcp.py` is the MCP endpoint. It runs as two ASGI processes, one
-  per face (REST on `api.*`, MCP on `mcp.*`), host-split at boot by per-face settings,
+  per surface (REST on `api.*`, MCP on `mcp.*`), host-split at boot by per-surface settings,
   behind Apache. REST routes follow `/api/v1/<package>/<vertical-path>/<command>`;
-  write verbs are off by default (`RACECAR_WEB_FACE_ALLOW_WRITES`). The same manifest
+  write verbs are off by default (`RACECAR_ALLOW_WRITES`). The same manifest
   also renders `docs/api/{manifest.json, openapi.json (OpenAPI 3.1.0), ENDPOINTS.md}`
   and a sitemap, so the spec cannot drift from the routes, and the OpenAPI document is
   built from the manifest rather than introspected from views (no DRF).
 - **Doctrine and wiring for the above.** `GENERATION.md` (the generation pipeline, the
-  manifest IR, the MCP wire conformance, the write rail), a `FACES.md` amendment
-  (HTTP-delivered MCP is a route family in the web face, not a standalone `mcp.py`),
-  and an `llm-summary` rule (the web face's endpoints source the brief's external
+  manifest IR, the MCP wire conformance, the write rail), a `SURFACES.md` amendment
+  (HTTP-delivered MCP is a route family in the surface, not a standalone `mcp.py`),
+  and an `llm-summary` rule (the surface's endpoints source the brief's external
   surface from `docs/api/openapi.json` + `ENDPOINTS.md`). `install` and
   `sync_claude_md` register both skills.
 - **racecar now gates its own changelog against `VERSION`.** A new `make check` step
@@ -37,7 +147,7 @@ bump may carry breaking changes for adopters; those are marked **Breaking**.
 
 ### Changed
 - **`PACKAGING.md`'s Django dev-group reconciled to the real dependencies.** The web
-  face validates its generated OpenAPI with `openapi-spec-validator`, not
+  surface validates its generated OpenAPI with `openapi-spec-validator`, not
   `drf-spectacular`; there is no DRF in the generated app.
 
 ### Fixed
@@ -114,8 +224,8 @@ bump may carry breaking changes for adopters; those are marked **Breaking**.
 ## 0.10.3 - 2026-06-23
 
 ### Fixed
-- **The faces detector stopped raising a false alarm on a top-level entry point that
-  only routes to sub-commands.** `check_face_orchestration` looks for "verticals" — a
+- **The surfaces detector stopped raising a false alarm on a top-level entry point that
+  only routes to sub-commands.** `check_surface_orchestration` looks for "verticals" — a
   feature exposed through a thin entry point sitting over a library. A top-level
   `__main__.py` that does nothing but dispatch to named sub-commands, living next to
   shared folders like `auth/` or `config/`, was mistaken for a vertical and then flagged
@@ -142,13 +252,13 @@ bump may carry breaking changes for adopters; those are marked **Breaking**.
 - **The Django string-relation gate no longer requires Django to boot.**
   `check_dj_model_ref_as_string` booted `manage.py shell` eagerly to resolve
   `INSTALLED_APPS`, so an architecture gate (a static import-graph concern) hard-failed
-  whenever an inactive Django scaffold could not fully boot, for example a djapp that
+  whenever an inactive Django scaffold could not fully boot, for example a server that
   lists dev-only apps it does not install. The boot is now lazy: the static AST walk
   runs first, Django is booted only to classify violations that exist, and a boot that
   does not complete degrades to an UNCLASSIFIED report (exit 1 on the finding) instead
   of a configuration error (exit 2). A clean tree never boots. This restores
   discrete-first: the deterministic pass does all it can before any runtime step.
-  Surfaced by a real adopter whose djapp could not boot in dev.
+  Surfaced by a real adopter whose server could not boot in dev.
 
 ## 0.10.0 - 2026-06-23
 
@@ -160,7 +270,7 @@ without clobbering the owned `Makefile`.
 
 ### Added
 - **Self-detecting `racecar.mk`.** A single canonical file, identical in every
-  repo, computes the project shape (`src` / `pypkg` / `pypkg+djapp` / `djapp`)
+  repo, computes the project shape (`src` / `pypkg` / `pypkg+server` / `server`)
   from the layout at make-time and selects the matching source variables, falling
   back to stock for any unrecognized layout (PACKAGING.md §7).
 - **The Makefile fold.** Projects keep an owned thin `Makefile` that
@@ -173,7 +283,7 @@ without clobbering the owned `Makefile`.
 - **`make lint` over racecar's own scripts.** The framework now passes its own
   pylint bar at 10/10; the tooling is no longer self-exempt.
 - **`pylint-django` as a canonical Django dev tool.** Required in the django group
-  for any repo with a `manage.py`; `racecar.mk`'s lint loads it on the djapp only
+  for any repo with a `manage.py`; `racecar.mk`'s lint loads it on the server only
   (`--load-plugins=pylint_django`), so a Django app stops false-positiving on every
   ORM idiom against the plain library config.
 - **A `print-%` target in `racecar.mk`** (`make -s print-LIB_PYPROJECT`), so the
@@ -194,10 +304,10 @@ without clobbering the owned `Makefile`.
   resolver READMEs.
 
 ### Fixed
-- **Django is recognized by `manage.py`, never a bare `djapp/` directory.** A
-  `djapp/` holding only a pyproject is no longer mis-detected as Django. Fixed in
+- **Django is recognized by `manage.py`, never a bare `server/` directory.** A
+  `server/` holding only a pyproject is no longer mis-detected as Django. Fixed in
   `detect_shape`, `racecar.mk`, and `init`.
-- **The makefile-fold corruption.** `init --shape djapp` shipped a scaffold the
+- **The makefile-fold corruption.** `init --shape server` shipped a scaffold the
   build mis-detected as `src`, so `make sync` rewrote `racecar.mk` to the wrong
   shape; the self-detecting `racecar.mk` makes this impossible.
 - **Remote/local sync drift.** `sync_remote` and `sync_scripts` carried divergent
@@ -205,20 +315,20 @@ without clobbering the owned `Makefile`.
   read one manifest.
 - **The Makefile fold broke the config-deriving pre-commit hooks.** isort, black,
   import-linter, and validate-pyproject grepped the owned `Makefile` for
-  `LIB_PYPROJECT` / `DJAPP`, which the fold moved into `racecar.mk` (computed from
+  `LIB_PYPROJECT` / `SERVER`, which the fold moved into `racecar.mk` (computed from
   the layout); they failed with "Could not read any configuration." They now read
   the resolved values via `make -s print-X`.
-- **The Django string-relation gate was a false green on `pypkg+djapp`.**
+- **The Django string-relation gate was a false green on `pypkg+server`.**
   `check_dj_model_ref_as_string` looked for its pyproject, its `manage.py`, and the
-  packages it walks all at the repo root, where on `pypkg+djapp` none of them are, so
+  packages it walks all at the repo root, where on `pypkg+server` none of them are, so
   it skipped silently and passed over real broken models. It now takes the contract
   (library pyproject) and `manage.py` from `detect_shape` and globs each
   `root_package` from the tree, finding each wherever it lives. A good/bad
-  `pypkg+djapp` fixture pair guards it. Surfaced by a real adopter upgrade.
+  `pypkg+server` fixture pair guards it. Surfaced by a real adopter upgrade.
 
 ### Removed
 - **Breaking: `check_claude_shape`** (the last fixed-taxonomy documentation gate).
 - **`repo_context.py`**, a shared role-map module that had no consumers; its
-  source-root helpers returned to the faces detector, their origin.
+  source-root helpers returned to the surfaces detector, their origin.
 - Stale synced scripts are now removed from an adopter on sync (so a repo that
   received `repo_context.py` has it cleaned up by the next `racecar-upgrade`).

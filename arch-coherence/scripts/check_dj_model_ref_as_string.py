@@ -2,10 +2,10 @@
 """Enforce arch-coherence/DJANGO.md §2: no cross-module string references in ORM relations.
 
 Reads `[tool.importlinter].root_packages` from the library pyproject (located
-via `detect_shape`: `pypkg/src/pyproject.toml` for the pypkg+djapp shape, the
-root pyproject for a standalone djapp) and walks each named package. The package
-directories are located by globbing the project tree, so a root under `pypkg/src`,
-under `djapp/`, or at the repo root is found wherever it lives, never assumed from
+via `detect_shape`: `src/pyproject.toml` for the src+server shape, the
+root pyproject for a standalone server) and walks each named package. The package
+directories are located by globbing the project tree, so a root under `src`,
+under `server/`, or at the repo root is found wherever it lives, never assumed from
 the shape. It flags any `ForeignKey`, `OneToOneField`, or `ManyToManyField` call
 whose target is a cross-module string literal. Three
 forms are exempted because they cross no module boundary and so cannot hide
@@ -76,8 +76,8 @@ _INSTALLED_APPS_SCRIPT = (
 
 def _load_pyproject(pyproject: Path | None) -> dict:
     # The importlinter config (root_packages, layers) lives in the LIBRARY pyproject,
-    # located via detect_shape: pypkg/src/pyproject.toml for pypkg+djapp, the root
-    # pyproject for a standalone djapp. The djapp pyproject is deps-only and never
+    # located via detect_shape: src/pyproject.toml for src+server, the root
+    # pyproject for a standalone server. The server pyproject is deps-only and never
     # carries [tool.importlinter] (PACKAGING.md §"Pyproject rules").
     if pyproject is None or not pyproject.is_file():
         print("check_dj_model_ref_as_string: pyproject.toml not found", file=sys.stderr)
@@ -251,8 +251,8 @@ def _package_index(project_root: Path) -> dict[str, list[Path]]:
     walk. Virtualenvs, caches, build output, migrations, and dotted dirs are skipped.
 
     Package locations are GLOBBED rather than derived from the shape: `root_packages`
-    can sit under any source root (`pypkg/src` for a library package, `djapp/` for a
-    Django app, the repo root for a standalone djapp), so the directories are found
+    can sit under any source root (`src` for a library package, `server/` for a
+    Django app, the repo root for a standalone server), so the directories are found
     wherever they are instead of assuming a fixed per-shape layout.
     """
     index: dict[str, list[Path]] = {}
@@ -262,9 +262,9 @@ def _package_index(project_root: Path) -> dict[str, list[Path]]:
         ]
         here = Path(dirpath)
         # The repo root is never a root-package directory: root packages live under a
-        # source root (pypkg/src, djapp/, or a subdir of a standalone djapp). Skipping
+        # source root (src, server/, or a subdir of a standalone server). Skipping
         # it stops a repo named after its package (e.g. `gfem/` containing
-        # `pypkg/src/gfem/`) from shadowing the real package -- otherwise the shallowest
+        # `src/gfem/`) from shadowing the real package -- otherwise the shallowest
         # match is the repo root, whose rglob then walks `.venv` and crashes on the
         # first non-UTF-8 dependency file.
         if here == project_root:
@@ -321,7 +321,7 @@ def main() -> int:
     # detect_shape supplies the two genuinely shape-determined things: where the
     # importlinter contract lives (the library pyproject) and where Django boots
     # (manage.py). The package directories named in root_packages are globbed from the
-    # tree (`_package_index`), so a root under pypkg/src, djapp/, or the repo root is
+    # tree (`_package_index`), so a root under src, server/, or the repo root is
     # found wherever it actually is.
     shape = detect_shape(Path.cwd())[0]
     data = _load_pyproject(shape.library_pyproject)

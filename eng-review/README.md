@@ -1,12 +1,12 @@
 # Engineering Review
 
-The code-quality lens: a racecar pre-pass and post-pass wrapped around gstack's `/plan-eng-review`. It catches engineering defects that pass tests but cost later — stubs and mocks left in, type-hint lies, missing operational traceability, Python and Django hygiene slips.
+The code-quality lens: a racecar pre-pass and post-pass wrapped around gstack's `/plan-eng-review`. It catches engineering defects that pass tests but cost later: stubs and mocks left in, type-hint lies, missing operational traceability, Python and Django hygiene slips.
 
 Run it with `/racecar-eng-review`.
 
 **When to reach for it:** reviewing code for engineering quality, wrapping gstack's eng review with racecar's Python/Django checks, or auditing for stubs, mocks, and ops gaps before shipping.
 
-**What a finding looks like:** a service-layer function named `get_active_users()` that also writes an audit row — the name claims a read, the body does a write. *Major: the name lies about the side effect.*
+**What a finding looks like:** a service-layer function named `get_active_users()` that also writes an audit row: the name claims a read, the body does a write. *Major: the name lies about the side effect.*
 
 ## What's here
 

@@ -8,8 +8,8 @@ that a business module reaching up into the top-level of ITS OWN root package
 `from B import ...` (B another configured root) is a cross-root dependency and
 is NOT flagged (that is import-linter's concern, not this script's). Covers both
 the singular `root_package` (string) config and the plural `root_packages`
-(list) config, and the pypkg+djapp shape where the library pyproject lives at
-pypkg/src/ (no root pyproject).
+(list) config, and the src+server shape where the library pyproject lives at
+src/ (no root pyproject).
 
 Run with:
     pytest arch-coherence/tests/test_check_upward_imports.py
@@ -41,24 +41,22 @@ def _seed_project_plural(tmp_path: Path, *roots: str) -> Path:
     return tmp_path
 
 
-def _seed_pypkg_djapp(tmp_path: Path, *roots: str) -> Path:
-    """pypkg+djapp shape: NO root pyproject; library pyproject at pypkg/src/.
+def _seed_src_server(tmp_path: Path, *roots: str) -> Path:
+    """src+server shape: root library pyproject + src/ + a Django server/.
 
-    detect_shape resolves this shape by the presence of pypkg/src/pyproject.toml
-    and a djapp/ tree (manage.py or pyproject.toml). The root package(s) must be
-    read from pypkg/src/pyproject.toml, not from a (nonexistent) root one.
+    detect_shape resolves src+server by root pyproject.toml + src/ + server/manage.py.
+    The root package(s) are read from the root library pyproject.
     """
-    lib = tmp_path / "pypkg" / "src"
-    lib.mkdir(parents=True)
+    (tmp_path / "src" / "myapp").mkdir(parents=True)  # library package -> src/ is a dir
     listed = ", ".join(f'"{r}"' for r in roots)
-    (lib / "pyproject.toml").write_text(
+    (tmp_path / "pyproject.toml").write_text(
         f"[tool.importlinter]\nroot_packages = [{listed}]\n",
         encoding="utf-8",
     )
-    djapp = tmp_path / "djapp"
-    djapp.mkdir()
-    (djapp / "manage.py").write_text("# manage\n", encoding="utf-8")
-    (djapp / "pyproject.toml").write_text(
+    server = tmp_path / "server"
+    server.mkdir()
+    (server / "manage.py").write_text("# manage\n", encoding="utf-8")
+    (server / "pyproject.toml").write_text(
         "[dependency-groups]\nruntime = []\n", encoding="utf-8"
     )
     return tmp_path
@@ -205,9 +203,9 @@ def test_file_under_no_configured_root_is_skipped(tmp_path: Path) -> None:
     assert result.returncode == 0, (result.stdout, result.stderr)
 
 
-def test_pypkg_djapp_resolves_library_pyproject(tmp_path: Path) -> None:
-    """pypkg+djapp shape: no root pyproject; roots read from pypkg/src/pyproject.toml."""
-    repo = _seed_pypkg_djapp(tmp_path, "myapp", "apps", "core", "project")
+def test_src_server_resolves_library_pyproject(tmp_path: Path) -> None:
+    """src+server shape: no root pyproject; roots read from src/pyproject.toml."""
+    repo = _seed_src_server(tmp_path, "myapp", "apps", "core", "project")
     f = repo / "apps" / "billing" / "views.py"
     f.parent.mkdir(parents=True)
     f.write_text("from apps import SETTINGS\n", encoding="utf-8")
@@ -216,8 +214,8 @@ def test_pypkg_djapp_resolves_library_pyproject(tmp_path: Path) -> None:
     assert "from apps import SETTINGS" in result.stdout
 
 
-def test_pypkg_djapp_clean_passes(tmp_path: Path) -> None:
-    repo = _seed_pypkg_djapp(tmp_path, "myapp", "apps", "core", "project")
+def test_src_server_clean_passes(tmp_path: Path) -> None:
+    repo = _seed_src_server(tmp_path, "myapp", "apps", "core", "project")
     f = repo / "core" / "models.py"
     f.parent.mkdir(parents=True)
     f.write_text("from core.helpers import h\nfrom django.db import models\n", encoding="utf-8")

@@ -8,22 +8,24 @@ destination, and substitute every `<placeholder>` token. racecar.mk is copied
 verbatim (it is identical in every repo and detects the shape from the layout
 this scaffold creates; the owned Makefile is a thin `include racecar.mk`).
 
-Four shapes (PACKAGING.md §"Scope"):
+Shape = PYTHON_LIBRARY (src/<pkg>/) x DJANGO_PROJECT (server/) (PACKAGING.md §"Scope"):
 
-    src           root pyproject.toml + src/<pkg>/
-    pypkg         pypkg/src/pyproject.toml (no djapp/)
-    pypkg+djapp   pypkg/src/pyproject.toml + djapp/pyproject.toml
-    djapp         root pyproject.toml (no pypkg/), djapp/
+    src           root pyproject.toml + src/<pkg>/ (no server/)
+    src+server   root pyproject.toml + src/<pkg>/ + server/ (Django wraps the library)
+    server         root pyproject.toml + server/ (standalone Django, no library)
 
 Per-shape destinations (PACKAGING.md §3 "Reference templates" table):
 
-    template                    src / djapp          pypkg / pypkg+djapp
-    library-pyproject.toml  ->  pyproject.toml        pypkg/src/pyproject.toml
-    djapp-pyproject.toml    ->  (none)                djapp/pyproject.toml (pypkg+djapp only)
+    template                    destination
+    library-pyproject.toml  ->  pyproject.toml (root, all shapes)
+    server-pyproject.toml    ->  server/pyproject.toml (src+server only)
     Makefile                ->  Makefile (thin owned root, all shapes)
     racecar.mk              ->  racecar.mk (canonical, identical in every shape)
     pre-commit-config.yaml  ->  .pre-commit-config.yaml (root, all shapes)
     gitignore               ->  .gitignore (root, all shapes)
+
+TODO: library-axis polymorphism (packages/<pkg>/src/<pkg> for multiple co-versioned
+libraries) is a downstream addition, not yet scaffolded.
 
 Safety: refuses to write into a non-empty destination directory (matching
 racecar's install philosophy — refuse rather than clobber). Use a fresh or
@@ -32,8 +34,8 @@ empty --dest.
 Usage:
     python scripts/init_project.py --shape src --name widgets --package widgets --dest /tmp/widgets
     python scripts/init_project.py --shape src --name athena --package athena --dest ./athena \\
-        --vertical prices --vertical dispatch   # pre-wired lib->api->cli verticals (FACES.md)
-    python scripts/init_project.py --shape pypkg+djapp --name athena --package athena \\
+        --vertical prices --vertical dispatch   # pre-wired lib->api->cli verticals (SURFACES.md)
+    python scripts/init_project.py --shape src+server --name athena --package athena \\
         --dest ./athena --description "Weather model" --author "Jane Doe" \\
         --email jane@example.com --version 0.1.0
 
@@ -52,7 +54,13 @@ import sync_scripts  # sibling in scripts/; the one home for the adopter-script 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TEMPLATES_DIR = REPO_ROOT / "templates" / "classic"
 
-SHAPES = ("src", "pypkg", "pypkg+djapp", "djapp")
+# Shape atoms: a project is a PYTHON_LIBRARY (src/<pkg>) and/or a DJANGO_PROJECT (server/).
+# A shape is their composition, named by the atoms so the vocabulary extends cleanly when
+# new atoms (e.g. a packages/ workspace) arrive. The string values ("src", "src+server",
+# "server") are the canonical shape names shared with racecar.mk and detect_shape.
+PYTHON_LIBRARY = "src"
+DJANGO_PROJECT = "server"
+SHAPES = (PYTHON_LIBRARY, f"{PYTHON_LIBRARY}+{DJANGO_PROJECT}", DJANGO_PROJECT)
 
 # The scripts a scaffolded project's Makefile / pre-commit invoke, copied verbatim
 # from their canonical homes (these scripts ARE the canon). ONE home for the list:
@@ -61,7 +69,7 @@ SHAPES = ("src", "pypkg", "pypkg+djapp", "djapp")
 # in one manifest and not the other). init differs from sync only in policy: it
 # copies the Django check (check_dj_model_ref_as_string) and clean_files.sh for
 # EVERY shape, because the Makefile guards the Django check's runtime invocation and
-# copying it lets any shape grow a djapp later (PYTHON.md §4 presents it
+# copying it lets any shape grow a server later (PYTHON.md §4 presents it
 # unconditionally with a runtime skip); sync gates it on a real manage.py instead.
 ADOPTER_SCRIPTS = sync_scripts.CHECK_SCRIPTS + sync_scripts.DJANGO_SCRIPTS
 
@@ -72,8 +80,8 @@ def template_text(name: str) -> str:
     return path.read_text(encoding="utf-8")
 
 
-# Minimal Django manage.py for the djapp scaffold. Its presence is the marker that
-# racecar.mk / check_packaging use to detect the djapp shape; the author points
+# Minimal Django manage.py for the server scaffold. Its presence is the marker that
+# racecar.mk / check_packaging use to detect the server shape; the author points
 # DJANGO_SETTINGS_MODULE at the real settings module once it exists.
 _MANAGE_PY = '''\
 #!/usr/bin/env python
@@ -102,21 +110,17 @@ def library_layout(shape: str) -> dict[str, str]:
     shape from this layout at make-time (templates/classic/racecar.mk), so a scaffold
     is configured purely by *what init creates*, not by a written shape value.
     """
-    if shape in ("pypkg", "pypkg+djapp"):
-        src_dir, lib_dest, where = "pypkg/src", "pypkg/src/pyproject.toml", "."
-    else:  # src, djapp — library pyproject at repo root
-        src_dir, lib_dest, where = (
-            ("djapp" if shape == "djapp" else "src"),
-            "pyproject.toml",
-            "src",
-        )
+    # Shape = library (src/<pkg>) x Django (server/). All shapes keep the library pyproject
+    # at the repo root. src / src+server are canon root src layout (package under src/);
+    # server is a standalone Django project (no library, source under server/).
+    src_dir = "server" if shape == "server" else "src"
     return {
         "src_dir": src_dir,
-        "lib_pyproject_dest": lib_dest,
-        "djapp_pyproject_dest": (
-            "djapp/pyproject.toml" if shape == "pypkg+djapp" else ""
+        "lib_pyproject_dest": "pyproject.toml",
+        "server_pyproject_dest": (
+            "server/pyproject.toml" if shape == "src+server" else ""
         ),
-        "where": where,
+        "where": "src",
     }
 
 
@@ -138,7 +142,7 @@ def render_library_pyproject(
     layered-DAG contract is replaced with a single-layer placeholder naming the
     root package, so import-linter has a valid contract out of the box.
 
-    For Shape pypkg+djapp the `[tool.isort]` block is expanded with the
+    For Shape src+server the `[tool.isort]` block is expanded with the
     multi-root `src_paths` / `known_first_party` keys the canon requires (see
     PACKAGING.md §7 "Multi-root first-party detection"); `profile = "black"`
     alone is a false green there.
@@ -163,32 +167,32 @@ def render_library_pyproject(
     # out the real layers as the package grows.
     text = _replace_contract_layers(text, package)
 
-    if shape == "pypkg+djapp":
+    if shape == "src+server":
         text = _expand_isort_multiroot(text)
     return text
 
 
 def _expand_isort_multiroot(text: str) -> str:
-    """Add the multi-root isort keys required for Shape pypkg+djapp.
+    """Add the multi-root isort keys required for Shape src+server.
 
     The shared template carries only `profile = "black"`, which is correct for
-    the single-root shapes (src / pypkg / djapp) where isort auto-detects
-    first-party packages over its one tree. Shape pypkg+djapp runs isort over
-    both `pypkg/src` and `djapp` from a config rooted only in `pypkg/src`, so it
-    must name the second root explicitly: `src_paths` must include `"djapp"`,
-    and `known_first_party` must list djapp's top-level packages. The fresh
-    scaffold has no djapp packages yet, so `known_first_party` starts empty;
-    the author populates it (and the import-linter djapp coverage) as the djapp
+    the single-root shapes (src / server) where isort auto-detects first-party
+    packages over its one tree. Shape src+server runs isort over both `src` and
+    `server` from a config rooted at the repo root, so it
+    must name the second root explicitly: `src_paths` must include `"server"`,
+    and `known_first_party` must list server's top-level packages. The fresh
+    scaffold has no server packages yet, so `known_first_party` starts empty;
+    the author populates it (and the import-linter server coverage) as the server
     grows — see PACKAGING.md §7.
     """
     addition = (
         'profile = "black"\n'
-        "# Shape pypkg+djapp: isort runs over both source roots from this one\n"
-        "# config; name the second root and djapp's first-party packages so they\n"
+        "# Shape src+server: isort runs over both source roots from this one\n"
+        "# config; name the second root and server's first-party packages so they\n"
         "# are not misclassified as third-party (see racecar's PACKAGING.md,\n"
         '# "Multi-root first-party detection").\n'
-        'src_paths = ["src", "djapp"]\n'
-        'known_first_party = []  # add each djapp top-level package, e.g. "apps", "core"\n'
+        'src_paths = ["src", "server"]\n'
+        'known_first_party = []  # add each server top-level package, e.g. "apps", "core"\n'
     )
     return text.replace('profile = "black"\n', addition, 1)
 
@@ -253,7 +257,7 @@ def _render_leaf_main(dotted: str, verb: str) -> str:
     subparsers here, so no `subcommands()` is declared.
     """
     return (
-        f'"""{verb} cli face: a thin wrapper on api (FACES.md §1; CLI.md Pattern 3 leaf).\n\n'
+        f'"""{verb} cli surface: a thin wrapper on api (SURFACES.md §1; CLI.md Pattern 3 leaf).\n\n'
         f"`python -m {dotted}` runs this leaf. commands() is empty; parser() exposes the\n"
         "argument surface so the CLI audit can read it; main() only dispatches.\n"
         '"""\n\n'
@@ -286,7 +290,7 @@ def _render_root_main(package: str, verbs: list[str]) -> str:
         f'        ("{v}", "{v} vertical: [one-line description]"),' for v in verbs
     )
     return (
-        f'"""{package} CLI root (FACES.md; CLI.md Pattern 1 — pure discovery).\n\n'
+        f'"""{package} CLI root (SURFACES.md; CLI.md Pattern 1 — pure discovery).\n\n'
         "Lists the verticals this package composes; each is its own leaf CLI. Register a\n"
         "new vertical by adding it to commands() (explicit registration, CLI.md §Registration).\n"
         '"""\n\n'
@@ -312,7 +316,7 @@ def _render_root_main(package: str, verbs: list[str]) -> str:
 def _render_lib(label: str) -> str:
     return (
         f'"""{label} worker: pure capability — no input/credential/default policy.\n\n'
-        "The lib role (FACES.md §1). It does the work and knows nothing about who\n"
+        "The lib role (SURFACES.md §1). It does the work and knows nothing about who\n"
         'calls it. Replace the stub with the real engine.\n"""\n\n\n'
         "def run(value: str) -> str:\n"
         f'    """The engine for {label}."""\n'
@@ -323,7 +327,7 @@ def _render_lib(label: str) -> str:
 def _render_api(label: str) -> str:
     return (
         f'"""{label} orchestration: the one home for resolve / default / dispatch.\n\n'
-        "The api role (FACES.md §1). Faces call into here; they hold no policy of\n"
+        "The api role (SURFACES.md §1). Surfaces call into here; they hold no policy of\n"
         'their own. api imports lib, never the reverse.\n"""\n\n'
         "from .lib import run\n\n\n"
         "def execute(value: str | None = None) -> str:\n"
@@ -337,16 +341,16 @@ def _render_api(label: str) -> str:
 def _scaffold_cli_unit(
     target_dir: Path, dotted: str, label: str, created: list[Path], *, write_init: bool
 ) -> None:
-    """Write one conformant `lib -> api -> cli` unit (FACES.md §2-§3) into target_dir.
+    """Write one conformant `lib -> api -> cli` unit (SURFACES.md §2-§3) into target_dir.
 
-    The `__main__.py` is a CLI.md Pattern 3 leaf, so the unit passes both the faces
+    The `__main__.py` is a CLI.md Pattern 3 leaf, so the unit passes both the surfaces
     detector AND check_cli_commands. `write_init=False` for the single-CLI-at-root
     case, where the package `__init__.py` already exists.
     """
     if write_init:
         _write(
             target_dir / "__init__.py",
-            f'"""{label} vertical: lib -> api -> faces (FACES.md). Namespace only."""\n',
+            f'"""{label} vertical: lib -> api -> surfaces (SURFACES.md). Namespace only."""\n',
             created,
         )
     _write(target_dir / "lib.py", _render_lib(label), created)
@@ -357,12 +361,12 @@ def _scaffold_cli_unit(
 def scaffold_vertical(
     pkg_dir: Path, package: str, verb: str, created: list[Path]
 ) -> None:
-    """Scaffold one canonical vertical: lib.py -> api.py -> __main__.py (FACES.md §2-§3).
+    """Scaffold one canonical vertical: lib.py -> api.py -> __main__.py (SURFACES.md §2-§3).
 
-    The good shape is the default you receive (FACES.md §10, "make the right thing
+    The good shape is the default you receive (SURFACES.md §10, "make the right thing
     easy" — the startapp equivalent): the files are pre-wired so `lib -> api -> cli`
-    already holds, the canonical file names make `check_face_orchestration.py`
-    classify the roles exactly (Tier 1, FACES.md §5), and the `__main__.py` conforms
+    already holds, the canonical file names make `check_surface_orchestration.py`
+    classify the roles exactly (Tier 1, SURFACES.md §5), and the `__main__.py` conforms
     to the CLI.md Pattern 3 leaf contract. The author replaces the stub bodies.
     """
     _scaffold_cli_unit(
@@ -413,11 +417,11 @@ def scaffold(
     )
     _write(dest / layout["lib_pyproject_dest"], lib_pyproject, created)
 
-    # djapp pyproject (pypkg+djapp only) — copied verbatim (no placeholders).
-    if layout["djapp_pyproject_dest"]:
+    # server pyproject (src+server only) — copied verbatim (no placeholders).
+    if layout["server_pyproject_dest"]:
         _write(
-            dest / layout["djapp_pyproject_dest"],
-            template_text("djapp-pyproject.toml"),
+            dest / layout["server_pyproject_dest"],
+            template_text("server-pyproject.toml"),
             created,
         )
 
@@ -455,18 +459,18 @@ def scaffold(
     init_doc = f'"""Top-level package for {name}."""\n'
     _write(pkg_dir / "__init__.py", init_doc, created)
 
-    # Both Django shapes get djapp/manage.py — the one marker racecar.mk and
-    # check_packaging use to recognize Django. manage.py, never a bare djapp/ dir, is
-    # what makes a djapp; without it the scaffold misdetects (djapp -> src, pypkg+djapp
-    # -> pypkg). The djapp pyproject alone is not enough.
-    if shape in ("djapp", "pypkg+djapp"):
+    # Both Django shapes get server/manage.py — the one marker racecar.mk and
+    # check_packaging use to recognize Django. manage.py, never a bare server/ dir, is
+    # what makes a Django tree; without it the scaffold misdetects (src+server and server
+    # both collapse to src). The server pyproject alone is not enough.
+    if shape in ("server", "src+server"):
         _write(
-            dest / "djapp" / "manage.py", _MANAGE_PY.format(package=package), created
+            dest / "server" / "manage.py", _MANAGE_PY.format(package=package), created
         )
 
     # CLI surface (CLI.md). Single surface: the package root IS a Pattern 3 leaf.
     # Nested surface: a Pattern 1 discovery root over Pattern 3 leaf verticals. Both
-    # pass check_cli_commands; the good shape is the default you receive (FACES.md §10).
+    # pass check_cli_commands; the good shape is the default you receive (SURFACES.md §10).
     if cli:
         _scaffold_cli_unit(pkg_dir, package, package, created, write_init=False)
     for verb in verticals or ():
@@ -547,7 +551,7 @@ def parser() -> argparse.ArgumentParser:
         action="append",
         metavar="VERB",
         help="Nested CLI surface: scaffold a canonical vertical (lib/api/__main__) "
-        "under a Pattern 1 discovery root, per FACES.md + CLI.md. Repeatable: "
+        "under a Pattern 1 discovery root, per SURFACES.md + CLI.md. Repeatable: "
         "--vertical prices --vertical dispatch. Mutually exclusive with --cli.",
     )
     p.add_argument(

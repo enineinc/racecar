@@ -1,8 +1,8 @@
-# Expert Output Mode — Resolver
+# Expert Output Mode: Resolver
 
 A routing table. One topic for now; more may be added later.
 
-Topic: Output discipline — terse, high-density delivery for an expert operator (lead with the result; no preamble, recap, or hedging; expand only on genuine tradeoffs; do not ask permission for authorized work)
+Topic: Output discipline, terse, high-density delivery for an expert operator (lead with the result; no preamble, recap, or hedging; expand only on genuine tradeoffs; do not ask permission for authorized work)
 Load: [EXPERT.md](EXPERT.md)
 
 ## Install

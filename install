@@ -3,7 +3,7 @@
 #
 # Pure bash entrypoint. Checks for python3 upfront, then:
 #
-# 1. Symlinks ~/.claude/skills/racecar{,-arch-coherence,-doc-coherence,-eng-review,-llm-summary,-normalize,-upgrade,-reshape,-deploy,-doctor,-commit,-commit-decompose,-commit-preflight}
+# 1. Symlinks ~/.claude/skills/racecar{,-arch-coherence,-doc-coherence,-eng-review,-llm-summary,-normalize,-upgrade,-create-python-library,-create-django-project,-create-server,-secure-server,-deploy-server,-doctor,-commit,-commit-decompose,-commit-preflight}
 #    into this checkout, so the /racecar* slash commands resolve.
 # 2. Runs scripts/sync_claude_md.py to manage the pointer block in
 #    ~/.claude/CLAUDE.md and racecar's hooks in ~/.claude/settings.json:
@@ -88,8 +88,11 @@ for entry in \
     "racecar-llm-summary:$RACECAR_ROOT/llm-summary" \
     "racecar-normalize:$RACECAR_ROOT/normalize" \
     "racecar-upgrade:$RACECAR_ROOT/upgrade" \
-    "racecar-reshape:$RACECAR_ROOT/reshape" \
-    "racecar-deploy:$RACECAR_ROOT/deploy" \
+    "racecar-create-python-library:$RACECAR_ROOT/create-python-library" \
+    "racecar-create-django-project:$RACECAR_ROOT/create-django-project" \
+    "racecar-create-server:$RACECAR_ROOT/create-server" \
+    "racecar-secure-server:$RACECAR_ROOT/secure-server" \
+    "racecar-deploy-server:$RACECAR_ROOT/deploy-server" \
     "racecar-doctor:$RACECAR_ROOT/doctor" \
     "racecar-commit:$RACECAR_ROOT/commit" \
     "racecar-commit-decompose:$RACECAR_ROOT/commit-decompose" \

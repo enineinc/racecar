@@ -3,9 +3,10 @@
 Seeds canonical project fixtures under tmp_path and asserts that violations
 of each canon rule are reported, while clean canonical projects pass.
 
-Covers the four shapes from PACKAGING.md §"Scope":
-  src           — root pyproject.toml + src/
-  pypkg+djapp   — pypkg/src/pyproject.toml + djapp/pyproject.toml
+Covers the shapes from PACKAGING.md §"Scope" (PYTHON_LIBRARY x DJANGO_PROJECT):
+  src           — root pyproject.toml + src/ (no server/)
+  src+server   — root pyproject.toml + src/ + server/manage.py
+  server         — root pyproject.toml + server/manage.py (standalone Django, no library)
 
 Run with:
     pytest arch-coherence/tests/test_check_packaging.py
@@ -46,7 +47,7 @@ def test_optin_passes_when_racecar_referenced(tmp_path: Path) -> None:
     assert check_optin(tmp_path) == []
 
 
-@pytest.mark.parametrize("shape", ["src", "pypkg", "pypkg+djapp", "djapp"])
+@pytest.mark.parametrize("shape", ["src", "src+server", "server"])
 def test_real_init_scaffold_passes_packaging_gate(shape: str, tmp_path: Path) -> None:
     """Realism gate: a project scaffolded by init_project — the real producer of the
     templates this checker validates — must pass the packaging gate (0 blockers).
@@ -84,41 +85,48 @@ def test_detect_shape_governed_by_what_is_on_disk(tmp_path: Path) -> None:
     """Shape is a pure function of the layout (PACKAGING.md §"Scope"), no declared
     value. The same decision racecar.mk makes in Make; a coherence test in
     scripts/tests/test_sync_scripts.py holds the two homes in lockstep."""
-    assert (
-        check_packaging.detect_shape(_layout(tmp_path, "pyproject.toml"))[0].name
-        == "src"
+    # src: root pyproject + a src/ library, no Django (library only).
+    src = check_packaging.detect_shape(
+        _layout(tmp_path, "pyproject.toml", "src/pkg/__init__.py")
+    )[0]
+    assert (src.has_library, src.has_django) == (True, False)
+    assert src.name == "src"
+    # src+server: library (src/) x Django (server/manage.py).
+    both = check_packaging.detect_shape(
+        _layout(
+            tmp_path / "b", "pyproject.toml", "src/pkg/__init__.py", "server/manage.py"
+        )
+    )[0]
+    assert (both.has_library, both.has_django) == (True, True)
+    assert both.name == "src+server"
+    # server: standalone Django (server/manage.py, no library).
+    srv = check_packaging.detect_shape(
+        _layout(tmp_path / "c", "pyproject.toml", "server/manage.py")
+    )[0]
+    assert (srv.has_library, srv.has_django) == (False, True)
+    assert srv.name == "server"
+    # A root pyproject but NEITHER a src/ library nor a server/ Django project is the
+    # (False, False) cell -> "unknown" with a finding, not silently "src".
+    bare, bare_findings = check_packaging.detect_shape(
+        _layout(tmp_path / "bare", "pyproject.toml")
     )
-    assert (
-        check_packaging.detect_shape(
-            _layout(tmp_path / "a", "pypkg/src/pyproject.toml")
-        )[0].name
-        == "pypkg"
-    )
-    assert (
-        check_packaging.detect_shape(
-            _layout(tmp_path / "b", "pypkg/src/pyproject.toml", "djapp/manage.py")
-        )[0].name
-        == "pypkg+djapp"
-    )
-    assert (
-        check_packaging.detect_shape(
-            _layout(tmp_path / "c", "pyproject.toml", "djapp/manage.py")
-        )[0].name
-        == "djapp"
-    )
-    # No recognizable layout -> the "unknown" sentinel (racecar.mk's "stock").
+    assert (bare.has_library, bare.has_django) == (False, False)
+    assert bare.name == "unknown"
+    assert bare_findings  # the bare repo is flagged, not classified as a library
+    # No pyproject at all -> also "unknown" (racecar.mk's "stock").
     assert check_packaging.detect_shape(tmp_path / "empty")[0].name == "unknown"
 
 
 def test_detect_shape_locates_manage_py_per_shape(tmp_path: Path) -> None:
     """detect_shape exposes manage_py (the Django marker location) so checkers stop
-    re-probing it: djapp/manage.py for pypkg+djapp, root for standalone djapp, None for
-    non-Django. check_dj_model_ref_as_string reads this instead of a root-only probe
-    that left it silently dead on the pypkg+djapp shape."""
-    pd = _layout(tmp_path / "pd", "pypkg/src/pyproject.toml", "djapp/manage.py")
-    assert check_packaging.detect_shape(pd)[0].manage_py == pd / "djapp" / "manage.py"
-    dj = _layout(tmp_path / "dj", "pyproject.toml", "manage.py")
-    assert check_packaging.detect_shape(dj)[0].manage_py == dj / "manage.py"
+    re-probing it: server/manage.py for src+server and server, None for non-Django.
+    check_dj_model_ref_as_string reads this instead of a root-only probe."""
+    sp = _layout(
+        tmp_path / "sp", "pyproject.toml", "src/pkg/__init__.py", "server/manage.py"
+    )
+    assert check_packaging.detect_shape(sp)[0].manage_py == sp / "server" / "manage.py"
+    dj = _layout(tmp_path / "dj", "pyproject.toml", "server/manage.py")
+    assert check_packaging.detect_shape(dj)[0].manage_py == dj / "server" / "manage.py"
     src = _layout(tmp_path / "src", "pyproject.toml")
     assert check_packaging.detect_shape(src)[0].manage_py is None
 
@@ -191,11 +199,11 @@ ignore-paths = ["^scripts/"]
 root_package = "myapp"
 """
 
-# The pypkg+djapp library pyproject carries extra [tool.isort] and
-# [tool.importlinter] coverage for the djapp source tree. profile="black"
+# The src+server library pyproject carries extra [tool.isort] and
+# [tool.importlinter] coverage for the server source tree. profile="black"
 # alone is a false green for this shape (isort cannot auto-detect first-party
-# packages over the second djapp tree); see PACKAGING.md §7.
-PYPKG_DJAPP_LIBRARY_PYPROJECT = (
+# packages over the second server tree); see PACKAGING.md §7.
+SRC_SERVER_LIBRARY_PYPROJECT = (
     CANON_LIBRARY_PYPROJECT.replace(
         '    "pyyaml>=6.0",\n]\n',
         '    "pyyaml>=6.0",\n]\n' 'django = [\n    "djhtml",\n    "pylint-django>=2.5",\n]\n',
@@ -204,7 +212,7 @@ PYPKG_DJAPP_LIBRARY_PYPROJECT = (
         '[tool.isort]\nprofile = "black"\n',
         '[tool.isort]\nprofile = "black"\n'
         'known_first_party = ["myapp", "apps", "core", "project"]\n'
-        'src_paths = ["pypkg/src", "djapp"]\n',
+        'src_paths = ["src", "server"]\n',
     )
     .replace(
         '[tool.importlinter]\nroot_package = "myapp"\n',
@@ -212,7 +220,7 @@ PYPKG_DJAPP_LIBRARY_PYPROJECT = (
     )
 )
 
-CANON_DJAPP_PYPROJECT = """\
+CANON_SERVER_PYPROJECT = """\
 [dependency-groups]
 runtime = ["django>=5.0,<6.0"]
 """
@@ -338,6 +346,9 @@ def _seed_src(tmp_path: Path, **overrides: str | None) -> Path:
     files = {
         "pyproject.toml": CANON_LIBRARY_PYPROJECT,
         "requirements.txt": CANON_REQUIREMENTS,
+        # the library package: makes src/ a real dir so detect_shape sees the library axis
+        # (PYTHON_LIBRARY present) rather than the bare (False, False) no-shape cell.
+        "src/myapp/__init__.py": "",
         ".gitignore": CANON_GITIGNORE,
         "Makefile": THIN_MAKEFILE,
         "racecar.mk": _racecar_mk(),
@@ -347,6 +358,7 @@ def _seed_src(tmp_path: Path, **overrides: str | None) -> Path:
     files.update(overrides)  # type: ignore[arg-type]
     for name, content in files.items():
         path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
         if content is None:
             if path.exists():
                 path.unlink()
@@ -355,18 +367,20 @@ def _seed_src(tmp_path: Path, **overrides: str | None) -> Path:
     return tmp_path
 
 
-def _seed_pypkg_djapp(tmp_path: Path, **overrides: str | None) -> Path:
-    """Seed a Shape pypkg+djapp project."""
+def _seed_src_server(tmp_path: Path, **overrides: str | None) -> Path:
+    """Seed a Shape src+server project."""
     files = {
-        "pypkg/src/pyproject.toml": PYPKG_DJAPP_LIBRARY_PYPROJECT,
-        "pypkg/src/requirements.txt": CANON_REQUIREMENTS,
-        "djapp/pyproject.toml": CANON_DJAPP_PYPROJECT,
-        "djapp/requirements.txt": "django==5.0.0\n",
-        "djapp/manage.py": "# stub manage.py\n",
-        # djapp first-party packages: drive _djapp_first_party_roots().
-        "djapp/apps/__init__.py": "",
-        "djapp/core/__init__.py": "",
-        "djapp/project/__init__.py": "",
+        "pyproject.toml": SRC_SERVER_LIBRARY_PYPROJECT,
+        "requirements.txt": CANON_REQUIREMENTS,
+        # the library package: makes src/ a real dir so detect_shape sees src+server, not server.
+        "src/myapp/__init__.py": "",
+        "server/pyproject.toml": CANON_SERVER_PYPROJECT,
+        "server/requirements.txt": "django==5.0.0\n",
+        "server/manage.py": "# stub manage.py\n",
+        # server first-party packages: drive _server_first_party_roots().
+        "server/apps/__init__.py": "",
+        "server/core/__init__.py": "",
+        "server/project/__init__.py": "",
         ".gitignore": CANON_GITIGNORE,
         "Makefile": THIN_MAKEFILE,
         "racecar.mk": _racecar_mk(),
@@ -406,22 +420,22 @@ def test_canonical_src_project_passes(tmp_path: Path) -> None:
     assert "packaging: OK" in result.stdout
 
 
-def test_canonical_pypkg_djapp_project_passes(tmp_path: Path) -> None:
-    repo = _seed_pypkg_djapp(tmp_path)
+def test_canonical_src_server_project_passes(tmp_path: Path) -> None:
+    repo = _seed_src_server(tmp_path)
     result = _run(repo)
     assert result.returncode == 0, (result.stdout, result.stderr)
     assert "packaging: OK" in result.stdout
 
 
-def test_pypkg_djapp_django_group_missing_djhtml_is_blocker(tmp_path: Path) -> None:
+def test_src_server_django_group_missing_djhtml_is_blocker(tmp_path: Path) -> None:
     """Django shape (manage.py present) must carry djhtml in the django dev group
     (PACKAGING.md §6). This is the lever that propagates the djhtml canon to every
     existing Django adopter: their gate flags the gap until they add it."""
-    no_djhtml = PYPKG_DJAPP_LIBRARY_PYPROJECT.replace(
+    no_djhtml = SRC_SERVER_LIBRARY_PYPROJECT.replace(
         'django = [\n    "djhtml",\n    "pylint-django>=2.5",\n]\n',
         'django = [\n    "pylint-django>=2.5",\n]\n',
     )
-    repo = _seed_pypkg_djapp(tmp_path, **{"pypkg/src/pyproject.toml": no_djhtml})
+    repo = _seed_src_server(tmp_path, **{"pyproject.toml": no_djhtml})
     result = _run(repo)
     assert result.returncode != 0, (result.stdout, result.stderr)
     assert "[dependency-groups].django" in result.stdout
@@ -495,119 +509,119 @@ def test_mypy_not_strict_is_blocker(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# djapp pyproject — PEP 735 runtime group
+# server pyproject — PEP 735 runtime group
 # ---------------------------------------------------------------------------
 
 
-def test_djapp_missing_runtime_group_is_blocker(tmp_path: Path) -> None:
-    repo = _seed_pypkg_djapp(tmp_path, **{"djapp/pyproject.toml": "# empty\n"})
+def test_server_missing_runtime_group_is_blocker(tmp_path: Path) -> None:
+    repo = _seed_src_server(tmp_path, **{"server/pyproject.toml": "# empty\n"})
     result = _run(repo)
     assert result.returncode == 1
-    assert "djapp/pyproject.toml" in result.stdout
+    assert "server/pyproject.toml" in result.stdout
     assert "[dependency-groups].runtime" in result.stdout
 
 
-def test_pypkg_djapp_missing_djapp_pyproject_is_blocker(tmp_path: Path) -> None:
-    """Shape pypkg+djapp detected via djapp/manage.py but djapp/pyproject.toml
-    absent: the djapp runtime deps have no canonical home. Must Blocker, not
-    silently skip djapp validation (the false-green the audit surfaced)."""
-    repo = _seed_pypkg_djapp(tmp_path, **{"djapp/pyproject.toml": None})  # type: ignore[arg-type]
+def test_src_server_missing_server_pyproject_is_blocker(tmp_path: Path) -> None:
+    """Shape src+server detected via server/manage.py but server/pyproject.toml
+    absent: the server runtime deps have no canonical home. Must Blocker, not
+    silently skip server validation (the false-green the audit surfaced)."""
+    repo = _seed_src_server(tmp_path, **{"server/pyproject.toml": None})  # type: ignore[arg-type]
     result = _run(repo)
     assert result.returncode == 1, (result.stdout, result.stderr)
-    assert "djapp/pyproject.toml" in result.stdout
+    assert "server/pyproject.toml" in result.stdout
     assert "missing-file" in result.stdout
-    assert "pypkg+djapp" in result.stdout
+    assert "src+server" in result.stdout
 
 
-def test_djapp_with_project_block_is_finding(tmp_path: Path) -> None:
+def test_server_with_project_block_is_finding(tmp_path: Path) -> None:
     bad = (
-        '[project]\nname = "myapp-djapp"\nversion = "0.0.1"\n\n' + CANON_DJAPP_PYPROJECT
+        '[project]\nname = "myapp-server"\nversion = "0.0.1"\n\n' + CANON_SERVER_PYPROJECT
     )
-    repo = _seed_pypkg_djapp(tmp_path, **{"djapp/pyproject.toml": bad})
+    repo = _seed_src_server(tmp_path, **{"server/pyproject.toml": bad})
     result = _run(repo)
     # Finding only, not Blocker
     assert result.returncode == 0
-    assert "djapp/pyproject.toml" in result.stdout
+    assert "server/pyproject.toml" in result.stdout
     assert "[project]" in result.stdout
 
 
-def test_djapp_with_tool_block_is_finding(tmp_path: Path) -> None:
-    bad = CANON_DJAPP_PYPROJECT + "\n[tool.black]\nline-length = 100\n"
-    repo = _seed_pypkg_djapp(tmp_path, **{"djapp/pyproject.toml": bad})
+def test_server_with_tool_block_is_finding(tmp_path: Path) -> None:
+    bad = CANON_SERVER_PYPROJECT + "\n[tool.black]\nline-length = 100\n"
+    repo = _seed_src_server(tmp_path, **{"server/pyproject.toml": bad})
     result = _run(repo)
     assert result.returncode == 0  # finding only
     assert "[tool.*]" in result.stdout
 
 
 # ---------------------------------------------------------------------------
-# pypkg+djapp: isort/import-linter must cover the djapp source tree.
+# src+server: isort/import-linter must cover the server source tree.
 # profile="black" alone is a FALSE GREEN for this multi-root shape.
 # ---------------------------------------------------------------------------
 
 
-def test_pypkg_djapp_profile_only_isort_is_blocker(tmp_path: Path) -> None:
-    """The bug: a pypkg+djapp lib pyproject with only profile="black" (no
+def test_src_server_profile_only_isort_is_blocker(tmp_path: Path) -> None:
+    """The bug: a src+server lib pyproject with only profile="black" (no
     known_first_party / src_paths) used to pass. It must now Blocker."""
-    # profile-only isort, singular root_package; the pypkg/src + djapp/ layout makes
-    # detection classify it pypkg+djapp, so the multi-root isort coverage check fires.
+    # profile-only isort, singular root_package; the src/ + server/ layout makes
+    # detection classify it src+server, so the multi-root isort coverage check fires.
     bad = CANON_LIBRARY_PYPROJECT  # profile-only isort, singular root_package
-    repo = _seed_pypkg_djapp(tmp_path, **{"pypkg/src/pyproject.toml": bad})
+    repo = _seed_src_server(tmp_path, **{"pyproject.toml": bad})
     result = _run(repo)
     assert result.returncode == 1, (result.stdout, result.stderr)
     assert "[tool.isort].src_paths" in result.stdout
     assert "[tool.isort].known_first_party" in result.stdout
 
 
-def test_pypkg_djapp_isort_missing_src_paths_is_blocker(tmp_path: Path) -> None:
-    bad = PYPKG_DJAPP_LIBRARY_PYPROJECT.replace(
-        'src_paths = ["pypkg/src", "djapp"]\n', ""
+def test_src_server_isort_missing_src_paths_is_blocker(tmp_path: Path) -> None:
+    bad = SRC_SERVER_LIBRARY_PYPROJECT.replace(
+        'src_paths = ["src", "server"]\n', ""
     )
-    repo = _seed_pypkg_djapp(tmp_path, **{"pypkg/src/pyproject.toml": bad})
+    repo = _seed_src_server(tmp_path, **{"pyproject.toml": bad})
     result = _run(repo)
     assert result.returncode == 1
     assert "[tool.isort].src_paths" in result.stdout
 
 
-def test_pypkg_djapp_isort_src_paths_without_djapp_is_blocker(tmp_path: Path) -> None:
-    bad = PYPKG_DJAPP_LIBRARY_PYPROJECT.replace(
-        'src_paths = ["pypkg/src", "djapp"]', 'src_paths = ["pypkg/src"]'
+def test_src_server_isort_src_paths_without_server_is_blocker(tmp_path: Path) -> None:
+    bad = SRC_SERVER_LIBRARY_PYPROJECT.replace(
+        'src_paths = ["src", "server"]', 'src_paths = ["src"]'
     )
-    repo = _seed_pypkg_djapp(tmp_path, **{"pypkg/src/pyproject.toml": bad})
+    repo = _seed_src_server(tmp_path, **{"pyproject.toml": bad})
     result = _run(repo)
     assert result.returncode == 1
     assert "[tool.isort].src_paths" in result.stdout
 
 
-def test_pypkg_djapp_isort_known_first_party_missing_root_is_blocker(
+def test_src_server_isort_known_first_party_missing_root_is_blocker(
     tmp_path: Path,
 ) -> None:
     """known_first_party omits 'core' -> isort would misclassify it third-party."""
-    bad = PYPKG_DJAPP_LIBRARY_PYPROJECT.replace(
+    bad = SRC_SERVER_LIBRARY_PYPROJECT.replace(
         'known_first_party = ["myapp", "apps", "core", "project"]',
         'known_first_party = ["myapp", "apps", "project"]',
     )
-    repo = _seed_pypkg_djapp(tmp_path, **{"pypkg/src/pyproject.toml": bad})
+    repo = _seed_src_server(tmp_path, **{"pyproject.toml": bad})
     result = _run(repo)
     assert result.returncode == 1
     assert "[tool.isort].known_first_party" in result.stdout
     assert "core" in result.stdout
 
 
-def test_pypkg_djapp_importlinter_only_library_is_blocker(tmp_path: Path) -> None:
-    """import-linter naming only the library root never audits djapp."""
-    bad = PYPKG_DJAPP_LIBRARY_PYPROJECT.replace(
+def test_src_server_importlinter_only_library_is_blocker(tmp_path: Path) -> None:
+    """import-linter naming only the library root never audits server."""
+    bad = SRC_SERVER_LIBRARY_PYPROJECT.replace(
         'root_packages = ["myapp", "apps", "core", "project"]',
         'root_package = "myapp"',
     )
-    repo = _seed_pypkg_djapp(tmp_path, **{"pypkg/src/pyproject.toml": bad})
+    repo = _seed_src_server(tmp_path, **{"pyproject.toml": bad})
     result = _run(repo)
     assert result.returncode == 1
     assert "[tool.importlinter]" in result.stdout
 
 
-def test_pypkg_djapp_importlinter_djapp_root_via_contract_is_ok(tmp_path: Path) -> None:
-    """A contract referencing a djapp root satisfies coverage (no root_packages)."""
-    body = PYPKG_DJAPP_LIBRARY_PYPROJECT.replace(
+def test_src_server_importlinter_server_root_via_contract_is_ok(tmp_path: Path) -> None:
+    """A contract referencing a server root satisfies coverage (no root_packages)."""
+    body = SRC_SERVER_LIBRARY_PYPROJECT.replace(
         'root_packages = ["myapp", "apps", "core", "project"]',
         'root_package = "myapp"',
     ) + (
@@ -616,7 +630,7 @@ def test_pypkg_djapp_importlinter_djapp_root_via_contract_is_ok(tmp_path: Path) 
         'type = "layers"\n'
         'modules = ["apps", "core", "project"]\n'
     )
-    repo = _seed_pypkg_djapp(tmp_path, **{"pypkg/src/pyproject.toml": body})
+    repo = _seed_src_server(tmp_path, **{"pyproject.toml": body})
     result = _run(repo)
     assert result.returncode == 0, (result.stdout, result.stderr)
     assert "packaging: OK" in result.stdout
@@ -729,24 +743,24 @@ def test_real_pin_without_header_is_accepted(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_pypkg_djapp_no_requirements_txt_is_ok(tmp_path: Path) -> None:
+def test_src_server_no_requirements_txt_is_ok(tmp_path: Path) -> None:
     """Lockfiles are optional in canon; absence is fine."""
-    repo = _seed_pypkg_djapp(
+    repo = _seed_src_server(
         tmp_path,
-        **{"djapp/requirements.txt": None, "pypkg/src/requirements.txt": None},  # type: ignore[arg-type]
+        **{"server/requirements.txt": None, "requirements.txt": None},  # type: ignore[arg-type]
     )
     result = _run(repo)
     assert result.returncode == 0
     assert "packaging: OK" in result.stdout
 
 
-def test_pypkg_djapp_empty_committed_lockfile_is_blocker(tmp_path: Path) -> None:
+def test_src_server_empty_committed_lockfile_is_blocker(tmp_path: Path) -> None:
     """If committed, requirements.txt must be a real lockfile -- not empty."""
-    repo = _seed_pypkg_djapp(tmp_path, **{"pypkg/src/requirements.txt": ""})
+    repo = _seed_src_server(tmp_path, **{"requirements.txt": ""})
     result = _run(repo)
     assert result.returncode == 1
     assert "not-a-lockfile" in result.stdout
-    assert "pypkg/src/requirements.txt" in result.stdout
+    assert "requirements.txt" in result.stdout
 
 
 # ---------------------------------------------------------------------------
@@ -856,7 +870,7 @@ def test_unreleased_only_changelog_passes_strict(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 # racecar.mk PKG derivation — the canonical Makefile resolves the importable
 # package dir, not the namespace source root. check_cli_commands rejects a bare
-# source root (no __init__.py), so PKG must descend pypkg/src -> pypkg/src/<pkg>.
+# source root (no __init__.py), so PKG must descend src -> src/<pkg>.
 # ---------------------------------------------------------------------------
 
 RACECAR_MK = Path(__file__).resolve().parents[2] / "templates" / "classic" / "racecar.mk"
@@ -888,23 +902,18 @@ def _resolve_make_var(tmp_path: Path, layout: dict[str, str], var: str) -> str:
     [
         ("src", {"pyproject.toml": "", "src/gfem/__init__.py": ""}, "src/gfem"),
         (
-            "pypkg",
-            {"pypkg/src/pyproject.toml": "", "pypkg/src/gfem/__init__.py": ""},
-            "pypkg/src/gfem",
-        ),
-        (
-            "pypkg+djapp",
+            "src+server",
             {
-                "pypkg/src/pyproject.toml": "",
-                "pypkg/src/gfem/__init__.py": "",
-                "djapp/manage.py": "",
+                "pyproject.toml": "",
+                "src/gfem/__init__.py": "",
+                "server/manage.py": "",
             },
-            "pypkg/src/gfem",
+            "src/gfem",
         ),
         # SRC is itself the package (flat layout): PKG stays at SRC.
         ("flat-src", {"pyproject.toml": "", "src/__init__.py": ""}, "src"),
-        # Standalone djapp: SRC=. covers the whole tree; PKG stays `.`.
-        ("standalone-djapp", {"pyproject.toml": "", "manage.py": ""}, "."),
+        # Standalone server (server/manage.py, no library): SRC=server, PKG falls back to SRC.
+        ("standalone-server", {"pyproject.toml": "", "server/manage.py": ""}, "server"),
         # No package found under the namespace root: fall back to SRC.
         ("empty-src", {"pyproject.toml": "", "src/.keep": ""}, "src"),
     ],
@@ -913,7 +922,7 @@ def test_racecar_mk_pkg_descends_to_package_dir(
     tmp_path: Path, label: str, layout: dict[str, str], expected_pkg: str
 ) -> None:
     """racecar.mk derives PKG as the package dir under SRC for every shape, so the
-    CLI/coverage audits receive `pypkg/src/<pkg>` rather than the namespace root."""
+    CLI/coverage audits receive `src/<pkg>` rather than the namespace root."""
     assert _resolve_make_var(tmp_path, layout, "PKG") == expected_pkg, label
 
 

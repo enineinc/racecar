@@ -56,7 +56,7 @@ A second mechanical check, [`scripts/check_subsystem_docs.py`](scripts/check_sub
 make check-subsystem-docs
 ```
 
-Discovery walks `pyproject.toml` `[tool.importlinter].contracts`, resolves every dotted package (`<root>/<pkg>`, `<root>/src/<pkg>`, `<root>/pypkg/src/<pkg>`), and recurses. A directory is **major** if it contains a non-excluded subdirectory OR its direct-child source files sum to >= `loc_threshold` non-blank lines (default 1000). Each major subsystem must own both docs, non-empty, with at least one `##` heading.
+Discovery walks `pyproject.toml` `[tool.importlinter].contracts`, resolves every dotted package (`<root>/<pkg>`, `<root>/src/<pkg>`, `<root>/src/<pkg>`), and recurses. A directory is **major** if it contains a non-excluded subdirectory OR its direct-child source files sum to >= `loc_threshold` non-blank lines (default 1000). Each major subsystem must own both docs, non-empty, with at least one `##` heading.
 
 Configuration is optional and lives in `pyproject.toml`:
 
@@ -83,7 +83,7 @@ Repos without `[tool.importlinter]` exit 0 with one info line. The check is sile
 
 A doc is correctly placed when **the resolver chain reaches it** — not when its filename matches a fixed list. The README of a directory is that directory's manifest; the root `README.md` (human resolver) and `CLAUDE.md` (agent baseline/resolver) are the entry points, and every `SKILL.md` is an entry point the harness invokes. Follow the links from those seeds and every legitimate doc is reachable. A doc nothing in the chain references is an **orphan**: a reader cannot navigate to it, and it rots unreferenced. The rule governs markdown only — build/config files (`pyproject.toml`, `Makefile`, …) are out of scope.
 
-This is reference-driven on purpose: the set of valid docs is a property of each repo's own READMEs, not a constant hardcoded in the checker. There is no allowlist of filenames and no required-sections taxonomy. Name a doc whatever describes it best (`AXIOMS.md`, `FACES.md`, `SPEC.md`); register it by linking it from a README; the check verifies the registration resolves and that nothing is left unreferenced. That is what makes README-as-resolver load-bearing — forget to link a doc and the gate fails instead of letting the resolver silently drift.
+This is reference-driven on purpose: the set of valid docs is a property of each repo's own READMEs, not a constant hardcoded in the checker. There is no allowlist of filenames and no required-sections taxonomy. Name a doc whatever describes it best (`AXIOMS.md`, `SURFACES.md`, `SPEC.md`); register it by linking it from a README; the check verifies the registration resolves and that nothing is left unreferenced. That is what makes README-as-resolver load-bearing — forget to link a doc and the gate fails instead of letting the resolver silently drift.
 
 - **Anything under a `docs/` directory is exempt** — the overflow area, not part of the navigable resolver surface.
 - **Scope out non-doc markdown** (vendored trees, WIP drafts) with `[tool.pylint.MASTER].ignore-paths` — the one key `check_docs` and this check both honor.

@@ -8,10 +8,10 @@ registered) and asserts the report sections match exactly.
 INSTALLED_APPS is injected via the `STRING_RELATIONS_INSTALLED_APPS` env var
 so tests do not require a working `manage.py`.
 
-Most fixtures put the project at the tmp_path root (the standalone-djapp layout,
-where the repo root and the Django home coincide). The `test_pypkg_djapp_*` pair
-builds the harder pypkg+djapp layout, where the pyproject and the app packages
-live under `djapp/` beside `manage.py` and NOT at the repo root, as a good tree
+Most fixtures put the project at the tmp_path root (the standalone-server layout,
+where the repo root and the Django home coincide). The `test_src_server_*` pair
+builds the harder src+server layout, where the pyproject and the app packages
+live under `server/` beside `manage.py` and NOT at the repo root, as a good tree
 (clean, exits 0) and a bad tree (one cross-module string ref, exits 1). They
 prove the check anchors every read to the Django home; a repo-root probe exits 2
 on the good tree and never reaches the violation on the bad one.
@@ -46,7 +46,7 @@ layers = [
 
 _INSTALLED = "apps.activity.ib,apps.sessions,core.llm"
 
-# pypkg+djapp adds a library root to root_packages (xenocrates and meridian both do:
+# src+server adds a library root to root_packages (xenocrates and meridian both do:
 # "xenocrates" / "meridian" beside the django apps), so root_packages spans two source
 # roots. The library package is not a registered Django app, so its violations land in
 # NOOP, which is what lets the bad-tree test prove both roots were walked.
@@ -125,25 +125,25 @@ def _write(path: Path, body: str) -> None:
     path.write_text(body, encoding="utf-8")
 
 
-def _seed_pypkg_djapp(
+def _seed_src_server(
     tmp_path: Path,
     *,
     library: dict[str, str] | None = None,
-    djapp: dict[str, str] | None = None,
+    server: dict[str, str] | None = None,
 ) -> None:
-    """Dup the real pypkg+djapp shape (xenocrates / meridian) under tmp_path. The
+    """Dup the real src+server shape (xenocrates / meridian) under tmp_path. The
     importlinter contract (root_packages, layers) lives in the LIBRARY pyproject at
-    `pypkg/src/`, per PACKAGING.md; root_packages spans a library package under
-    `pypkg/src/` AND Django apps under `djapp/` beside `manage.py`. So the contract
+    `src/`, per PACKAGING.md; root_packages spans a library package under
+    `src/` AND Django apps under `server/` beside `manage.py`. So the contract
     and the packages sit in two different roots, neither the repo root: the case the
-    repo-root probe could never handle. `library` maps paths under `pypkg/src/`,
-    `djapp` maps paths under `djapp/`."""
-    _write(tmp_path / "pypkg" / "src" / "pyproject.toml", _PYPROJECT_PD)
-    _write(tmp_path / "djapp" / "manage.py", "")
+    repo-root probe could never handle. `library` maps paths under `src/`,
+    `server` maps paths under `server/`."""
+    _write(tmp_path / "pyproject.toml", _PYPROJECT_PD)
+    _write(tmp_path / "server" / "manage.py", "")
     for rel, body in (library or {}).items():
-        _write(tmp_path / "pypkg" / "src" / rel, body)
-    for rel, body in (djapp or {}).items():
-        _write(tmp_path / "djapp" / rel, body)
+        _write(tmp_path / "src" / rel, body)
+    for rel, body in (server or {}).items():
+        _write(tmp_path / "server" / rel, body)
 
 
 def _run(cwd: Path, *, installed: str | None = _INSTALLED) -> subprocess.CompletedProcess[str]:
@@ -342,15 +342,15 @@ def test_violation_unclassified_when_no_installed_apps_source(tmp_path: Path) ->
     assert "apps/activity/ib/models.py:5:" in result.stdout
 
 
-def test_pypkg_djapp_good_tree_passes(tmp_path: Path) -> None:
-    """Good pypkg+djapp tree: clean models in BOTH roots, a library package under
-    pypkg/src/ and django apps under djapp/. The contract is read from the library
+def test_src_server_good_tree_passes(tmp_path: Path) -> None:
+    """Good src+server tree: clean models in BOTH roots, a library package under
+    src/ and django apps under server/. The contract is read from the library
     pyproject and each root_package resolved across both source roots. A repo-root
     probe finds no pyproject at the root and exits 2 instead of passing."""
-    _seed_pypkg_djapp(
+    _seed_src_server(
         tmp_path,
         library={"lib/models.py": _CLEAN_MODELS},
-        djapp={
+        server={
             "apps/activity/ib/models.py": _CLEAN_MODELS,
             "core/llm/models.py": _CLEAN_MODELS,
         },
@@ -362,24 +362,24 @@ def test_pypkg_djapp_good_tree_passes(tmp_path: Path) -> None:
     assert result.stdout == ""
 
 
-def test_pypkg_djapp_bad_tree_walks_both_source_roots(tmp_path: Path) -> None:
-    """Bad pypkg+djapp tree with a violation in EACH root: a LIVE one under
-    djapp/apps/ (a registered app) and a NOOP one under pypkg/src/lib/ (the library,
+def test_src_server_bad_tree_walks_both_source_roots(tmp_path: Path) -> None:
+    """Bad src+server tree with a violation in EACH root: a LIVE one under
+    server/apps/ (a registered app) and a NOOP one under src/lib/ (the library,
     not in INSTALLED_APPS). Both must be reported, which proves the walk resolves
     root_packages across both source roots, not the repo root. Before the fix the
     contract pyproject was unreadable at the root (exit 2); fixing only that left the
     walk repo-root-anchored, where neither root lives, so it false-greened. This pair
     is the regression guard for the whole class of shape-blindness."""
-    _seed_pypkg_djapp(
+    _seed_src_server(
         tmp_path,
         library={"lib/models.py": _INTRA_APP},
-        djapp={"apps/activity/ib/models.py": _INTRA_APP},
+        server={"apps/activity/ib/models.py": _INTRA_APP},
     )
 
     result = _run(tmp_path)
 
     assert result.returncode == 1, result.stdout + result.stderr
     assert "LIVE violations" in result.stdout
-    assert "djapp/apps/activity/ib/models.py:5:" in result.stdout
+    assert "server/apps/activity/ib/models.py:5:" in result.stdout
     assert "NOOP modules" in result.stdout
-    assert "pypkg/src/lib/models.py:5:" in result.stdout
+    assert "src/lib/models.py:5:" in result.stdout

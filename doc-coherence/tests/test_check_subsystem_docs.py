@@ -165,23 +165,17 @@ def test_small_leaf_dir_is_skipped(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stdout
 
 
-def test_contracts_in_pypkg_src_pyproject_are_found(tmp_path: Path) -> None:
-    """Shape pypkg / pypkg+djapp: the library pyproject lives at
-    pypkg/src/pyproject.toml with NO root pyproject. The shared two-home probe
-    must find its [tool.importlinter] contracts so subsystems are validated.
-
-    The package resolves via the pypkg/src/<pkg> shape branch in
-    resolve_package_dirs. A missing CLAUDE.md must be caught -- proving the
-    contracts were actually read and acted on, not silently ignored.
+def test_contracts_in_root_pyproject_are_found(tmp_path: Path) -> None:
+    """The library pyproject is at the repo root in every shape; the package sits
+    under src/<pkg>. The probe must find its [tool.importlinter] contracts so
+    subsystems are validated, and a missing CLAUDE.md must be caught -- proving the
+    contracts were read and acted on, not silently ignored.
     """
     repo = _seed_repo(tmp_path)
-    (repo / "pypkg" / "src").mkdir(parents=True)
-    (repo / "pypkg" / "src" / "pyproject.toml").write_text(
-        PYPROJECT_TEMPLATE, encoding="utf-8"
-    )
-    # Package + layers under pypkg/src/<pkg>/...
-    base = repo / "pypkg" / "src" / "fake"
-    base.mkdir()
+    (repo / "pyproject.toml").write_text(PYPROJECT_TEMPLATE, encoding="utf-8")
+    # Package + layers under src/<pkg>/...
+    base = repo / "src" / "fake"
+    base.mkdir(parents=True)
     (base / "__init__.py").write_text("", encoding="utf-8")
     (base / "core").mkdir()
     (base / "core" / "inner").mkdir()

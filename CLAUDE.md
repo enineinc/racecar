@@ -23,17 +23,23 @@ Load: [arch-coherence/AXIOMS.md](arch-coherence/AXIOMS.md)
 Topic: Python architectural coherence — language-specific rules and enforcement
 Load: [arch-coherence/PYTHON.md](arch-coherence/PYTHON.md)
 
-Topic: Faces (`lib → api → {cli, mcp, web/django}`); a face is a wrapper on `api`; named-file autodiscovery convention, the single gated `layers` contract plus the advisory detector, role-identification tiers, faces-vs-shapes orthogonality
-Load: [arch-coherence/FACES.md](arch-coherence/FACES.md)
+Topic: Surfaces (`lib → api → {cli, rest, mcp}`); a surface is a thin adapter on `api`; named-file autodiscovery convention, the single gated `layers` contract plus the advisory detector, role-identification tiers, surfaces-vs-shapes orthogonality
+Load: [arch-coherence/SURFACES.md](arch-coherence/SURFACES.md)
 
 Topic: CLI surface — `__main__.py` patterns, `commands()` / `subcommands()` / `parser()` contracts, audit JSON schema
 Load: [arch-coherence/CLI.md](arch-coherence/CLI.md)
 
-Topic: Packaging & tooling — racecar's single packaging opinion, parameterized over four supported project shapes (`src`, `pypkg`, `pypkg+djapp`, `djapp`): `pyproject.toml` (PEP 517/518/621), `Makefile` contract, virtualenv discipline, optional `requirements.txt` lockfile (validate-if-present, not canon-generated), racecar's dev tool set, PSF/PyPA + community OSS governance (no VC-backed tooling).
+Topic: Packaging & tooling — racecar's single packaging opinion, parameterized over the `PYTHON_LIBRARY × DJANGO_PROJECT` shape product (`src` / `src+server` / `server`; the `{packages,pypkg}/<pkg>/src/<pkg>` workspace form is a deferred future, not a current shape), shapes orthogonal to surfaces. `pyproject.toml` (PEP 517/518/621), `Makefile` contract, virtualenv discipline, optional `requirements.txt` lockfile (validate-if-present, not canon-generated), racecar's dev tool set, PSF/PyPA + community OSS governance (no VC-backed tooling).
 Load: [arch-coherence/PACKAGING.md](arch-coherence/PACKAGING.md)
 
 Topic: Django architectural coherence — framework-specific rules
 Load: [arch-coherence/DJANGO.md](arch-coherence/DJANGO.md)
+
+Topic: Surface generation — deriving a REST + MCP Django server over `api` from the CLI + binding; the Interface Manifest, MCP wire conformance, the write rail and the auth rail
+Load: [arch-coherence/GENERATION.md](arch-coherence/GENERATION.md)
+
+Topic: Auth rail — surfaces closed by default; one OAuth 2.1 opaque-bearer path, a WebAuthn hardware-key Authorization Server, per-tool scopes, no JWT
+Load: [arch-coherence/AUTH.md](arch-coherence/AUTH.md)
 
 Topic: Engineering review — wrapper around gstack `plan-eng-review`
 Load: [eng-review/WORKFLOW.md](eng-review/WORKFLOW.md)
@@ -74,7 +80,7 @@ Load: [shared/COMMITS.md](shared/COMMITS.md)
 Topic: Commit authoring — procedure for drafting a conventional commit with deterministic version bump from the staged diff
 Load: [commit/SKILL.md](commit/SKILL.md)
 
-Topic: Upgrade — bring an existing repo in line with current racecar with nuance (no clobber); classify each divergence Conform / Escalate (intentional-and-right divergence is kept in place with a comment, no override registry), owner-authorized, idempotent; optional faces uplift
+Topic: Upgrade — bring an existing repo in line with current racecar with nuance (no clobber); classify each divergence Conform / Escalate (intentional-and-right divergence is kept in place with a comment, no override registry), owner-authorized, idempotent; optional surfaces uplift
 Load: [upgrade/SKILL.md](upgrade/SKILL.md)
 
 Topic: Doctor — verify install, wiring, and load layer by layer (deterministic checks + load-token challenge)
@@ -82,6 +88,30 @@ Load: [doctor/SKILL.md](doctor/SKILL.md)
 
 Topic: Expert output mode — terse, high-density delivery for an expert operator (optional overlay, not a review lens; installed separately via `make expert`)
 Load: [expert/README.md](expert/README.md)
+
+Topic: Create package — scaffold the canon `src/<pkg>` library (lib/api/cli + root pyproject); the greenfield root of the deploy cascade
+Load: [create-package/SKILL.md](create-package/SKILL.md)
+
+Topic: Start Django project — scaffold a vanilla Django project (the `server/` shell); generic, no racecar knowledge
+Load: [start-django-project/SKILL.md](start-django-project/SKILL.md)
+
+Topic: Create server — generate the REST + MCP surfaces in `server/` over `src/<pkg>/api` (delegates the shell to start-django-project)
+Load: [create-server/SKILL.md](create-server/SKILL.md)
+
+Topic: Secure server — generate the OAuth 2.1 Authorization Server (WebAuthn hardware-key login) that closes the surfaces
+Load: [secure-server/SKILL.md](secure-server/SKILL.md)
+
+Topic: Deploy server — ship the generated server to a host: Apache vhosts, the per-surface processes, TLS, the AS (TODO; the edit/ship boundary)
+Load: [deploy-server/SKILL.md](deploy-server/SKILL.md)
+
+Topic: Normalize — sync the canonical check scripts into a project and run every checker, reporting findings to fix
+Load: [normalize/SKILL.md](normalize/SKILL.md)
+
+Topic: Commit preflight — dry-run the pre-commit hooks before committing
+Load: [commit-preflight/SKILL.md](commit-preflight/SKILL.md)
+
+Topic: Commit decompose — split a working tree into a sequence of conventional commits
+Load: [commit-decompose/SKILL.md](commit-decompose/SKILL.md)
 
 ## Enforcement
 

@@ -44,7 +44,7 @@ disable = ["duplicate-code", "too-few-public-methods"]
 # count is the clearest expression of the rule being checked; decomposing further
 # would scatter the logic without reducing it.
 # too-many-branches: check_brief.validate walks every brief section in one pass (32);
-#   check_todo_format / check_face_orchestration enumerate format rules inline (13/18).
+#   check_todo_format / check_surface_orchestration enumerate format rules inline (13/18).
 max-branches = 32
 # too-many-locals: scaffolders and sync drivers thread many paths in one frame
 #   (init_project, sync_claude_md, sync_scripts, sync_remote, check_todo_format,
@@ -53,6 +53,6 @@ max-locals = 23
 # too-many-arguments: init_project scaffolder entry points take one parameter per
 #   template substitution (peak 10).
 max-args = 10
-# too-many-nested-blocks: check_face_orchestration's manifest walk nests one level
+# too-many-nested-blocks: check_surface_orchestration's manifest walk nests one level
 #   past the default (6).
 max-nested-blocks = 6

@@ -34,8 +34,8 @@
 
 **Commands.** <the main verbs / entry points and what each does>
 
-**How it's structured.** <the shape a contributor must hold — e.g. lib -> api -> faces:
-the library does the work, api owns orchestration, each face is a thin wrapper on api.
+**How it's structured.** <the shape a contributor must hold, e.g. lib -> api -> surfaces:
+the library does the work, api owns orchestration, each surface is a thin wrapper on api.
 Delete if the project has no structure worth stating up front.>
 
 **Example.** <one concrete end-to-end use: input -> what happens -> output>
@@ -45,7 +45,7 @@ Delete if the project has no structure worth stating up front.>
 <!-- OPTIONAL section. Delete it if there is nothing non-obvious to say. This is the
      rationale a reader wants only after they are bought in: why key choices were made,
      where it runs, when to reach for it. Never write this section for its own sake. -->
-<design rationale, constraints, or deployment context — only if non-obvious>
+<design rationale, constraints, or deployment context, only if non-obvious>
 
 ## Contributing
 

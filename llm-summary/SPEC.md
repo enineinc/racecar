@@ -89,7 +89,7 @@ external_surface:
       args: <string>
       behavior: <string>
       exit: <int|string>        # optional — put a single exit code or short pattern here ("0" / "0|1" / "0 clean, 1 dirty"); only defer to body prose when exit semantics are flow-specific and need narrative
-  mcp_tools:                   # MCP tool server face (see arch-coherence/FACES.md)
+  mcp_tools:                   # MCP tool server surface (see arch-coherence/SURFACES.md)
     - name: <string>           # required: the tool name the MCP client calls
       module: <string>         # dotted path to the tool's handler
       input_schema: <string>   # one-line shape of the tool's arguments
@@ -132,7 +132,7 @@ Where the repo already ships per-module design docs (`DESIGN.md`, `ARCHITECTURE.
 | §2.1 Runtime | Every root config file + every entry point in full. Read **every** settings module (dev, production, test). Name each runtime separately when a system ships more than one. |
 | §2.2 Entities | Find every persistent shape: ORM model classes, on-disk artifact types, structured content tree dimensions. Each entry needs a one-sentence purpose; no field tables. Mark `lifecycle: deprecated` for entities still in source but no longer authoritative; `lifecycle: planned` for documented-but-not-realized dimensions. |
 | §2.3 Relationships | FKs, M2M, polymorphic, JSON references at the class level. Cardinality (quoted), direction, owner side. `on_delete` only where applicable. |
-| §2.4 External surface | Every user-callable: HTTP route, CLI verb, MCP tool, library export, gRPC, webhook, signal. Split by kind in the frontmatter; one sub-key per kind. **If the repo has a racecar-deploy web face, source `http_routes` + `mcp_tools` from the generated `djapp/docs/api/openapi.json` (REST) and `djapp/docs/api/ENDPOINTS.md` (the consolidated REST + MCP list) — that is the single source, do not re-derive from the views; cite `openapi.json` for §3.** |
+| §2.4 External surface | Every user-callable: HTTP route, CLI verb, MCP tool, library export, gRPC, webhook, signal. Split by kind in the frontmatter; one sub-key per kind. **If the repo has a racecar-create-server surface, source `http_routes` + `mcp_tools` from the generated `server/docs/api/openapi.json` (REST) and `server/docs/api/ENDPOINTS.md` (the consolidated REST + MCP list) — that is the single source, do not re-derive from the views; cite `openapi.json` for §3.** |
 | §2.5 Internal contracts | Cross-module wire shapes: queue/event schemas, IPC formats, plugin/hook contracts. One bullet per contract — name, producer, consumer(s), one-line purpose. |
 | §2.6 Configuration | Env vars, feature flags, settings keys, secrets. One bullet or table row per — name + one-line effect. Mark `(prod-only)` / `(dev-only)` when dev and production diverge. |
 | §2.7 Flows | Each meaningful operation input→output as numbered prose. Idempotency and failure modes inline. |
@@ -219,8 +219,8 @@ End the main brief with `## Confidence`. Two parts, each introduced by a literal
 
 ```
 - §2.2 (Entities): `PracticeQuestion.practice_engine` choice values (`seeded` / `freeform` / `exambank`) are reconstructed from the `seed_question` and `exambank_question` FK names plus the `taxonomy_*` snapshot field set; the canonical Choices class was not directly sourced. Verify against `apps/activity/ib/models.py`.
-- §2.5 (Internal Contracts): the `Catalog.resolve(ref) → Atom(Tfv) | Compound(CompoundId)` dispatcher named in `CLAUDE.md` was not found implemented; the `data/compounds/` directory does not exist on disk. The contract appears documented but unimplemented. Verify against `grep -rn "class Catalog\|Catalog.resolve" djapp/`.
-- §2.7 (Flows): the daily-budget enforcement point (per-request middleware? scheduled aggregator?) was not directly sourced. Verify with `git log -S "DAILY_LLM_BUDGET_USD"` and `grep -rn DAILY_LLM_BUDGET_USD djapp/`.
+- §2.5 (Internal Contracts): the `Catalog.resolve(ref) → Atom(Tfv) | Compound(CompoundId)` dispatcher named in `CLAUDE.md` was not found implemented; the `data/compounds/` directory does not exist on disk. The contract appears documented but unimplemented. Verify against `grep -rn "class Catalog\|Catalog.resolve" server/`.
+- §2.7 (Flows): the daily-budget enforcement point (per-request middleware? scheduled aggregator?) was not directly sourced. Verify with `git log -S "DAILY_LLM_BUDGET_USD"` and `grep -rn DAILY_LLM_BUDGET_USD server/`.
 ```
 
 **Not in this brief** — bullets for anything a reader might expect that is not derivable from source: revenue model, pricing, customer list, oncall rotation, bus factor, strategic risks, roadmap intent. Mark each `unknown — ask user`. Closes the absence-vs-omission gap.

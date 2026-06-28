@@ -28,7 +28,7 @@ from ._findings import Finding
 def check_library_pyproject(  # pylint: disable=too-many-locals,too-many-statements
     root: Path, pyproject_path: Path
 ) -> tuple[list[Finding], dict[str, Any] | None]:
-    """Validate the library pyproject (root for src/djapp shapes, pypkg/src/ for pypkg shapes).
+    """Validate the library pyproject (the repo root in every shape).
 
     Audits: [project] PEP 621 keys, [dependency-groups].dev = canon, [build-system],
     [tool.*] configs, absence of non-canon [tool.*] blocks.
@@ -147,7 +147,7 @@ def check_library_pyproject(  # pylint: disable=too-many-locals,too-many-stateme
     # Django shapes must carry djhtml in [dependency-groups].django (PACKAGING.md
     # §6). Keyed on manage.py so non-Django repos are never flagged. Entries may be
     # version-pinned ("djhtml>=3.0"), so compare on the distribution name only.
-    is_django = (root / "manage.py").exists() or (root / "djapp" / "manage.py").exists()
+    is_django = (root / "manage.py").exists() or (root / "server" / "manage.py").exists()
     if is_django:
         django_group = groups.get("django")
         django_names = (

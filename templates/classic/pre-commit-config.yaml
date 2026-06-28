@@ -35,7 +35,7 @@ repos:
 
       - id: import-linter
         name: import-linter
-        entry: bash -c 'VENV=; for d in .venv venv ../venv; do [ -d "$d" ] && VENV=$d && break; done; export PATH="${VENV:+$VENV/bin:}$PATH"; CONF=$(make -s print-LIB_PYPROJECT); DJAPP=$(make -s print-DJAPP); export PYTHONPATH="${DJAPP:+$DJAPP:}$PYTHONPATH"; lint-imports --config "$CONF"'
+        entry: bash -c 'VENV=; for d in .venv venv ../venv; do [ -d "$d" ] && VENV=$d && break; done; export PATH="${VENV:+$VENV/bin:}$PATH"; CONF=$(make -s print-LIB_PYPROJECT); SERVER=$(make -s print-SERVER); export PYTHONPATH="${SERVER:+$SERVER:}$PYTHONPATH"; lint-imports --config "$CONF"'
         language: system
         pass_filenames: false
         always_run: true

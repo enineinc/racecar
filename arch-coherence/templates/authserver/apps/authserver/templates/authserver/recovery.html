@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Account recovery</title>
+</head>
+<body>
+  <main>
+    <h1>Account recovery</h1>
+    <p>Lost your security key? Use a backup code or an admin-issued access pass to enroll a
+       new one.</p>
+    <label>Username <input id="username"></label>
+    <label>Code <input id="code"></label>
+    <button id="backup">Use backup code</button>
+    <button id="tap">Use access pass</button>
+    <p id="error" role="alert"></p>
+  </main>
+  <script>
+  function getCookie(name) {
+    const m = document.cookie.match("(^|;)\\s*" + name + "=([^;]+)");
+    return m ? m.pop() : "";
+  }
+  async function redeem(url) {
+    const error = document.getElementById("error");
+    error.textContent = "";
+    const username = document.getElementById("username").value;
+    const code = document.getElementById("code").value;
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": getCookie("csrftoken") },
+      body: JSON.stringify({ username, code }),
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      window.location = data.next || "/enroll/";
+    } else {
+      error.textContent = await resp.text();
+    }
+  }
+  document.getElementById("backup").addEventListener(
+    "click", () => redeem("/recovery/backup-code"));
+  document.getElementById("tap").addEventListener(
+    "click", () => redeem("/recovery/tap"));
+  </script>
+</body>
+</html>

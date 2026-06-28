@@ -22,7 +22,7 @@ CANON_DEV_TOOLS = [
 # Django shapes carry a second PEP 735 group, [dependency-groups].django. Two
 # tools are racecar-canonical there (PACKAGING.md §6): djhtml (template formatter)
 # and pylint-django (the pylint plugin that teaches the linter the ORM, loaded by
-# racecar.mk's `lint` target on the djapp). The rest of that group is project-
+# racecar.mk's `lint` target on the server). The rest of that group is project-
 # choice. Asserted only when the repo is Django.
 CANON_DJANGO_TOOLS = ["djhtml", "pylint-django"]
 
@@ -55,7 +55,7 @@ CANON_PYLINT_FORBIDDEN_DISABLE = {
 }
 # Standalone pylint config files — forbidden; config lives in the library
 # pyproject [tool.pylint] (PACKAGING.md, "pylint canon" + §7).
-FORBIDDEN_PYLINTRC = [".pylintrc", "pylintrc", "pypkg/src/.pylintrc", "djapp/.pylintrc"]
+FORBIDDEN_PYLINTRC = [".pylintrc", "pylintrc", "src/.pylintrc", "server/.pylintrc"]
 
 # Forbidden top-level [tool.<key>] blocks (per §1 §2).
 FORBIDDEN_TOOL_KEYS = {"uv", "ruff", "poetry", "pdm"}

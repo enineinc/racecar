@@ -31,7 +31,7 @@ Two consequences follow, and they are the ones that matter.
 
 ### The rule
 
-**Resolve drift at the largest frame that still explains the symptom; fix there.** Report the global root; list local symptoms as children. Never fix a local symptom before asking whether it is the surface of a global drift — the local fix is what destroys the global signal.
+**Resolve drift at the largest frame that still explains the symptom; fix there.** Report the global root; list local symptoms as children. Never fix a local symptom before asking whether it is a local symptom of a global drift — the local fix is what destroys the global signal.
 
 This extends "root causes beat surface counts" (in every lens) with the part that rule leaves implicit: the root may live at a *larger frame* than any of its symptoms, and may itself have no symptom severe enough to trip a lens. The most damaging drift routinely presents with the weakest local evidence. Severity is therefore **frame-aware**: a finding that is a Nit at the file frame can be a Blocker at the system frame. Grade it at the frame where the damage lands, not the frame where the symptom shows.
 

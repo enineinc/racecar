@@ -4,43 +4,52 @@ Accessed via [`README.md`](README.md). If you arrived here directly, read that f
 
 This file is the project-shell counterpart to [`PYTHON.md`](PYTHON.md). PYTHON.md governs how Python code is organized inside `src/`; this file governs the build, install, lock, and verify shell *around* `src/`.
 
-## Scope: one opinion, four supported project shapes
+## Scope: one opinion, the PYTHON_LIBRARY × DJANGO_PROJECT shape product
 
 PACKAGING.md is **one opinion** of how to package a Python project. It is opinionated, not universal — a uv-shop has a different defensible opinion — but within racecar this opinion is the standard.
 
-The opinion accommodates four project shapes. The choice of shape is local to the project; the rest of the opinion (PEP 621 + PEP 735 pyproject as sole source of truth, `make check-full` as CI gate, the dev tool set, `.venv/` discipline, no VC-backed tooling) is identical across all four. From the shape, `racecar.mk` sets several variables that the rest of the build reads: `SRC` (where the Python source lives), `PKG` (the importable package path used by audits), `DJAPP` (the Django app directory, empty when not Django), `LIB_PYPROJECT` (path to the library pyproject), and `DJAPP_PYPROJECT` (path to the djapp pyproject, only for Shape pypkg+djapp).
+A shape is the composition of two atoms — a **PYTHON_LIBRARY** (`src/<pkg>`) and a **DJANGO_PROJECT** (`server/`): `src` (library only), `src+server` (library × Django), and `server` (Django only). The choice of shape is local to the project; the rest of the opinion (PEP 621 + PEP 735 pyproject as sole source of truth, `make check-full` as CI gate, the dev tool set, `.venv/` discipline, no VC-backed tooling) is identical across all of them. From the shape, `racecar.mk` sets several variables that the rest of the build reads: `SRC` (where the Python source lives), `PKG` (the importable package path used by audits), `SERVER` (the Django app directory, empty when not Django), `LIB_PYPROJECT` (path to the library pyproject), and `SERVER_PYPROJECT` (path to the server pyproject, only for Shape src+server).
+
+### Why `src/` and `server/` are separate homes (the forcing constraints)
+
+The split is forced, not chosen. Three independent constraints each demand the library be a separate, Django-free home; any one is sufficient.
+
+1. **The CLI is serverless.** Every package ships three surfaces over one `api` (CLI in-process, REST served, MCP served). The CLI must run from `pip install <pkg>` with no server and no Django, so `lib`, `api`, and the CLI must live in a distribution whose dependency closure excludes Django/DRF/ASGI.
+2. **CLI/library users must not pull Django.** A large fraction of consumers import `api` or run the CLI and never touch a server; their install must stay Django-free. Folding the library into the Django project would couple every library install to Django.
+3. **The data path must be outside the ORM's reach** (the deepest reason). These packages connect to real data that is broad in volume and shallow in complexity (large streams, not deep relational graphs). Django's ORM models rows-as-objects with identity, unit-of-work, and migrations; pointed at a shallow firehose it pays object/queryset overhead to impose a schema you do not want. If the CLI/`api` lived inside the Django project, the framework's gravity would pull the high-volume path through the ORM. Keeping the library in Django-free `src/` structurally prevents that.
+
+Generalized: **agent-grade software is data-plane-dominant.** The more useful a package is to an agent, the more data it consumes, and the smaller the ORM-governed *fraction* of the system becomes. The ORM is a control-plane tool, confined to auth/config/audit (low-volume, relational, identity-bearing: exactly the WebAuthn/OAuth state the Authorization Server owns); it does not vanish, it is confined, and it touches the data plane never. The `src/` / `server/` boundary is that confinement made physical. This is why the **library, not the Django app, is the architectural center**: the conventional ORM-centric Django repo is backwards for this class of software, because the ORM governs the part that *shrinks* as the system gets more useful.
+
+**Naming follows the field.** `src/` is PyPA canon. `server/` names a unit the field has no fixed term for, and Django here exists solely to serve REST + MCP (an inbound-serving role by construction), so `server/` is accurate and carries project information. (`app/` stutters against Django's inner `apps/`; `django/` names the framework, not the unit; `lib/` hides that the package is `-m`-runnable; `pypkg/` coins a private token over a case the field already names `src/`.) Coin a name only where the field is silent; use the field's word where it speaks.
 
 ### How the shape is determined: governed by what is on disk
 
 The shape is **not declared anywhere**. It is a function of the project's layout: racecar reads which files exist and computes the shape from them. This is deliberate. The directory structure already *is* the statement of shape, so a separate declared value (a `shape = "..."` key) would be a second home for the same fact, which is the drift this framework exists to prevent. Lay down the canonical files for a shape and the project *is* that shape; there is no token to also set, none to forget, and none to let go stale.
 
-The shape is the result of this ordered decision (first match wins). Read "`X` exists" as "the path `X` is present in the repo":
+The shape is the **product of two independent presences** racecar reads off the layout — a **PYTHON_LIBRARY** (`src/`) and a **DJANGO_PROJECT** (`server/manage.py`) — over the shared **root `pyproject.toml`** every shape carries. The four shape names are the *derived labels* for the cells of that `PYTHON_LIBRARY × DJANGO_PROJECT` product; the enumeration is a shorthand over the product, not in lieu of it. Read "`X` exists" as "the path `X` is present in the repo":
 
-1. `pypkg/src/pyproject.toml` exists **and** a `djapp/` tree exists → **`pypkg+djapp`**
-2. `pypkg/src/pyproject.toml` exists → **`pypkg`**
-3. root `pyproject.toml` exists **and** Django is present → **`djapp`**
-4. root `pyproject.toml` exists → **`src`**
-5. none of the above → **stock** (no recognized shape: neutral defaults, see §7)
+| PYTHON_LIBRARY (`src/`) | DJANGO_PROJECT (`server/manage.py`) | Shape |
+|---|---|---|
+| ✓ | — | **`src`** — library only |
+| ✓ | ✓ | **`src+server`** — library × Django |
+| — | ✓ | **`server`** — standalone Django, no library |
+| — | — | **neither** — a no-shape finding (`unknown` in Python, `stock` in Make), neutral defaults (§7) |
 
-where a **`djapp/` tree** means `djapp/manage.py` exists, and **Django is present** means a root `manage.py` or a `djapp/` tree exists. The marker is always `manage.py`, never a bare `djapp/` directory: a `djapp/` holding only a pyproject (no `manage.py`) is not a runnable Django app, so it does not make the project a djapp.
+The `(—, —)` cell is a real cell, not a fallback to `src`: a root `pyproject.toml` with neither a `src/` library nor a `server/` Django project is reported as "not a recognized shape," never silently classified as a library. Without a root `pyproject.toml` at all, the repo is likewise unclassifiable (the same cell). Django is marked by `server/manage.py`, never a bare `server/` directory: a `server/` holding only a pyproject (no `manage.py`) is not a runnable Django app, so it does not make the project a server. **TODO: multi-library support is deferred.** The `{packages,pypkg}/<pkg>/src/<pkg>` workspace form (multiple co-versioned libraries in one repo) is a separate, future capability, not built here. An abstraction waits for the second real consumer: the grouping container earns its place only when a genuine second co-versioned library exists. Deferring also leaves a governance question unfought: `packages/` is uv/pnpm/Pants workspace convention, not PSF/PyPA canon, and whether a bare directory name (no dependency, no config block, trivially renamable) trips the no-VC-tooling rule (§1) or that rule reaches only tool *dependencies and lock-in* is a real interpretation call. Settle it when the skill is built; name the skill for the act (grouping), not the container, so the container name stays a swappable detail.
 
 That rule lives in exactly two places, held in lockstep by a coherence test: `arch-coherence/scripts/check_packaging.py` (`detect_shape`, used by the audit) and `templates/classic/racecar.mk` (the same decision in Make, so the build is self-contained — see §7). It is duplicated on purpose, not shared: the build must be able to determine its own shape with nothing but `make` present (no Python, no venv), and a foundation that needs an external process to know what it is would not be a foundation. The cost of the duplication is bounded by the coherence test, not waved away.
 
-**Shapes are orthogonal to faces.** This file's shape axis answers *how the project is packaged*; the *faces axis* (how the one library is exposed: `cli` / `api` / `mcp` / `django`) is a separate concern with its own home in [`FACES.md`](FACES.md). A `src`-shape project can be `lib + cli + mcp`; the `djapp` shape is one packaging of the `django` face. Do not conflate the two axes; see [`FACES.md`](FACES.md) §8.
+**Shapes are orthogonal to surfaces.** This file's shape axis answers *how the project is packaged*; the *surfaces axis* (how the one library is exposed: `cli` / `api` / `mcp` / `django`) is a separate concern with its own home in [`SURFACES.md`](SURFACES.md). A `src`-shape project can be `lib + cli + mcp`; the `server` shape is one packaging of the `django` surface. Do not conflate the two axes; see [`SURFACES.md`](SURFACES.md) §8.
 
-| Shape | When to pick it | Library pyproject | djapp pyproject | `SRC` | `PKG` | `DJAPP` |
-|---|---|---|---|---|---|---|
-| **`src`** | Plain installable Python package; no Django | `pyproject.toml` (root) | — | `src` | `src/<pkg>` | *(unset)* |
-| **`pypkg`** | Installable Python package nested for future expansion; no Django yet | `pypkg/src/pyproject.toml` | — | `pypkg/src` | `pypkg/src/<pkg>` | *(unset)* |
-| **`pypkg+djapp`** | Shared installable Python package *plus* a Django app that imports it | `pypkg/src/pyproject.toml` | `djapp/pyproject.toml` | `pypkg/src` | `pypkg/src/<pkg>` | `djapp` |
-| **`djapp`** | Straight Django, no separately-installable package | `pyproject.toml` (root) | — | `djapp` | `djapp/<app>` | `djapp` |
+| Shape | PYTHON_LIBRARY (`src/<pkg>`) | DJANGO_PROJECT (`server/`) | Library pyproject | server pyproject | `SRC` | `PKG` | `SERVER` |
+|---|---|---|---|---|---|---|---|
+| **`src`** | ✓ | — | `pyproject.toml` (root) | — | `src` | `src/<pkg>` | *(unset)* |
+| **`src+server`** | ✓ | ✓ | `pyproject.toml` (root) | `server/pyproject.toml` | `src` | `src/<pkg>` | `server` |
+| **`server`** | — | ✓ | `pyproject.toml` (root) | — | `server` | `server/<app>` | `server` |
 
-Shape `djapp` has two placements, distinguished by where `manage.py` sits — both are the same shape, same library pyproject at root, same canon:
+The `server` shape is a standalone Django project under `server/` (its `manage.py`), with the library pyproject at the repo root and `SRC=server`; narrow `PKG` to the actual Django package directories with a `:=` override in the owned `Makefile` if needed. There is no `manage.py`-at-repo-root placement: Django lives in `server/`, so a library can always sit beside it at `src/` (that is the `src+server` shape).
 
-- **Nested** — `djapp/manage.py`; the table row above (`SRC=djapp`, `DJAPP=djapp`, `PKG=djapp/<app>`).
-- **Standalone** — `manage.py` at repo root; the whole repo *is* the Django project (e.g. an `apps/` + `config/` layout). `racecar.mk` sets `SRC=.` and leaves `DJAPP` empty (with `SRC=.` the whole tree is already covered), `PKG` defaults to `.`; narrow `PKG` to the actual Django package directories with a `:=` override in the owned `Makefile`. Both placements are the same `djapp` shape; `racecar.mk` and `check_packaging.py` recognize either.
-
-Invariants across all four shapes — these never move:
+Invariants across all shapes — these never move:
 
 - One **library pyproject** per project, with the canonical `[project]` table, `[build-system]`, `[dependency-groups].dev` (PEP 735), and all `[tool.*]` configurations (`black`, `isort`, `pylint`, `pytest`, `mypy`, `coverage`, `importlinter`). Its location varies by shape (see table) but its contents are uniform.
 - `Makefile`, `CHANGELOG.md`, `.gitignore`, `.pre-commit-config.yaml`, `scripts/` at repo root.
@@ -50,14 +59,14 @@ Invariants across all four shapes — these never move:
 What changes between shapes:
 
 - The location of the library pyproject (per the table).
-- The presence and location of the djapp pyproject (only Shape pypkg+djapp).
-- Whether a `requirements.txt` lockfile is committed at all — it's **optional** (see §5). If committed, the standard location is alongside the pyproject (`requirements.txt` at root for shapes `src`/`djapp`, `pypkg/src/requirements.txt` for `pypkg`/`pypkg+djapp`; `pypkg+djapp` may additionally have `djapp/requirements.txt`).
-- The Makefile's `SRC`, `PKG`, `DJAPP`, `LIB_PYPROJECT`, `DJAPP_PYPROJECT` values.
-- For Shape `pypkg+djapp` and `djapp`: presence of `djapp/manage.py` triggers the Django-specific audit (`scripts/check_dj_model_ref_as_string.py`) and pre-commit hook automatically.
+- The presence and location of the server pyproject (only Shape src+server).
+- Whether a `requirements.txt` lockfile is committed at all — it's **optional** (see §5). If committed, the standard location is alongside the pyproject (`requirements.txt` at root for shapes `src`/`server`, `src/requirements.txt` for `src+server`; `src+server` may additionally have `server/requirements.txt`).
+- The Makefile's `SRC`, `PKG`, `SERVER`, `LIB_PYPROJECT`, `SERVER_PYPROJECT` values.
+- For Shape `src+server` and `server`: presence of `server/manage.py` triggers the Django-specific audit (`scripts/check_dj_model_ref_as_string.py`) and pre-commit hook automatically.
 
-Versioning details (library-only version in `[project].version`; djapp pyproject has no `[project]` block and no version) are covered in §8.
+Versioning details (library-only version in `[project].version`; server pyproject has no `[project]` block and no version) are covered in §8.
 
-This opinion does not accommodate everything. uv-shops, Bazel monorepos, src-on-top layouts without `src/`, and pyproject-at-package-root layouts other than `pypkg/src/` are deliberately not supported. A project adopting this opinion picks one of the four shapes and commits.
+This opinion does not accommodate everything. uv-shops, Bazel monorepos, src-on-top layouts without `src/`, and pyproject-at-package-root layouts other than `src/` are deliberately not supported. A project adopting this opinion picks one of the three valid shapes (`src` / `src+server` / `server`, the populated cells of the `PYTHON_LIBRARY × DJANGO_PROJECT` product) and commits.
 
 ## What is and isn't institutional canon
 
@@ -175,8 +184,8 @@ Five canonical files live in [`../templates/classic/`](../templates/classic/). W
 
 | Template | Copy to project as | Used by shapes |
 |---|---|---|
-| `library-pyproject.toml` | `pyproject.toml` (Shape src/djapp) or `pypkg/src/pyproject.toml` (Shape pypkg/pypkg+djapp) | all |
-| `djapp-pyproject.toml` | `djapp/pyproject.toml` | `pypkg+djapp` only |
+| `library-pyproject.toml` | `pyproject.toml` (Shape src/server) or `src/pyproject.toml` (Shape src+server) | all |
+| `server-pyproject.toml` | `server/pyproject.toml` | `src+server` only |
 | `Makefile` | `Makefile` (repo root) | all |
 | `pre-commit-config.yaml` | `.pre-commit-config.yaml` (add leading dot) | all |
 | `gitignore` | `.gitignore` (add leading dot) | all |
@@ -193,9 +202,9 @@ Five canonical files live in [`../templates/classic/`](../templates/classic/). W
 | `<your name>` / `<email>` | Author identity | library pyproject `[project].authors` |
 | `<runtime dep>` | One line per direct runtime import, version-pinned | library pyproject `[project].dependencies` |
 | `<root>` | The top-level Python package, e.g. `athena` | library pyproject `[tool.importlinter]` |
-| `<where>` | Setuptools package source path; `["src"]` for Shape src, `["."]` for Shape pypkg/pypkg+djapp | library pyproject `[tool.setuptools.packages.find].where` |
+| `<where>` | Setuptools package source path; `["src"]` for Shape src, `["."]` for Shape src+server | library pyproject `[tool.setuptools.packages.find].where` |
 | Layered DAG rows | Project-specific peer/leaf arrangement | library pyproject `[[tool.importlinter.contracts]].layers` |
-| djapp deps | Django runtime deps for the djapp | djapp pyproject `[dependency-groups].runtime` |
+| server deps | Django runtime deps for the server | server pyproject `[dependency-groups].runtime` |
 
 Everything else in the templates is uniform across racecar projects. Tool configuration (`[tool.black]`, `[tool.isort]`, `[tool.pylint]`, `[tool.pytest]`, `[tool.mypy]`), the `[dependency-groups].dev` list (§6), `[build-system]`, `requires-python`, `target-version` — none of these vary project-to-project.
 
@@ -215,13 +224,13 @@ The `[tool.pylint]` configuration is **identical across racecar projects** — l
 - **Docstrings: class and function required, module not.** `missing-module-docstring` is disabled — a module's role lives in its subsystem `README` / `DESIGN` / `SYSTEM` / `CLAUDE` doc, not a one-line restatement of the filename. `missing-class-docstring` (C0115) and `missing-function-docstring` (C0116) must **not** be disabled: a class docstring states what the abstraction is, the highest-value orientation per token; functions follow. Names exempt from the requirement, via `[tool.pylint.BASIC]`: private (`^_`), pytest functions (`test_*`), `Test*` classes, and bodies under `docstring-min-length` lines.
 - **Complexity caps are raised, not disabled.** `[tool.pylint.DESIGN]` bumps `max-args` / `max-locals` / `max-branches` etc. so cohesive data and CLI-builder code passes, while keeping the backstop. Disabling `too-many-*` outright is non-canon — raise the cap instead.
 - **`min-similarity-lines = 12`** clears the false positives that the default of 4 raises on idiomatic per-verb CLI scaffolding.
-- `load-plugins` stays the library set (`pylint_pytest`) for all shapes; Django projects do NOT add `pylint_django` here. It is loaded on the djapp only, by `racecar.mk`'s `lint` target, for the reasons in §6.
+- `load-plugins` stays the library set (`pylint_pytest`) for all shapes; Django projects do NOT add `pylint_django` here. It is loaded on the server only, by `racecar.mk`'s `lint` target, for the reasons in §6.
 
-### Pyproject rules (djapp pyproject — Shape pypkg+djapp only)
+### Pyproject rules (server pyproject — Shape src+server only)
 
 - **`[dependency-groups].runtime` declares the Django runtime deps.** Required.
-- **No `[project]` block.** djapp is not a publishable package; declaring `[project]` invents a fake `name`/`version` that the racecar audit will flag.
-- **No `[build-system]`.** djapp is not pip-installable as a wheel; it runs via `python djapp/manage.py`.
+- **No `[project]` block.** server is not a publishable package; declaring `[project]` invents a fake `name`/`version` that the racecar audit will flag.
+- **No `[build-system]`.** server is not pip-installable as a wheel; it runs via `python server/manage.py`.
 - **No `[tool.*]` blocks.** Tool configurations live in the library pyproject and are passed to tools via `--config` / `--rcfile` / `--config-file` flags in the Makefile.
 
 ## 4. Virtual environment discipline
@@ -245,18 +254,18 @@ Single-source model:
 
 ### PEP 735 dependency groups
 
-Dev dependencies and djapp runtime dependencies are declared in PEP 735 `[dependency-groups]`, not in `[project.optional-dependencies]`. The semantics are different:
+Dev dependencies and server runtime dependencies are declared in PEP 735 `[dependency-groups]`, not in `[project.optional-dependencies]`. The semantics are different:
 
 - `[project.optional-dependencies]` are *extras* of the project — they travel with the wheel when published. `pip install my-pkg[dev]` works at install time.
 - `[dependency-groups]` are *separate from the project* — they're not part of the wheel and exist purely for development/runtime grouping. `pip install --group dev` (pip 25.1+) installs them.
 
-This separation is the right semantic for dev deps (they're not "optional features" of the project) and is required for the djapp pyproject (which has no `[project]` block to attach optional-dependencies to).
+This separation is the right semantic for dev deps (they're not "optional features" of the project) and is required for the server pyproject (which has no `[project]` block to attach optional-dependencies to).
 
-**Why this matters for racecar:** the djapp pyproject is `[dependency-groups]`-only — no `[project]`, no fake `name`/`version`. PEP 735 is what makes that file legal as a pyproject.
+**Why this matters for racecar:** the server pyproject is `[dependency-groups]`-only — no `[project]`, no fake `name`/`version`. PEP 735 is what makes that file legal as a pyproject.
 
 ### Workflow
 
-1. Add a direct dependency: edit `[project].dependencies` (runtime) or `[dependency-groups]` (dev / djapp runtime) in the relevant pyproject.
+1. Add a direct dependency: edit `[project].dependencies` (runtime) or `[dependency-groups]` (dev / server runtime) in the relevant pyproject.
 2. `make install` (runtime only) or `make install-dev` (runtime + dev group). pip resolves at install time from the pyproject pins.
 
 ### Minimum pip version: 25.1
@@ -304,10 +313,10 @@ dev = [
 
 `pip-tools` is intentionally not on the list: the canon does not include a lockfile-generation workflow (see §5). Projects that want a lockfile install pip-tools themselves or use `pip freeze`.
 
-**Django shapes add two canonical dev tools.** Shapes `pypkg+djapp` and `djapp` install a second PEP 735 group, `[dependency-groups].django`, for Django-only dev tools. Two entries are racecar-canonical; `check_packaging.py` requires both in the django group for any repo with a `manage.py`. The rest of that group (test, coverage, web-face tooling like `openapi-spec-validator`) is project-choice, not canon.
+**Django shapes add two canonical dev tools.** Shapes `src+server` and `server` install a second PEP 735 group, `[dependency-groups].django`, for Django-only dev tools. Two entries are racecar-canonical; `check_packaging.py` requires both in the django group for any repo with a `manage.py`. The rest of that group (test, coverage, web-surface tooling like `openapi-spec-validator`) is project-choice, not canon.
 
-- **`djhtml`** — an idempotent, permissively-licensed community-OSS reindenter for Django/Jinja template tags. `black` owns the Python; templates carry no Python to format, so `djhtml` is the template-side counterpart. It runs in `make fmt` / `make fmt-check` gated on `$(DJAPP)` (a no-op in non-Django shapes) and as a `types: [html]` pre-commit hook. `djhtml`, not the heavier `djlint`, is the canon: djlint's reformatter is a louder linter-first tool under a GPL license whose idempotence is empirical rather than structural; `djhtml` only reindents, so its idempotence is by construction.
-- **`pylint-django`** — the community-OSS pylint plugin that teaches pylint the Django ORM (so `Model.objects`, the `Meta` inner class, and the model metaclass stop raising false positives). It is loaded **on the djapp only**: `racecar.mk`'s `lint` target lints `$(SRC)` with the plain library config and lints `$(DJAPP)` with `--load-plugins=pylint_django`. The library is not Django and may not even import it, so the plugin is not loaded over the library tree, and adopters do not hand-edit `[tool.pylint.MAIN].load-plugins` (re-syncing `racecar.mk` is the whole change). Without it the django app lints against the library config and false-positives on every ORM idiom, which kept `make check` red.
+- **`djhtml`** — an idempotent, permissively-licensed community-OSS reindenter for Django/Jinja template tags. `black` owns the Python; templates carry no Python to format, so `djhtml` is the template-side counterpart. It runs in `make fmt` / `make fmt-check` gated on `$(SERVER)` (a no-op in non-Django shapes) and as a `types: [html]` pre-commit hook. `djhtml`, not the heavier `djlint`, is the canon: djlint's reformatter is a louder linter-first tool under a GPL license whose idempotence is empirical rather than structural; `djhtml` only reindents, so its idempotence is by construction.
+- **`pylint-django`** — the community-OSS pylint plugin that teaches pylint the Django ORM (so `Model.objects`, the `Meta` inner class, and the model metaclass stop raising false positives). It is loaded **on the server only**: `racecar.mk`'s `lint` target lints `$(SRC)` with the plain library config and lints `$(SERVER)` with `--load-plugins=pylint_django`. The library is not Django and may not even import it, so the plugin is not loaded over the library tree, and adopters do not hand-edit `[tool.pylint.MAIN].load-plugins` (re-syncing `racecar.mk` is the whole change). Without it the django app lints against the library config and false-positives on every ORM idiom, which kept `make check` red.
 
 **Racecar's specific commitments.** Pinning the exact list (rather than letting projects choose between e.g. pylint and flake8) is racecar's call. It produces consistency across projects at the cost of some flexibility. Adding a tool to this list is a standards-change conversation, not a project-by-project decision.
 
@@ -324,15 +333,15 @@ dev = [
 
 `[dependency-groups].dev` is the universal canon. Shape-specific tools that don't belong in the universal list go in a named sidecar group installed alongside `dev`. The checker only validates `dev`; sidecar groups are invisible to it.
 
-**`djapp` shape — `django` group.** Django projects add a `django` dependency group for tools that are either Django-specific or required because Django's test runner replaces pytest:
+**`server` shape — `django` group.** Django projects add a `django` dependency group for tools that are either Django-specific or required because Django's test runner replaces pytest:
 
 ```toml
 [dependency-groups]
 django = [
     "coverage>=7.4",              # Django test runner needs coverage directly (pytest-cov is pytest-only)
-    "django-debug-toolbar>=4.0",  # local dev; api face only, DEBUG-gated
-    "django-extensions>=3.2",     # local dev; face-agnostic, DEBUG-gated
-    "openapi-spec-validator>=0.7", # validates the generated OpenAPI doc (racecar-deploy)
+    "django-debug-toolbar>=4.0",  # local dev; api surface only, DEBUG-gated
+    "django-extensions>=3.2",     # local dev; surface-agnostic, DEBUG-gated
+    "openapi-spec-validator>=0.7", # validates the generated OpenAPI doc (racecar-create-server)
     "pylint-django>=2.5",         # suppresses false-positive E1101 on Django model fields
 ]
 ```
@@ -346,11 +355,11 @@ install-dev: install
 	@if grep -qi '"django' $(LIB_PYPROJECT); then $(PIP) install --group $(LIB_PYPROJECT):django; fi
 ```
 
-A racecar-deploy web face generates its OpenAPI document from the Interface
+A racecar-create-server surface generates its OpenAPI document from the Interface
 Manifest (GENERATION.md §"Generated API docs"); `openapi-spec-validator` validates
 it. There is no `drf-spectacular` and no DRF — the spec is not introspected from
 views. Projects not using debug-toolbar or django-extensions may omit them.
-`coverage` and `pylint-django` are expected on all djapp-shape projects.
+`coverage` and `pylint-django` are expected on all server-shape projects.
 
 ## 7. Makefile contract
 
@@ -361,9 +370,9 @@ This is the most racecar-specific section in the file. PEPs do not define a `Mak
 The build is split into two files so that the canonical half is never hand-maintained:
 
 - **`Makefile`** (owned; the front door). A thin root you own and edit freely: project-specific targets and variable overrides, plus `include racecar.mk`. racecar never rewrites it. In the simplest case it is one line: `include racecar.mk`. Skeleton: [`../templates/classic/Makefile`](../templates/classic/Makefile).
-- **`racecar.mk`** (canonical; vendored). Every standard target plus the shape logic. It is **identical in every racecar project** — there is no per-repo content. It detects the shape from the layout at make-time (the §"Scope" decision, written in Make) and sets `SRC` / `PKG` / `DJAPP` / `LIB_PYPROJECT` / `DJAPP_PYPROJECT` with `?=`, falling back to stock for an unrecognized layout. `make sync` copies it verbatim from [`../templates/classic/racecar.mk`](../templates/classic/racecar.mk); any hand-edit is lost on the next sync. It is committed, so `make` runs offline with nothing from racecar present.
+- **`racecar.mk`** (canonical; vendored). Every standard target plus the shape logic. It is **identical in every racecar project** — there is no per-repo content. It detects the shape from the layout at make-time (the §"Scope" decision, written in Make) and sets `SRC` / `PKG` / `SERVER` / `LIB_PYPROJECT` / `SERVER_PYPROJECT` with `?=`, falling back to stock for an unrecognized layout. `make sync` copies it verbatim from [`../templates/classic/racecar.mk`](../templates/classic/racecar.mk); any hand-edit is lost on the next sync. It is committed, so `make` runs offline with nothing from racecar present.
 
-Why the split: a single hand-filled template drifts. When the canonical machinery and the project's own customization share one file, trimming or editing the former to suit a project (the common, reasonable urge) silently diverges it from base. The fold removes the surface entirely — `racecar.mk` is the same bytes everywhere (so there is nothing per-repo to drift), and the project half is a separate owned file (so overwriting `racecar.mk` never clobbers it). Because the shape is computed live from what is on disk, there is no stored shape value, no stamp, and no "regenerate for the new shape" step: restructure the repo (e.g. add `pypkg/src/`) and the next `make` simply reads the new layout. `check_packaging` reads both files for the target contract.
+Why the split: a single hand-filled template drifts. When the canonical machinery and the project's own customization share one file, trimming or editing the former to suit a project (the common, reasonable urge) silently diverges it from base. The fold removes the surface entirely — `racecar.mk` is the same bytes everywhere (so there is nothing per-repo to drift), and the project half is a separate owned file (so overwriting `racecar.mk` never clobbers it). Because the shape is computed live from what is on disk, there is no stored shape value, no stamp, and no "regenerate for the new shape" step: restructure the repo (e.g. add `src/`) and the next `make` simply reads the new layout. `check_packaging` reads both files for the target contract.
 
 A repo that predates the fold (a single full Makefile, no `racecar.mk`) still passes; `check_packaging` nudges it to `make sync` (`no-racecar-mk`). Migration is a **manual upgrade step**, not something `sync` automates: `sync` only drops the canonical `racecar.mk` and never touches the existing `Makefile`. So adoption is finished by hand — extract project-specific targets into the owned `Makefile`, add `include racecar.mk`, and remove the canonical recipes the include now supplies (never clobbering a customized recipe). Until that hand-step runs, the repo is in the half-migrated state where `racecar.mk` sits inert beside a monolith that does not include it; `check_packaging` flags that state `racecar-mk-not-included` (a Blocker, because the canonical build is dead weight), distinct from the pre-fold nudge. See [`../upgrade/README.md`](../upgrade/README.md) step 4.
 
@@ -381,13 +390,13 @@ Every project's `make help` lists the same targets:
 | `check-full` | **Full gate** (pre-push / CI cadence, parallel): adds `typecheck arch docs` |
 | `audit` | `pip-audit` for dependency vulnerability scanning (standalone; run weekly / on-demand) |
 | `fix` | Auto-fix what can be auto-fixed (currently `fmt`) |
-| `fmt` | Apply `isort` then `black` to `$(SRC)` (and `$(DJAPP)` if set) |
+| `fmt` | Apply `isort` then `black` to `$(SRC)` (and `$(SERVER)` if set) |
 | `fmt-check` | Same as `fmt` but `--check-only` (no writes) |
 | `lint` | `pylint --rcfile $(LIB_PYPROJECT)` plus the no-upward-imports pre-commit hook |
 | `test` | `pytest -c $(LIB_PYPROJECT)`, scoped via `PYTEST_ARGS`; exit 5 (no tests collected) treated as success |
 | `coverage` | `pytest --cov=$(PKG) --cov-branch --cov-report=term-missing --cov-report=html`; HTML at `htmlcov/index.html` |
 | `typecheck` | `mypy --config-file $(LIB_PYPROJECT) $(SRC)` |
-| `arch` | `lint-imports --config $(LIB_PYPROJECT)`, `check_upward_imports`, `check_cli_commands`, `check_packaging`, `check_face_orchestration` (advisory; no-ops without faces verticals; see [`FACES.md`](FACES.md) §7) (+ `check_dj_model_ref_as_string` if Django) |
+| `arch` | `lint-imports --config $(LIB_PYPROJECT)`, `check_upward_imports`, `check_cli_commands`, `check_packaging`, `check_surface_orchestration` (advisory; no-ops without surfaces verticals; see [`SURFACES.md`](SURFACES.md) §7) (+ `check_dj_model_ref_as_string` if Django) |
 | `docs` | `check_docs.py` mechanical pre-pass |
 | `system-deps` | Install system-level dependencies not available via pip (idempotent; called by `install`) |
 | `clean` | Remove caches and build artifacts — *never* data or `.venv` |
@@ -395,7 +404,7 @@ Every project's `make help` lists the same targets:
 
 ### Variables
 
-`racecar.mk` sets these variables. The shape-dependent five (`SRC`, `PKG`, `DJAPP`, `LIB_PYPROJECT`, `DJAPP_PYPROJECT`) are chosen by the make-time shape decision (§"Scope") and assigned with `?=`, so the owned `Makefile` can override any with an earlier `:=`. The rest are fixed:
+`racecar.mk` sets these variables. The shape-dependent five (`SRC`, `PKG`, `SERVER`, `LIB_PYPROJECT`, `SERVER_PYPROJECT`) are chosen by the make-time shape decision (§"Scope") and assigned with `?=`, so the owned `Makefile` can override any with an earlier `:=`. The rest are fixed:
 
 | Variable | Default | Purpose |
 |---|---|---|
@@ -404,25 +413,25 @@ Every project's `make help` lists the same targets:
 | `PIP` | `$(PYTHON) -m pip` | Installer |
 | `BIN` | `$(VENV)/bin` or `~/.local/bin` | Where to find tool entry-points (`lint-imports`, `pre-commit`) |
 | `SRC` | `src` | Source root to format/lint/type-check |
-| `PKG` | auto-derived: the package dir under `SRC` (`src/<pkg>`, `pypkg/src/<pkg>`), or `SRC` itself when `SRC` is `.` or is itself a package | Importable package dir the CLI/coverage/arch audits require (not the namespace source root) |
-| `DJAPP` | empty | Django app directory; triggers `check_dj_model_ref_as_string.py` when set |
+| `PKG` | auto-derived: the package dir under `SRC` (`src/<pkg>`, `src/<pkg>`), or `SRC` itself when `SRC` is `.` or is itself a package | Importable package dir the CLI/coverage/arch audits require (not the namespace source root) |
+| `SERVER` | empty | Django app directory; triggers `check_dj_model_ref_as_string.py` when set |
 | `LIB_PYPROJECT` | `pyproject.toml` | Library pyproject path (location varies by shape — see §"Scope") |
-| `DJAPP_PYPROJECT` | empty | djapp pyproject path (only Shape pypkg+djapp) |
+| `SERVER_PYPROJECT` | empty | server pyproject path (only Shape src+server) |
 | `PYTEST_ARGS` | empty | Pass-through pytest args, e.g. `make test PYTEST_ARGS="-k foo -q"` |
 
 ### Tool config discovery
 
-Tools (`black`, `isort`, `pylint`, `mypy`, `pytest`, `lint-imports`) are invoked with an explicit `--config` / `--rcfile` / `--config-file` / `-c` flag pointing at `$(LIB_PYPROJECT)`. They do **not** rely on auto-discovery by walking up from cwd. This is racecar's call: it works uniformly across all shapes (whether the library pyproject is at repo root or at `pypkg/src/pyproject.toml`), and it stays correct when the Makefile is invoked from `cd` other than the directory containing the pyproject.
+Tools (`black`, `isort`, `pylint`, `mypy`, `pytest`, `lint-imports`) are invoked with an explicit `--config` / `--rcfile` / `--config-file` / `-c` flag pointing at `$(LIB_PYPROJECT)`. They do **not** rely on auto-discovery by walking up from cwd. This is racecar's call: it works uniformly across all shapes (whether the library pyproject is at repo root or at `src/pyproject.toml`), and it stays correct when the Makefile is invoked from `cd` other than the directory containing the pyproject.
 
-### Multi-root first-party detection (Shape `pypkg+djapp`)
+### Multi-root first-party detection (Shape `src+server`)
 
-For Shape `pypkg+djapp`, `fmt` runs `isort` over **two** source roots — `$(SRC)` (`pypkg/src`) *and* `$(DJAPP)` (`djapp`) — from a single config that lives in only one of them (`pypkg/src/pyproject.toml`). isort classifies each import as first-party or third-party. Over a *single* tree it auto-detects first-party packages by inspecting what is importable from that tree, so `profile = "black"` alone suffices for the single-root shapes (`src`, `pypkg`, `djapp`). Over the *second* tree it cannot: there is no settings file rooted at `djapp/`, so isort misclassifies djapp's first-party packages (`apps`, `core`, `project`, …) as third-party and reorders dozens of files — while a profile-only check reports green. The same blind spot hits `import-linter`: a bare `root_package = "<lib>"` audits only the library import graph and never looks at the djapp graph at all.
+For Shape `src+server`, `fmt` runs `isort` over **two** source roots — `$(SRC)` (`src`) *and* `$(SERVER)` (`server`) — from a single config at the repo root (`pyproject.toml`). isort classifies each import as first-party or third-party. Over a *single* tree it auto-detects first-party packages by inspecting what is importable from that tree, so `profile = "black"` alone suffices for the single-root shapes (`src`, `server`). Over the *second* tree it cannot: there is no settings file rooted at `server/`, so isort misclassifies server's first-party packages (`apps`, `core`, `project`, …) as third-party and reorders dozens of files — while a profile-only check reports green. The same blind spot hits `import-linter`: a bare `root_package = "<lib>"` audits only the library import graph and never looks at the server graph at all.
 
-Therefore, for Shape `pypkg+djapp` specifically, the library pyproject must close the multi-root gap explicitly (these are **not** required for single-root shapes, where auto-detection covers them):
+Therefore, for Shape `src+server` specifically, the library pyproject must close the multi-root gap explicitly (these are **not** required for single-root shapes, where auto-detection covers them):
 
-- **`[tool.isort].src_paths` must include `"djapp"`** — so isort scans the djapp tree as a source root, not as third-party site-packages.
-- **`[tool.isort].known_first_party` must list every djapp top-level package** — so those imports are classified first-party instead of third-party. The checker derives the expected set from the importable top-level directories under `djapp/`.
-- **`[tool.importlinter]` must cover the djapp roots** — name them in `root_packages` (plural) or reference them from a contract's modules — so `lint-imports` actually audits the djapp import graph, not just the library's.
+- **`[tool.isort].src_paths` must include `"server"`** — so isort scans the server tree as a source root, not as third-party site-packages.
+- **`[tool.isort].known_first_party` must list every server top-level package** — so those imports are classified first-party instead of third-party. The checker derives the expected set from the importable top-level directories under `server/`.
+- **`[tool.importlinter]` must cover the server roots** — name them in `root_packages` (plural) or reference them from a contract's modules — so `lint-imports` actually audits the server import graph, not just the library's.
 
 These are racecar's call, the natural consequence of the two-root `fmt`/`arch` invocation; for single-root shapes isort and import-linter auto-detect over their one tree and the assertions do not apply.
 
@@ -440,10 +449,10 @@ These are racecar's call, the natural consequence of the two-root `fmt`/`arch` i
 
 The library pyproject's `[project].version` is the **sole** source of truth for the project's version:
 
-- Shape `src` / `djapp` — `pyproject.toml [project].version` at repo root.
-- Shape `pypkg` / `pypkg+djapp` — `pypkg/src/pyproject.toml [project].version`.
+- Shape `src` / `server` — `pyproject.toml [project].version` at repo root.
+- Shape `src+server` — `src/pyproject.toml [project].version`.
 
-For Shape `pypkg+djapp`: the djapp pyproject has no `[project]` block and therefore no version. djapp is a deployment, not a release — its release tracking (git SHA, deploy timestamp, image tag) lives outside racecar canon.
+For Shape `src+server`: the server pyproject has no `[project]` block and therefore no version. server is a deployment, not a release — its release tracking (git SHA, deploy timestamp, image tag) lives outside racecar canon.
 
 **No separate `VERSION` file.** A `VERSION` file at repo root duplicating the pyproject version is a drift class for marginal benefit (shell-readability without parsing TOML); pyproject is the single source. Shell scripts that need the version read it via:
 
@@ -535,10 +544,10 @@ The script lives in racecar (`arch-coherence/scripts/check_packaging.py`) and is
 **CHANGELOG:**
 - **`CHANGELOG.md` missing or `## <version> - <date>` heading malformed** — Finding.
 
-**Shape pypkg+djapp specific:**
-- **Library `[tool.isort]` omits `src_paths` covering `djapp`, or omits a `known_first_party` listing the djapp first-party roots** — Blocker. `profile = "black"` alone is a false green for multi-root isort (see §7 "Multi-root first-party detection").
-- **`[tool.importlinter]` names only the library and never covers the djapp roots** — Blocker. `lint-imports` would audit only the library import graph.
-- **`djapp/pyproject.toml` declares `[project]`, `[build-system]`, or any `[tool.*]` block** — Finding. djapp pyproject is intended to be PEP 735 `[dependency-groups]`-only.
+**Shape src+server specific:**
+- **Library `[tool.isort]` omits `src_paths` covering `server`, or omits a `known_first_party` listing the server first-party roots** — Blocker. `profile = "black"` alone is a false green for multi-root isort (see §7 "Multi-root first-party detection").
+- **`[tool.importlinter]` names only the library and never covers the server roots** — Blocker. `lint-imports` would audit only the library import graph.
+- **`server/pyproject.toml` declares `[project]`, `[build-system]`, or any `[tool.*]` block** — Finding. server pyproject is intended to be PEP 735 `[dependency-groups]`-only.
 
 ## What this file does not cover
 

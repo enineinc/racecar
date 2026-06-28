@@ -24,12 +24,11 @@ The shape determines where the **library pyproject** lives. Identify it from the
 
 | Shape | Signal | Library pyproject |
 |-------|--------|-------------------|
-| `src` | `pyproject.toml` at root; no `pypkg/`, no `manage.py`, no `djapp/` | `pyproject.toml` |
-| `pypkg` | `pypkg/src/pyproject.toml` exists; no `djapp/` | `pypkg/src/pyproject.toml` |
-| `pypkg+djapp` | `pypkg/src/pyproject.toml` AND (`djapp/manage.py` or `djapp/pyproject.toml`) | `pypkg/src/pyproject.toml` |
-| `djapp` | `pyproject.toml` at root AND (`manage.py` or `djapp/manage.py`) | `pyproject.toml` |
+| `src` | root `pyproject.toml` + `src/`; no `server/manage.py` | `pyproject.toml` |
+| `src+server` | root `pyproject.toml` + `src/` + `server/manage.py` | `pyproject.toml` |
+| `server` | root `pyproject.toml` + `server/manage.py`; no `src/` | `pyproject.toml` |
 
-Shape `djapp` has two placements (PACKAGING.md §"Scope"): **nested** (`djapp/manage.py` — source lives in `djapp/`) and **standalone** (`manage.py` at root — the whole repo is the Django project, e.g. an `apps/` + `config/` layout). Note which placement applies; it changes `<src>` below.
+Shape `server` has two placements (PACKAGING.md §"Scope"): **nested** (`server/manage.py` — source lives in `server/`) and **standalone** (`manage.py` at root — the whole repo is the Django project, e.g. an `apps/` + `config/` layout). Note which placement applies; it changes `<src>` below.
 
 All checkers are invoked with `<project_root>` as their root reference (via `--root <project_root>` where the flag exists, or by running from `<project_root>` via the absolute-path convention below). Never `cd` into a subdirectory to run a checker.
 
@@ -44,7 +43,7 @@ Otherwise fetch remotely:
     curl -fsSL https://raw.githubusercontent.com/vishalapte/racecar/main/scripts/sync_remote.py \
       | python3 - --dest <project_root> --templates
 
-`--templates` additionally delivers any **missing** scaffolding (`Makefile`, `.pre-commit-config.yaml`, `.gitignore`, `scripts/install_system_deps.sh`) — create-if-missing only; existing files are never overwritten. A freshly-created Makefile has its shape variables (`SRC`, `PKG`, `DJAPP`, `LIB_PYPROJECT`) unset — set them per the Step 1 shape before running any `make` target, and tell the user you did.
+`--templates` additionally delivers any **missing** scaffolding (`Makefile`, `.pre-commit-config.yaml`, `.gitignore`, `scripts/install_system_deps.sh`) — create-if-missing only; existing files are never overwritten. A freshly-created Makefile has its shape variables (`SRC`, `PKG`, `SERVER`, `LIB_PYPROJECT`) unset — set them per the Step 1 shape before running any `make` target, and tell the user you did.
 
 Report the sync output verbatim (created / updated / unchanged / exists per file).
 
@@ -55,13 +54,13 @@ Resolve `<scripts>` as `<project_root>/scripts` once. Use absolute paths for eve
     python <scripts>/check_upward_imports.py --root <project_root> $(find <project_root>/<src> -name '*.py' -not -path '*/migrations/*')
     python <scripts>/check_cli_commands.py <pkg>          # skip if no __main__.py exists anywhere
     python <scripts>/check_packaging.py --root <project_root>
-    python <scripts>/check_face_orchestration.py --root <project_root>   # no-ops without [tool.racecar.faces]; Findings only
+    python <scripts>/check_surface_orchestration.py --root <project_root>   # no-ops without [tool.racecar.roles]; Findings only
     python <scripts>/check_dj_model_ref_as_string.py     # Django only: skip if no manage.py
     python <scripts>/check_docs.py
     python <scripts>/check_todo_format.py
     python <scripts>/check_file_placement.py
 
-`<src>` is the source directory from the shape table: `src` for shape `src`, `pypkg/src` for shape `pypkg`/`pypkg+djapp`, `djapp` for nested shape `djapp`. For **standalone** shape `djapp` (`manage.py` at root) there is no single `<src>` directory — enumerate the top-level Python package directories (direct children of `<project_root>` containing `__init__.py` or recognizable Django app/config layout, e.g. `apps/`, `config/`, `common/`) and pass those; never scan `scripts/`, `venv/`, `.venv/`, `migrations/`, or test fixtures.
+`<src>` is the source directory from the shape table: `src` for shape `src`, `src` for shape `src+server`, `server` for nested shape `server`. For **standalone** shape `server` (`manage.py` at root) there is no single `<src>` directory — enumerate the top-level Python package directories (direct children of `<project_root>` containing `__init__.py` or recognizable Django app/config layout, e.g. `apps/`, `config/`, `common/`) and pass those; never scan `scripts/`, `venv/`, `.venv/`, `migrations/`, or test fixtures.
 
 For `check_dj_model_ref_as_string.py`: if `manage.py shell` fails to start (missing dependency, misconfigured settings), report it as "skipped -- Django shell failed to start" and continue. Do not exit.
 
@@ -121,7 +120,7 @@ After the report, ask the user which findings to address. Fix only what the user
 
 How to fix the two structural surfaces — reference, not invention:
 
-- **Makefile findings** (missing targets, forbidden tools, `install-dev` gaps): read `<racecar_root>/templates/classic/Makefile` and port the missing target's recipe, adapting only the shape variables (`SRC`, `PKG`, `DJAPP`, `LIB_PYPROJECT`). Propose the diff target-by-target; do not rewrite the whole Makefile, and leave project-specific targets (under `##@` group markers) untouched.
+- **Makefile findings** (missing targets, forbidden tools, `install-dev` gaps): read `<racecar_root>/templates/classic/Makefile` and port the missing target's recipe, adapting only the shape variables (`SRC`, `PKG`, `SERVER`, `LIB_PYPROJECT`). Propose the diff target-by-target; do not rewrite the whole Makefile, and leave project-specific targets (under `##@` group markers) untouched.
 - **pyproject findings** (canon values, missing `[tool.*]` blocks, dev-group drift): the canon values live in `arch-coherence/PACKAGING.md` (§6 dev tools, §7 tool config) and `check_packaging.py`'s output names the expected value per finding. Apply the named value; do not restyle anything the checker did not flag.
 
 Both surfaces are per-project-customized, which is why sync never overwrites them — the fix path is always checker-finding → reference template/canon → minimal approved diff.

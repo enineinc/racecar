@@ -36,20 +36,18 @@ TEMPLATE_RACECAR_MK = REPO_ROOT / "templates" / "classic" / "racecar.mk"
 # must both resolve it to. "stock" (empty repo) is detect_shape's "unknown".
 LAYOUTS = {
     "src": (["pyproject.toml", "src/mypkg/__init__.py"], "src"),
-    "pypkg": (["pypkg/src/pyproject.toml", "pypkg/src/mypkg/__init__.py"], "pypkg"),
-    "pypkg+djapp": (
-        ["pypkg/src/pyproject.toml", "djapp/manage.py"],
-        "pypkg+djapp",
+    "src+server": (
+        ["pyproject.toml", "src/mypkg/__init__.py", "server/manage.py"],
+        "src+server",
     ),
-    "djapp-nested": (["pyproject.toml", "djapp/manage.py"], "djapp"),
-    "djapp-standalone": (["pyproject.toml", "manage.py"], "djapp"),
-    # The gap: a djapp/ holding only a pyproject (no manage.py) is NOT Django. manage.py
-    # is the marker; a bare djapp/ tree does not make a djapp. These must fall back.
-    "pypkg-djapp-no-manage": (
-        ["pypkg/src/pyproject.toml", "djapp/pyproject.toml"],
-        "pypkg",
+    "server": (["pyproject.toml", "server/manage.py"], "server"),
+    # The gap: a server/ holding only a pyproject (no manage.py) is NOT Django. manage.py
+    # is the marker; a bare server/ tree does not make a server, so this falls back to the
+    # library shape.
+    "server-no-manage": (
+        ["pyproject.toml", "src/mypkg/__init__.py", "server/pyproject.toml"],
+        "src",
     ),
-    "root-djapp-no-manage": (["pyproject.toml", "djapp/pyproject.toml"], "src"),
     "stock": ([], "stock"),
 }
 
@@ -67,14 +65,14 @@ def _make_shape(dest: Path) -> dict[str, str]:
     """Install racecar.mk and ask real `make` what shape/vars it resolves."""
     sync_scripts._materialize_racecar_mk(dest, dry_run=False)
     (dest / "Makefile").write_text(
-        'include racecar.mk\n_v:\n\t@echo "$(SHAPE)|$(SRC)|$(DJAPP)|$(LIB_PYPROJECT)"\n',
+        'include racecar.mk\n_v:\n\t@echo "$(SHAPE)|$(SRC)|$(SERVER)|$(LIB_PYPROJECT)"\n',
         encoding="utf-8",
     )
     out = subprocess.run(
         ["make", "-s", "_v"], cwd=dest, capture_output=True, text=True, check=True
     ).stdout.strip()
-    shape, src, djapp, lib = out.split("|")
-    return {"SHAPE": shape, "SRC": src, "DJAPP": djapp, "LIB_PYPROJECT": lib}
+    shape, src, server, lib = out.split("|")
+    return {"SHAPE": shape, "SRC": src, "SERVER": server, "LIB_PYPROJECT": lib}
 
 
 # ---------------------------------------------------------------------------
@@ -95,7 +93,7 @@ def test_materialize_is_idempotent(tmp_path: Path) -> None:
 def test_init_scaffolds_identical_racecar_mk(tmp_path: Path) -> None:
     """A scaffold ships the same canonical racecar.mk; sync is then a no-op on it."""
     init_project.scaffold(
-        shape="djapp",
+        shape="server",
         name="potato",
         package="potato",
         dest=tmp_path,
@@ -108,12 +106,11 @@ def test_init_scaffolds_identical_racecar_mk(tmp_path: Path) -> None:
     assert sync_scripts._materialize_racecar_mk(tmp_path, dry_run=False) == "unchanged"
 
 
-# Shape -> (SHAPE, SRC, DJAPP) the build must resolve for a real init scaffold.
+# Shape -> (SHAPE, SRC, SERVER) the build must resolve for a real init scaffold.
 _SCAFFOLD_RESOLVES = {
     "src": ("src", "src", ""),
-    "pypkg": ("pypkg", "pypkg/src", ""),
-    "pypkg+djapp": ("pypkg+djapp", "pypkg/src", "djapp"),
-    "djapp": ("djapp", "djapp", "djapp"),
+    "src+server": ("src+server", "src", "server"),
+    "server": ("server", "server", "server"),
 }
 
 
@@ -125,11 +122,11 @@ def test_scaffolded_repo_resolves_its_own_shape_under_make(
     `make` against it, and assert the build resolves the shape it was scaffolded as.
 
     This is the test the original makefile-fold bug needed and lacked. That bug (init
-    shipped a djapp scaffold with no manage.py, so the build misdetected it as `src`)
+    shipped a server scaffold with no manage.py, so the build misdetected it as `src`)
     shipped GREEN because every shape test used a synthetic fixture that hand-seeded
     the markers the scaffolder forgot — a fixture more complete than reality. Coupling
     the real scaffold to real `make` closes that gap: delete init's manage.py creation
-    and the djapp case fails here, where it should.
+    and the server case fails here, where it should.
     """
     init_project.scaffold(
         shape=shape,
@@ -146,7 +143,7 @@ def test_scaffolded_repo_resolves_its_own_shape_under_make(
     )  # the `make sync` step
     makefile = tmp_path / "Makefile"
     makefile.write_text(
-        makefile.read_text() + '\n_v:\n\t@echo "$(SHAPE)|$(SRC)|$(DJAPP)"\n',
+        makefile.read_text() + '\n_v:\n\t@echo "$(SHAPE)|$(SRC)|$(SERVER)"\n',
         encoding="utf-8",
     )
     out = subprocess.run(
@@ -170,26 +167,28 @@ def test_racecar_mk_resolves_shape(layout: str, tmp_path: Path) -> None:
 def test_racecar_mk_src_variables(tmp_path: Path) -> None:
     _seed(tmp_path, "src")
     v = _make_shape(tmp_path)
-    assert (v["SRC"], v["DJAPP"], v["LIB_PYPROJECT"]) == ("src", "", "pyproject.toml")
+    assert (v["SRC"], v["SERVER"], v["LIB_PYPROJECT"]) == ("src", "", "pyproject.toml")
 
 
-def test_racecar_mk_pypkg_djapp_variables(tmp_path: Path) -> None:
-    _seed(tmp_path, "pypkg+djapp")
+def test_racecar_mk_src_server_variables(tmp_path: Path) -> None:
+    _seed(tmp_path, "src+server")
     v = _make_shape(tmp_path)
-    assert (v["SRC"], v["DJAPP"], v["LIB_PYPROJECT"]) == (
-        "pypkg/src",
-        "djapp",
-        "pypkg/src/pyproject.toml",
+    assert (v["SRC"], v["SERVER"], v["LIB_PYPROJECT"]) == (
+        "src",
+        "server",
+        "pyproject.toml",
     )
 
 
-def test_racecar_mk_nested_vs_standalone_djapp(tmp_path: Path) -> None:
-    _seed(tmp_path, "djapp-nested")
-    assert _make_shape(tmp_path)["SRC"] == "djapp"
-    other = tmp_path / "standalone"
-    other.mkdir()
-    _seed(other, "djapp-standalone")
-    assert _make_shape(other)["SRC"] == "."
+def test_racecar_mk_server_variables(tmp_path: Path) -> None:
+    """Standalone Django (server/manage.py, no library): SRC=server, SERVER=server."""
+    _seed(tmp_path, "server")
+    v = _make_shape(tmp_path)
+    assert (v["SRC"], v["SERVER"], v["LIB_PYPROJECT"]) == (
+        "server",
+        "server",
+        "pyproject.toml",
+    )
 
 
 # ---------------------------------------------------------------------------

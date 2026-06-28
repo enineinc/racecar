@@ -8,10 +8,9 @@ Pick the shape that matches your project's layout:
 
 | Shape | When to pick it |
 |---|---|
-| `src` | Plain installable Python package; no Django |
-| `pypkg` | Installable package nested for future expansion; no Django yet |
-| `pypkg+djapp` | Shared installable library plus a Django app that imports it |
-| `djapp` | Straight Django, no separately-installable package |
+| `src` | Plain installable Python library; no Django |
+| `src+server` | Library (`src/<pkg>`) plus a Django server (`server/`) that imports it |
+| `server` | Standalone Django (`server/`), no separately-installable library |
 
 Full shape reference: [`arch-coherence/PACKAGING.md`](arch-coherence/PACKAGING.md) §"Scope".
 
@@ -21,15 +20,15 @@ Full shape reference: [`arch-coherence/PACKAGING.md`](arch-coherence/PACKAGING.m
 
 From the racecar repo root:
 
-    make init ARGS="--shape pypkg+djapp --name myproject --package myproject --dest /path/to/new/repo"
+    make init ARGS="--shape src+server --name myproject --package myproject --dest /path/to/new/repo"
 
-Substitute `pypkg+djapp`, `myproject`, and the dest path for your project. Optional flags: `--version`, `--description`, `--author`, `--email`. See `python scripts/init_project.py --help`.
+Substitute `src+server`, `myproject`, and the dest path for your project. Optional flags: `--version`, `--description`, `--author`, `--email`. See `python scripts/init_project.py --help`.
 
-The scaffolder writes: the Makefile (shape vars set), library pyproject (placeholders filled), djapp pyproject (Shape `pypkg+djapp` only), `.pre-commit-config.yaml`, `.gitignore`, a skeleton `__init__.py`, and the canonical check scripts under `scripts/`.
+The scaffolder writes: the Makefile (shape vars set), library pyproject (placeholders filled), server pyproject (Shape `src+server` only), `.pre-commit-config.yaml`, `.gitignore`, a skeleton `__init__.py`, and the canonical check scripts under `scripts/`.
 
 **2. Edit the importlinter contract**
 
-Open the library pyproject (`pypkg/src/pyproject.toml` for Shape `pypkg+djapp`, `pyproject.toml` for others). Find `[[tool.importlinter.contracts]]` and replace the placeholder layer list with your real package layout. A fresh project with one package is fine as a starting point; add layers as the package grows.
+Open the library pyproject (`src/pyproject.toml` for Shape `src+server`, `pyproject.toml` for others). Find `[[tool.importlinter.contracts]]` and replace the placeholder layer list with your real package layout. A fresh project with one package is fine as a starting point; add layers as the package grows.
 
 **3. Install dev dependencies**
 
@@ -84,7 +83,7 @@ For a repo that wants to update its check scripts without having racecar checked
 **Pin to a specific release:**
 
     curl -fsSL https://raw.githubusercontent.com/vishalapte/racecar/main/scripts/sync_remote.py \
-      | python3 - --dest . --ref v0.6.0
+      | python3 - --dest . --ref v0.13.0
 
 **Preview without writing:**
 

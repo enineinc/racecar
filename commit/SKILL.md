@@ -26,7 +26,7 @@ Apply the COMMITS.md type→bump table, including the pre-1.0 rule. State the de
 
 ## Step 4: resolve the version home
 
-Per COMMITS.md §Version home. Locate the library pyproject by shape (`pyproject.toml` at root, or `pypkg/src/pyproject.toml`):
+Per COMMITS.md §Version home. Locate the library pyproject by shape (`pyproject.toml` at root, or `src/pyproject.toml`):
 
 - `[project].version` exists → that is the home.
 - No `[project]` table anywhere → root `VERSION` is the home.

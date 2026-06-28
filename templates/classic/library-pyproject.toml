@@ -3,12 +3,10 @@
 # Where to put this depends on the project shape (see racecar's
 # arch-coherence/PACKAGING.md, "Scope"):
 #
-#   shape src           -> copy to:  pyproject.toml         (repo root)
-#   shape pypkg         -> copy to:  pypkg/src/pyproject.toml
-#   shape pypkg+djapp   -> copy to:  pypkg/src/pyproject.toml
-#                          (companion: djapp/pyproject.toml from djapp-pyproject.toml)
-#   shape djapp         -> not applicable; use root pyproject.toml directly
-#                          for the deployable
+#   shape src           -> copy to:  pyproject.toml  (repo root)
+#   shape src+server   -> copy to:  pyproject.toml  (repo root)
+#                          (companion: server/pyproject.toml from server-pyproject.toml)
+#   shape server         -> copy to:  pyproject.toml  (repo root, the deployable)
 #
 # Substitute placeholders enclosed in `<...>`:
 #   <project_name>       e.g. "athena"
@@ -74,8 +72,8 @@ django = [
 
 # Shape-specific. See racecar's arch-coherence/PACKAGING.md, "Scope":
 #   shape src           ->  where = ["src"]
-#   shape pypkg         ->  where = ["."]              (relative to pypkg/src/)
-#   shape pypkg+djapp   ->  where = ["."]              (relative to pypkg/src/)
+#   shape src+server   ->  where = ["src"]
+#   shape server         ->  where = ["server"]
 [tool.setuptools.packages.find]
 where = ["<where>"]
 
@@ -134,7 +132,7 @@ ignore-docstrings = true
 [tool.pylint.MAIN]
 py-version = "3.12"
 # Library plugins only. pylint_django is NOT added here (it would load over the
-# library tree too); racecar.mk's `lint` target loads it on the djapp via
+# library tree too); racecar.mk's `lint` target loads it on the server via
 # --load-plugins (PACKAGING.md §6).
 load-plugins = ["pylint_pytest"]
 
