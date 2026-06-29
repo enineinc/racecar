@@ -77,7 +77,10 @@ def test_generated_server_passes_a_consumer_lint(tmp_path):
     scaffold_authserver.render_authserver(server, issuer="https://auth.example.com")
     _write_fixture_library(tmp_path / "lib")
 
-    files = [str(p) for p in sorted(server.rglob("*.py")) if "migrations" not in p.parts]
+    # Include migrations: they must be lint-clean via the rcfile's ignore-paths (auto-generated
+    # django migrations otherwise trip invalid-name / missing-class-docstring), not by this test
+    # filtering them out. This proves the canonical library-pyproject excludes them.
+    files = [str(p) for p in sorted(server.rglob("*.py"))]
     proc = subprocess.run(
         [sys.executable, "-m", "pylint", "--rcfile", str(_RCFILE),
          "--load-plugins", "pylint_django", *files],

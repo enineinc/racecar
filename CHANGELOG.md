@@ -4,6 +4,18 @@ All notable changes to racecar are recorded here, in the style of
 [Keep a Changelog](https://keepachangelog.com). racecar is pre-1.0, so a minor
 bump may carry breaking changes for adopters; those are marked **Breaking**.
 
+## 0.13.4 - 2026-06-29
+
+### Fixed
+- **The canonical pylint config excludes django migrations.** 0.13.3 began shipping the authserver
+  `0001_initial.py`, and auto-generated django migrations always trip `invalid-name` (the `0001_`
+  filename) and `missing-class-docstring`, so `make lint` failed in every regenerated repo. The
+  `library-pyproject.toml` `ignore-paths` now skips `.*/migrations/.*`. This lives in the rcfile,
+  not a command-line `--ignore-paths`, because the command-line form *replaces* a repo's own
+  exclusions (audit/, notebooks/) while the rcfile entry *merges* with them. The generated-output
+  lint test now lints migrations too, so a future regression fails racecar's own suite. Existing
+  repos add the one `ignore-paths` entry when they regenerate (their pyproject is repo-owned).
+
 ## 0.13.3 - 2026-06-29
 
 ### Added

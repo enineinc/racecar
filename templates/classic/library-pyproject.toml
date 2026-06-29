@@ -143,7 +143,7 @@ load-plugins = ["pylint_pytest"]
 # verbatim from racecar and carry §N citations to racecar's own canon, which do
 # not resolve in this repo. Excluding scripts/ keeps the pre-pass policing this
 # project's own docs and config, not vendored racecar internals.
-ignore-paths = ["^scripts/"]
+ignore-paths = ["^scripts/", ".*/migrations/.*"]  # vendored racecar scripts + auto-generated django migrations
 
 [tool.pytest.ini_options]
 addopts = "-q"
