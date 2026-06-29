@@ -6,6 +6,21 @@ dev = [
     "pytest",
     "pyyaml>=6.0",
 ]
+# Installed by `make install-dev` -- racecar dogfoods its own canonical
+# `[dependency-groups].django` + `make install-dev` convention (the same one
+# library-pyproject.toml prescribes to consumers). racecar is not itself a `server/`, so this
+# group carries the django RUNTIME (django / DOT / webauthn) the generators emit against, plus
+# the pylint-django plugin. With it present, racecar lints the generated server the way a
+# consumer does, so a generator change that would fail a consumer's lint fails racecar's own
+# test suite first.
+django = [
+    "django>=6.0",
+    "pylint-django",
+    "pylint-pytest",  # the canonical consumer lint config (library-pyproject) loads this plugin
+    "django-oauth-toolkit>=3.2",
+    "webauthn>=2.0",
+    "django-oauth-toolkit-dcr",
+]
 
 [tool.black]
 line-length = 88

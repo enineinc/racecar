@@ -35,7 +35,7 @@ from webauthn.helpers.structs import (
     UserVerificationRequirement,
 )
 
-from .models import WebAuthnCredential, record_event
+from ..models import WebAuthnCredential, record_event
 
 _AUTH_CHALLENGE = "webauthn_auth_challenge"
 _REG_CHALLENGE = "webauthn_reg_challenge"
@@ -86,7 +86,8 @@ def authenticate_verify(request):
     cred = WebAuthnCredential.objects.filter(credential_id=body.get("id")).first()
     if cred is None:
         record_event(request, "login.failure", detail="unknown credential")
-        return HttpResponseForbidden("unknown credential")
+        # Opaque to the client (no credential-existence oracle); the specific reason is audited.
+        return HttpResponseForbidden("authentication failed")
     try:
         verification = webauthn.verify_authentication_response(
             credential=raw,
@@ -100,7 +101,7 @@ def authenticate_verify(request):
     except Exception as exc:  # pylint: disable=broad-exception-caught
         # Detail is audited; do not echo the raw ceremony internals to the client.
         record_event(request, "login.failure", user=cred.user, detail=str(exc)[:120])
-        return HttpResponseForbidden("assertion failed")
+        return HttpResponseForbidden("authentication failed")
     cred.sign_count = verification.new_sign_count
     cred.last_used_at = timezone.now()
     cred.save(update_fields=["sign_count", "last_used_at"])

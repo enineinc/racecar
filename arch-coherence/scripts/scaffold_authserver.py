@@ -98,6 +98,43 @@ if not DEBUG and "example.com" in AUTH_SERVER_ISSUER:  # noqa: F405
     )
 _issuer = urlparse(AUTH_SERVER_ISSUER)
 
+# The AS answers at the issuer host; add it to the base allowlist. ALLOWED_HOSTS must stay an
+# explicit allowlist (never "*"): request.get_host() drives the issued OAuth metadata and the
+# WWW-Authenticate / protected-resource URLs, so an attacker-controlled Host would poison them.
+if _issuer.hostname and _issuer.hostname not in ALLOWED_HOSTS:  # noqa: F405
+    ALLOWED_HOSTS = ALLOWED_HOSTS + [_issuer.hostname]  # noqa: F405
+
+# Transport hardening for the security-critical process. The session cookie carries the entire
+# authenticated / recovery-session state; behind the TLS-terminating vhost Django must be told
+# the proxied request is https (SECURE_PROXY_SSL_HEADER) before it will set Secure cookies.
+# Gated on prod so local http dev still works.
+if not DEBUG:  # noqa: F405
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SESSION_COOKIE_SAMESITE = "Lax"
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+
+# Recovery throttling (the brute-force defense on backup codes / TAPs) is cache-backed. In a
+# multi-worker prod deploy the default per-process LocMemCache gives each worker its own counter,
+# silently multiplying the lockout budget into a fail-open. Require a cache shared across workers.
+CACHES = {{
+    "default": {{
+        "BACKEND": os.environ.get(
+            "DJANGO_CACHE_BACKEND", "django.core.cache.backends.locmem.LocMemCache"
+        ),
+        "LOCATION": os.environ.get("DJANGO_CACHE_LOCATION", "auth-throttle"),
+    }}
+}}
+if not DEBUG and "locmem" in CACHES["default"]["BACKEND"].lower():  # noqa: F405
+    raise ImproperlyConfigured(
+        "the recovery throttle needs a cache shared across workers in production; set "
+        "DJANGO_CACHE_BACKEND (e.g. django.core.cache.backends.redis.RedisCache) and "
+        "DJANGO_CACHE_LOCATION"
+    )
+
 # WebAuthn relying party. RP id is the registrable host; origin is scheme + host.
 WEBAUTHN_RP_ID = os.environ.get("WEBAUTHN_RP_ID", _issuer.hostname or "localhost")
 WEBAUTHN_RP_NAME = os.environ.get("WEBAUTHN_RP_NAME", "Authorization Server")

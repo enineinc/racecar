@@ -17,6 +17,10 @@ Authorization Server) and [`GENERATION.md`](GENERATION.md) (the resource-surface
 - **Opaque tokens, never JWT.** The token is a random, server-side handle carrying no claims on the
   wire. It is short-lived, scoped, and revocable. The resource surface validates it by **introspection**
   (RFC 7662) against the Authorization Server, cached briefly; it never trusts a self-describing token.
+  The cache TTL is clamped to the token's own expiry and **bounds revocation latency**: a revoked but
+  unexpired token stays accepted until its cached verdict ages out, so set the introspection cache to
+  zero for the highest-value scopes. When the AS is unreachable or introspection is unconfigured the
+  surface fails **closed** (503), never open.
 - **A separate Authorization Server** is the only stateful piece. Humans authenticate there with
   **FIDO2 hardware security keys** (WebAuthn, proof-of-possession, phishing-resistant, no secret on
   the wire, no platform-cloud trust), and it issues the opaque tokens. Machine callers obtain tokens

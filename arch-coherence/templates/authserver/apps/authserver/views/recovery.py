@@ -16,7 +16,7 @@ from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_POST
 
-from .models import BackupCode, TemporaryAccessPass, record_event
+from ..models import BackupCode, TemporaryAccessPass, record_event
 
 _BACKEND = "django.contrib.auth.backends.ModelBackend"
 # Recovery secrets are password-equivalent; the redeem endpoints are unauthenticated, so
@@ -33,8 +33,8 @@ def _throttle_key(request, username):
 def _too_many_attempts(request, username):
     """True once this (username, IP) has burned its recovery attempt budget.
 
-    Backed by the Django cache. The AS runs as a single process, so the default
-    LocMemCache suffices; a multi-worker deploy must configure a shared cache."""
+    Backed by the Django cache, which the auth settings require to be shared across workers in
+    production (LocMemCache is refused at boot), so the counter is global across workers."""
     return cache.get(_throttle_key(request, username), 0) >= _MAX_ATTEMPTS
 
 
@@ -53,7 +53,7 @@ def _record_failed_attempt(request, username):
 def generate_backup_codes(request):
     """Issue a fresh set of one-time backup codes, invalidating any unused old ones."""
     BackupCode.objects.filter(user=request.user, used_at__isnull=True).delete()
-    codes = [secrets.token_hex(5) for _ in range(10)]
+    codes = [secrets.token_hex(8) for _ in range(10)]  # 64-bit, infeasible to guess online
     BackupCode.objects.bulk_create(
         [BackupCode(user=request.user, code_hash=make_password(c)) for c in codes]
     )

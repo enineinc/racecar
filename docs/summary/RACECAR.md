@@ -1,7 +1,7 @@
 ---
 generator:
   name: racecar-llm-summary
-  version: "0.13.0"
+  version: "0.13.2"
 target:
   repo: racecar
   date: 2026-06-28
@@ -247,7 +247,7 @@ The surface is the **slash commands** (frontmatter `cli_verbs`, 16 skills) plus 
 
 ### §2.6 Configuration
 
-- `VERSION` (repo root) — the single version home (0.13.0); gated against the CHANGELOG by `check_changelog.py`.
+- `VERSION` (repo root) — the single version home (0.13.2); gated against the CHANGELOG by `check_changelog.py`.
 - `pyproject.toml` `[tool.racecar.surface]` — the surface binding; `[tool.racecar.subsystem-docs]` — `loc_threshold` / `exclude` for the subsystem-docs check; `[tool.importlinter]` — the layers contract; `[tool.pylint.MASTER].ignore-paths` — the one ignore key check_docs honors.
 - Generated-server env (the output's config, not racecar's): `RACECAR_ALLOW_WRITES` (write rail, off by default), `AUTH_INTROSPECTION_URL` / `_CLIENT_ID` / `_CLIENT_SECRET` / `_CACHE_SECONDS` (resource-server introspection; unset → fail closed), `AUTH_ISSUER`.
 - Generated-AS env: `AUTH_SERVER_ISSUER` (fails loud in prod if a placeholder), `WEBAUTHN_RP_ID` / `_ORIGIN` / `_ALLOWED_AAGUIDS` (fail-closed when empty) / `WEBAUTHN_PACKED_ROOT_CERTS` (attestation roots; unset → AAGUID advisory), `OAUTH2_ACCESS_TOKEN_EXPIRE_SECONDS`.
@@ -281,7 +281,7 @@ The surface is the **slash commands** (frontmatter `cli_verbs`, 16 skills) plus 
 ### §2.10 Operational
 
 - **Install:** `./install` (in the racecar checkout) symlinks the skills into `~/.claude/skills/` and wires the SessionStart/PreCompact hooks; idempotent, refuses to clobber present-but-wrong files. `make doctor` (or `/racecar-doctor`) verifies the install with evidence (a load token reproduced from context).
-- **Self-gate:** `make check` (pylint 10/10, 275 tests, doc + changelog + brief checks). `make arch` is not a racecar target — the arch *checks* are vendored into adopters, not run against racecar's own tooling.
+- **Self-gate:** `make check` (pylint 10/10, 277 tests, doc + changelog + brief checks). `make arch` is not a racecar target — the arch *checks* are vendored into adopters, not run against racecar's own tooling.
 - **Adopter gate:** `make check` + pre-commit in the consuming repo, using the synced scripts. Enforcement is local (pre-commit, make), never CI-as-gate; the owner authorizes, the tooling confirms.
 - **No deploy, no schedule, no healthcheck** — racecar ships files, not a running service.
 

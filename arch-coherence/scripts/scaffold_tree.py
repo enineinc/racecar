@@ -21,6 +21,10 @@ def render_tree(template_dir: Path, out: Path, subs: dict[str, str] | None = Non
     for src in sorted(template_dir.rglob("*")):
         if not src.is_file():
             continue
+        # Skip OS / build junk that is not part of the template (a stray .DS_Store or a
+        # __pycache__ entry would otherwise crash read_text() and break all generation).
+        if src.name == ".DS_Store" or "__pycache__" in src.parts:
+            continue
         dest = out / src.relative_to(template_dir)
         dest.parent.mkdir(parents=True, exist_ok=True)
         text = src.read_text()

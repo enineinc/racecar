@@ -46,8 +46,9 @@ server/
   apps/
     authserver/                 # the stateful app (DB owner)
       models.py                 # WebAuthnCredential, BackupCode, TemporaryAccessPass, AuditLog
-      webauthn_views.py         # the two WebAuthn ceremonies gating /o/authorize
-      metadata_views.py         # RFC 8414 server metadata (+ CIMD)
+      views/webauthn.py         # the two WebAuthn ceremonies gating /o/authorize
+      views/recovery.py         # backup-code / TAP redemption -> recovery-only session
+      views/metadata.py         # RFC 8414 server metadata (+ CIMD)
   run.sh                        # gains a third uvicorn: auth on :8003 (settings.auth)
   apache/auth.vhost.conf        # the auth.* reverse-proxy snippet
 ```

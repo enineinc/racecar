@@ -183,6 +183,7 @@ disable = [
     "deprecated-pragma",
     "use-symbolic-message-instead",
     "duplicate-code",
+    "too-few-public-methods",
     "use-implicit-booleaness-not-comparison-to-string",
     "use-implicit-booleaness-not-comparison-to-zero",
     "missing-module-docstring",
@@ -839,6 +840,18 @@ def test_missing_required_hook_is_blocker(tmp_path: Path) -> None:
     result = _run(repo)
     assert result.returncode == 1
     assert "missing-hook:import-linter" in result.stdout
+
+
+def test_stale_make_var_is_blocker(tmp_path: Path) -> None:
+    # A repo-owned pre-commit config that survived the djapp->server rename: the hook id is
+    # present, but its body still calls the retired `make -s print-DJAPP` (resolves to empty,
+    # silently breaking import-linter). A hook-id-only check misses it; the staleness rule does not.
+    bad = CANON_PRECOMMIT.replace("entry: x", "entry: bash -c 'make -s print-DJAPP'", 1)
+    assert "DJAPP" in bad  # guard: the fixture actually contains the stale reference
+    repo = _seed_src(tmp_path, **{".pre-commit-config.yaml": bad})
+    result = _run(repo)
+    assert result.returncode == 1
+    assert "stale-make-var:DJAPP" in result.stdout
 
 
 # ---------------------------------------------------------------------------

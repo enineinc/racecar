@@ -4,6 +4,48 @@ All notable changes to racecar are recorded here, in the style of
 [Keep a Changelog](https://keepachangelog.com). racecar is pre-1.0, so a minor
 bump may carry breaking changes for adopters; those are marked **Breaking**.
 
+## 0.13.2 - 2026-06-29
+
+### Security
+- **The generated Authorization Server is hardened at the transport / session / secret layer.** A
+  security review found the core model already fail-closed (opaque-token introspection with
+  sha256-keyed, exp-clamped caching; default-deny scopes; every surface message gated; WebAuthn
+  replay / attestation / AAGUID enforcement; recovery sessions firewalled from token issuance; CSRF
+  correct). The gaps were below the application layer and are now closed:
+  - the `auth.*` settings set `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE`, `SESSION_COOKIE_SAMESITE`,
+    `SECURE_SSL_REDIRECT`, `SECURE_PROXY_SSL_HEADER`, and HSTS in production (the session cookie carries
+    the authenticated state behind a TLS-terminating proxy Django otherwise cannot see as secure);
+  - the issuer host joins `ALLOWED_HOSTS` automatically, since `request.get_host()` drives the issued
+    OAuth metadata under `USE_X_FORWARDED_HOST`;
+  - `DJANGO_SECRET_KEY` is guarded in production like the issuer (a placeholder key signs forgeable AS
+    sessions);
+  - the recovery throttle refuses a per-process `LocMemCache` in production (multi-worker would fail the
+    lockout open), backup codes widen to 64 bits, and the WebAuthn login failure is opaque (no
+    credential-existence oracle).
+  AUTH.md documents the introspection revocation-latency window; the open-DCR redirect-URI guarantee is
+  noted as django-oauth-toolkit's exact-match, not racecar's.
+
+### Added
+- **The generated server is linted at the consumer bar.** `make install-dev` installs a `django`
+  dependency group (the pylint-django plugin plus the django / DOT / webauthn runtime), and a new test
+  renders the full server and runs pylint at the canonical `library-pyproject.toml` bar. racecar never
+  linted its own generated output before, so a generator change that would fail a consumer's lint now
+  fails racecar's own `make test` first.
+- **`check_packaging` flags retired make variables in `.pre-commit-config.yaml`** (`RETIRED_MAKE_VARS`,
+  `DJAPP -> SERVER`). A repo-owned scaffold file survives a racecar upgrade, so a stale hook body
+  (`make -s print-DJAPP` after the djapp/server rename) silently broke the import-linter hook; that
+  staleness is now a Blocker with a test.
+
+### Changed
+- **Authorization Server views are grouped under `apps/authserver/views/`** (`metadata.py`,
+  `recovery.py`, `webauthn.py`), Django-canonical and matching the surfaces side, replacing the flat
+  `*_views.py` at the app root.
+- **`too-few-public-methods` (R0903) joins the canonical pylint disable set**, matching what racecar
+  itself and adopters already do (pydantic models, config / exception classes, django middleware).
+- **`make install-dev` is the canonical target for the `django` group** (the `library-pyproject.toml`
+  comment that pointed at a non-existent `make install-django` is corrected).
+- **`render_tree` skips `.DS_Store` / `__pycache__`**, so a stray OS file can no longer crash generation.
+
 ## 0.13.1 - 2026-06-28
 
 ### Fixed

@@ -26,7 +26,7 @@ def test_emits_the_auth_process_files(tmp_path):
     for rel in (
         "project/settings/auth.py",
         "project/urls/authurls.py",
-        "apps/authserver/metadata_views.py",
+        "apps/authserver/views/metadata.py",
         "apps/authserver/apps.py",
         "apps/authserver/migrations/__init__.py",
         "apache/auth.vhost.conf",
@@ -67,7 +67,7 @@ def test_as_apps_and_endpoints_mounted(tmp_path):
 
 def test_metadata_advertises_s256_and_the_endpoints(tmp_path):
     scaffold_authserver.render_authserver(_shell(tmp_path))
-    meta = (tmp_path / "apps" / "authserver" / "metadata_views.py").read_text()
+    meta = (tmp_path / "apps" / "authserver" / "views" / "metadata.py").read_text()
     assert "S256" in meta
     for endpoint in ("authorize", "token", "introspect", "revoke_token"):
         assert endpoint in meta, endpoint
@@ -94,7 +94,7 @@ def test_credential_model_shape(tmp_path):
 
 def test_hardware_key_only_enforced(tmp_path):
     scaffold_authserver.render_authserver(_shell(tmp_path))
-    views = (tmp_path / "apps" / "authserver" / "webauthn_views.py").read_text()
+    views = (tmp_path / "apps" / "authserver" / "views" / "webauthn.py").read_text()
     # Cross-platform (no synced/platform passkeys) + user verification + direct attestation.
     assert "AuthenticatorAttachment.CROSS_PLATFORM" in views
     assert "UserVerificationRequirement.REQUIRED" in views
@@ -106,7 +106,7 @@ def test_hardware_key_only_enforced(tmp_path):
 
 def test_all_four_ceremonies_present(tmp_path):
     scaffold_authserver.render_authserver(_shell(tmp_path))
-    views = (tmp_path / "apps" / "authserver" / "webauthn_views.py").read_text()
+    views = (tmp_path / "apps" / "authserver" / "views" / "webauthn.py").read_text()
     for fn in (
         "generate_registration_options",
         "verify_registration_response",
@@ -118,7 +118,7 @@ def test_all_four_ceremonies_present(tmp_path):
 
 def test_no_password_login_path(tmp_path):
     scaffold_authserver.render_authserver(_shell(tmp_path))
-    views = (tmp_path / "apps" / "authserver" / "webauthn_views.py").read_text()
+    views = (tmp_path / "apps" / "authserver" / "views" / "webauthn.py").read_text()
     settings = (tmp_path / "project" / "settings" / "auth.py").read_text()
     # The only login is the WebAuthn ceremony: LOGIN_URL points at it, and no password
     # primitive is used (login() attaches the session after the assertion verifies). The
@@ -152,7 +152,7 @@ def test_recovery_models(tmp_path):
 def test_recovery_session_cannot_issue_tokens(tmp_path):
     scaffold_authserver.render_authserver(_shell(tmp_path))
     guard = (tmp_path / "apps" / "authserver" / "middleware.py").read_text()
-    recovery = (tmp_path / "apps" / "authserver" / "recovery_views.py").read_text()
+    recovery = (tmp_path / "apps" / "authserver" / "views" / "recovery.py").read_text()
     settings = (tmp_path / "project" / "settings" / "auth.py").read_text()
     # The guard blocks /o/authorize unless the session is hardware-key authenticated.
     assert "/o/authorize" in guard and 'auth_method") != "webauthn"' in guard
@@ -163,7 +163,7 @@ def test_recovery_session_cannot_issue_tokens(tmp_path):
 
 def test_recovery_secrets_are_hashed(tmp_path):
     scaffold_authserver.render_authserver(_shell(tmp_path))
-    recovery = (tmp_path / "apps" / "authserver" / "recovery_views.py").read_text()
+    recovery = (tmp_path / "apps" / "authserver" / "views" / "recovery.py").read_text()
     # Stored via make_password, verified via check_password — never compared in the clear.
     assert "make_password" in recovery and "check_password" in recovery
 
@@ -192,7 +192,7 @@ def test_dcr_registration_endpoint(tmp_path):
     scaffold_authserver.render_authserver(_shell(tmp_path))
     settings = (tmp_path / "project" / "settings" / "auth.py").read_text()
     urls = (tmp_path / "project" / "urls" / "authurls.py").read_text()
-    meta = (tmp_path / "apps" / "authserver" / "metadata_views.py").read_text()
+    meta = (tmp_path / "apps" / "authserver" / "views" / "metadata.py").read_text()
     assert '"oauth_dcr"' in settings
     assert "DynamicClientRegistrationView" in urls and "o/register/" in urls
     assert "registration_endpoint" in meta  # advertised in RFC 8414 metadata
@@ -212,8 +212,8 @@ def test_audit_log_model_and_helper(tmp_path):
 
 def test_auth_events_are_recorded(tmp_path):
     scaffold_authserver.render_authserver(_shell(tmp_path))
-    webauthn = (tmp_path / "apps" / "authserver" / "webauthn_views.py").read_text()
-    recovery = (tmp_path / "apps" / "authserver" / "recovery_views.py").read_text()
+    webauthn = (tmp_path / "apps" / "authserver" / "views" / "webauthn.py").read_text()
+    recovery = (tmp_path / "apps" / "authserver" / "views" / "recovery.py").read_text()
     assert '"login.success"' in webauthn and '"login.failure"' in webauthn
     assert '"enroll"' in webauthn
     assert '"recovery.backup"' in recovery and '"recovery.tap"' in recovery

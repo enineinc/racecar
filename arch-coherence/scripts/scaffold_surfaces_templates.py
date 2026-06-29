@@ -52,11 +52,20 @@ Install dev tools with `make install-dev` (the library `django` group);
 import os
 from pathlib import Path
 
+from django.core.exceptions import ImproperlyConfigured
+
 # settings.py -> settings/ -> project/ -> server root
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "dev-insecure-deploy-key")
 DEBUG = os.environ.get("DJANGO_DEBUG", "1") == "1"
+# Fail loud in prod on the dev placeholder: SECRET_KEY signs the session cookie, and on the
+# auth.* process that cookie carries the authenticated session -- a known key is a session-forgery
+# bypass. (The auth.* settings additionally set SESSION_COOKIE_SECURE and friends.)
+if not DEBUG and SECRET_KEY == "dev-insecure-deploy-key":
+    raise ImproperlyConfigured(
+        "DJANGO_SECRET_KEY is unset/placeholder; set a real secret before deploying"
+    )
 ALLOWED_HOSTS = os.environ.get(
     "DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,api.localhost,mcp.localhost"
 ).split(",")
@@ -480,6 +489,24 @@ async def _tool_call(request, req_id, params):
     return _tool_result(req_id, json.dumps(result, default=str), False)
 
 
+async def _dispatch_method(request, method, req_id, msg):
+    """Route an authenticated JSON-RPC method to its handler (or method-not-found)."""
+    if method == "initialize":
+        return _result(
+            req_id,
+            {{
+                "protocolVersion": PROTOCOL_VERSION,
+                "capabilities": {{"tools": {{"listChanged": False}}}},
+                "serverInfo": {{"name": "{manifest["package"]}-mcp", "version": "0.1.0"}},
+            }},
+        )
+    if method == "tools/list":
+        return _result(req_id, _tool_list())
+    if method == "tools/call":
+        return await _tool_call(request, req_id, msg.get("params"))
+    return _error(req_id, -32601, f"Method not found: {{method}}")
+
+
 @csrf_exempt
 async def endpoint(request):
     """The single MCP Streamable-HTTP endpoint: dispatch one JSON-RPC message."""
@@ -502,20 +529,7 @@ async def endpoint(request):
         return resp
     if req_id is None and method and method.startswith("notifications/"):
         return HttpResponse(status=202)
-    if method == "initialize":
-        return _result(
-            req_id,
-            {{
-                "protocolVersion": PROTOCOL_VERSION,
-                "capabilities": {{"tools": {{"listChanged": False}}}},
-                "serverInfo": {{"name": "{manifest["package"]}-mcp", "version": "0.1.0"}},
-            }},
-        )
-    if method == "tools/list":
-        return _result(req_id, _tool_list())
-    if method == "tools/call":
-        return await _tool_call(request, req_id, msg.get("params"))
-    return _error(req_id, -32601, f"Method not found: {{method}}")
+    return await _dispatch_method(request, method, req_id, msg)
 '''
 
 # --------------------------------------------------------------------------

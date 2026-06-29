@@ -62,7 +62,7 @@ dev = [
     "pyyaml>=6.0",                 # frontmatter parser for check_brief.py (racecar-llm-summary briefs)
 ]
 django = [
-    # Django-specific dev tools. Install with: make install-django
+    # Django-specific dev tools. Install with: make install-dev
     "djhtml",                     # canonical Django/Jinja template-tag reindenter (racecar canon); idempotent, community OSS
     "coverage>=7.4",              # Django test runner needs coverage directly (pytest-cov is pytest-only)
     "django-debug-toolbar>=4.0",
@@ -103,6 +103,7 @@ disable = [
     "use-symbolic-message-instead",
     # idiomatic-code false positives
     "duplicate-code",  # R0801: argparse / pydantic / dataclass boilerplate
+    "too-few-public-methods",  # R0903: pydantic models, config / exception classes, django middleware
     "use-implicit-booleaness-not-comparison-to-string",
     "use-implicit-booleaness-not-comparison-to-zero",
     # module docstrings — covered by the subsystem's README / DESIGN / SYSTEM / CLAUDE doc

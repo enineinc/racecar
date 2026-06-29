@@ -44,6 +44,7 @@ CANON_PYLINT_REQUIRED_DISABLE = {
     "deprecated-pragma",
     "use-symbolic-message-instead",
     "duplicate-code",
+    "too-few-public-methods",
     "use-implicit-booleaness-not-comparison-to-string",
     "use-implicit-booleaness-not-comparison-to-zero",
     "missing-module-docstring",
@@ -74,6 +75,13 @@ REQUIRED_PRECOMMIT_HOOKS = {
     "todo-format",
     "file-placement",
 }
+
+# Make variables retired by a canon rename. A repo-owned scaffold file is not content-synced,
+# so a stale reference survives a racecar upgrade: the import-linter hook body calls
+# `make -s print-<VAR>`, and a retired <VAR> resolves to empty, silently dropping the server
+# root from PYTHONPATH (this is exactly how gfem's djapp->server migration left a broken hook).
+# Map each retired name to its current replacement; the precommit check flags any occurrence.
+RETIRED_MAKE_VARS = {"DJAPP": "SERVER"}
 
 REQUIRED_MAKEFILE_TARGETS = {
     "help",

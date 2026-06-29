@@ -8,7 +8,7 @@ ifdef VENV
 endif
 PYTHON := $(if $(VENV),$(VENV)/bin/python3,python3)
 
-.PHONY: install install-deps expert expert-uninstall doctor check-docs check-subsystem-docs check-changelog check-brief lint test check demo init sync-scripts sync-remote-test clean distclean obsidian obsidian-data obsidian-docs help
+.PHONY: install install-deps install-dev expert expert-uninstall doctor check-docs check-subsystem-docs check-changelog check-brief lint test check demo init sync-scripts sync-remote-test clean distclean obsidian obsidian-data obsidian-docs help
 
 install: install-deps
 	./install
@@ -21,6 +21,9 @@ expert-uninstall:
 
 install-deps:
 	$(PYTHON) -m pip install -q --group dev
+
+install-dev: install-deps
+	$(PYTHON) -m pip install -q --group django
 
 # Verify the load mechanism layer by layer (files, wiring, hook execution,
 # transcript). Exit 1 on any deterministic failure. FIX=--fix repairs wiring
@@ -168,6 +171,7 @@ obsidian-docs:
 help:
 	@echo "make install          - install python deps then bootstrap into Claude Code config"
 	@echo "make install-deps     - install python deps from pyproject.toml dev group"
+	@echo "make install-dev   - install-deps plus the django stack (pylint-django, DOT, webauthn) for generated-output lint tests"
 	@echo "make expert           - install the optional racecar-expert-mode overlay (skill symlink + CLAUDE.md pointer)"
 	@echo "make expert-uninstall - remove the racecar-expert-mode overlay"
 	@echo "make doctor [FIX=--fix] - verify install/wiring/load layer by layer; --fix repairs wiring"
