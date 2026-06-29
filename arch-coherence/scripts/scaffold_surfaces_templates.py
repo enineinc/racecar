@@ -592,7 +592,11 @@ def render_project(manifest: dict, out: Path, *, manifest_only: bool = False) ->
     render_tree(
         _TEMPLATES / "server",
         out,
-        {"__API_PORT__": str(API_PORT), "__MCP_PORT__": str(MCP_PORT)},
+        {
+            "__API_PORT__": str(API_PORT),
+            "__MCP_PORT__": str(MCP_PORT),
+            "__PKG__": manifest["package"],
+        },
     )
     # Overlay the manifest-interpolated files (not part of the static mirror tree).
     (out / "project" / "settings" / "settings.py").write_text(_settings_py(manifest))

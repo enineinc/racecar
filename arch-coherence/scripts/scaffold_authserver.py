@@ -29,18 +29,41 @@ WebAuthn ceremony is verified against a real hardware authenticator at Stage 7.
 """
 
 import argparse
+import re
 from pathlib import Path
 
 from scaffold_tree import render_tree
 
 _TEMPLATES = Path(__file__).resolve().parent.parent / "templates"
 AUTH_PORT = 8003
+_SCOPE_RE = re.compile(r"""["']scope["']\s*:\s*["']([^"']+)["']""")
+
+
+def discover_scopes(server: Path) -> dict[str, str]:
+    """The per-command scopes the surfaces enforce, read from the generated commands.py.
+
+    create-server has already written `"scope": "pkg:vertical:action"` into each vertical's
+    apps/<app>/commands.py; the AS must offer every one in SCOPES or it cannot issue a token the
+    resource surfaces accept. Returns {scope: human description}, ordered and de-duplicated."""
+    scopes: dict[str, str] = {}
+    for commands_py in sorted(server.glob("apps/*/commands.py")):
+        for scope in _SCOPE_RE.findall(commands_py.read_text(encoding="utf-8")):
+            parts = scope.split(":")
+            scopes[scope] = f"{parts[-1]} {parts[-2]}" if len(parts) >= 2 else scope
+    return scopes
 
 DEFAULT_ISSUER = "https://auth.example.com"
 
 
-def settings_auth_py(issuer: str) -> str:
-    """project/settings/auth.py — DOT configured closed by default + WebAuthn config."""
+def settings_auth_py(issuer: str, scopes: dict[str, str] | None = None) -> str:
+    """project/settings/auth.py — DOT configured closed by default + WebAuthn config.
+
+    `scopes` is the per-command scope catalog (discover_scopes); the AS must offer every one in
+    SCOPES or it cannot issue a token the resource surfaces accept."""
+    scopes = scopes or {}
+    _entries = ['"introspection": "Introspect token validity (resource servers)",']
+    _entries += [f'"{_s}": "{_d}",' for _s, _d in scopes.items()]
+    scopes_block = "\n        ".join(_entries)
     return f'''"""Authorization Server settings (auth.* process). The only stateful surface:
 it owns the OAuth 2.1 token store and the WebAuthn credentials (plus the recovery
 material and audit log). Closed by default — DEFAULT_SCOPES is empty, so a token
@@ -173,7 +196,9 @@ OAUTH2_PROVIDER = {{
     # scopes (racecar-create-server, from the binding) populate SCOPES; "introspection" lets a
     # resource server call /o/introspect.
     "DEFAULT_SCOPES": [],
-    "SCOPES": {{"introspection": "Introspect token validity (resource servers)"}},
+    "SCOPES": {{
+        {scopes_block}
+    }},
 }}
 '''
 
@@ -213,7 +238,9 @@ def render_authserver(server: Path, issuer: str = DEFAULT_ISSUER) -> None:
         server,
         {"__PORT__": str(AUTH_PORT), "{next_json}": '"/o/authorize/"'},
     )
-    (server / "project" / "settings" / "auth.py").write_text(settings_auth_py(issuer))
+    (server / "project" / "settings" / "auth.py").write_text(
+        settings_auth_py(issuer, discover_scopes(server))
+    )
 
 
 def main() -> None:

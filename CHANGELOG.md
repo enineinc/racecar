@@ -4,6 +4,25 @@ All notable changes to racecar are recorded here, in the style of
 [Keep a Changelog](https://keepachangelog.com). racecar is pre-1.0, so a minor
 bump may carry breaking changes for adopters; those are marked **Breaking**.
 
+## 0.13.3 - 2026-06-29
+
+### Added
+- **`server/connect_mcp.sh` is generated into every project.** One parameterized script registers
+  the MCP surface with Claude Code, local by default (`http://mcp.localhost:<port>/mcp`), `--url`
+  to point at the deployed server. On first tool use Claude Code drives the OAuth itself (discover
+  the AS, DCR self-register, browser WebAuthn login, opaque token, call tools). The MCP-client
+  hookup is a per-app need, so racecar generates it rather than each repo reinventing it.
+
+### Fixed
+- **`secure-server` ships the authserver migration** (gfem-pilot finding). The generated app
+  carried the models but no migration, so a bare `manage.py migrate` silently skipped the
+  `WebAuthnCredential` / `BackupCode` / `TemporaryAccessPass` / `AuditLog` tables. The
+  deterministic `0001_initial.py` is now in the template, so `migrate` just works.
+- **`secure-server` populates the AS scope catalog from the generated surfaces** (gfem-pilot
+  finding). `OAUTH2_PROVIDER["SCOPES"]` carried only `introspection`, so the AS could not issue a
+  token bearing any per-command scope and every resource call failed `insufficient_scope`. A new
+  `discover_scopes` reads each `apps/<app>/commands.py` and writes the full catalog into `SCOPES`.
+
 ## 0.13.2 - 2026-06-29
 
 ### Security

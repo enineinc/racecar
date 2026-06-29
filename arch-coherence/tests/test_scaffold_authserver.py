@@ -35,6 +35,30 @@ def test_emits_the_auth_process_files(tmp_path):
         assert (tmp_path / rel).exists(), rel
 
 
+def test_ships_the_authserver_migration(tmp_path):
+    # The app must ship its migration so a bare `manage.py migrate` creates the AS tables; without
+    # it migrate silently skips them (the gfem pilot's first finding).
+    scaffold_authserver.render_authserver(_shell(tmp_path))
+    mig = (tmp_path / "apps" / "authserver" / "migrations" / "0001_initial.py").read_text()
+    for model in ("WebAuthnCredential", "BackupCode", "TemporaryAccessPass", "AuditLog"):
+        assert model in mig, model
+
+
+def test_scopes_discovered_from_commands_into_the_catalog(tmp_path):
+    # The AS must offer every per-command scope create-server wrote, or it cannot issue a token the
+    # surfaces accept (the gfem pilot's second finding). discover_scopes reads the generated
+    # commands.py (values are single-quoted there, so the catalog must tolerate either quote).
+    shell = _shell(tmp_path)
+    (shell / "apps" / "core").mkdir()
+    (shell / "apps" / "core" / "commands.py").write_text(
+        'COMMANDS = {"list": {"scope": "pkg:core:read"}, "run": {"scope": \'pkg:core:write\'}}\n'
+    )
+    scaffold_authserver.render_authserver(shell)
+    auth = (shell / "project" / "settings" / "auth.py").read_text()
+    assert '"pkg:core:read"' in auth and '"pkg:core:write"' in auth
+    assert '"introspection"' in auth
+
+
 def test_closed_by_default(tmp_path):
     scaffold_authserver.render_authserver(_shell(tmp_path))
     settings = (tmp_path / "project" / "settings" / "auth.py").read_text()
