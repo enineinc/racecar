@@ -243,6 +243,13 @@ PEP 405 defines the `venv` module; how to use it on disk is convention. Racecar 
 - Targets in the Makefile run `.venv/bin/python` directly. **No target requires the venv to be "activated"** — `source .venv/bin/activate` is a developer convenience, not part of any automated workflow.
 - The venv is recreatable from scratch via `make install`. Never edit anything inside `.venv/`.
 
+**Instance data lives in a `.gitignore`d `.data/`.** A package's runtime data — a lake,
+downloaded datasets, cached outputs, per-instance manifests — goes under a repo-local
+`.data/` directory (the `--data-root` default; see [CLI.md](CLI.md)), which is gitignored.
+The repo is source, not instance-specific datum: nothing under `.data/` is committed.
+Organize `.data/` by concern: `.data/sources/<source>/` holds per-source manifests and
+`.data/lake/` holds the mirrored data.
+
 The repo-local pattern means switching projects is a `cd`, not a `pyenv shell` or `conda activate`. It also means CI uses the same setup as developers do: create venv, install deps, run targets.
 
 ## 5. Dependencies (pyproject is the source of truth)
@@ -319,6 +326,8 @@ dev = [
 - **`pylint-django`** — the community-OSS pylint plugin that teaches pylint the Django ORM (so `Model.objects`, the `Meta` inner class, and the model metaclass stop raising false positives). It is loaded **on the server only**: `racecar.mk`'s `lint` target lints `$(SRC)` with the plain library config and lints `$(SERVER)` with `--load-plugins=pylint_django`. The library is not Django and may not even import it, so the plugin is not loaded over the library tree, and adopters do not hand-edit `[tool.pylint.MAIN].load-plugins` (re-syncing `racecar.mk` is the whole change). Without it the django app lints against the library config and false-positives on every ORM idiom, which kept `make check` red.
 
 **Racecar's specific commitments.** Pinning the exact list (rather than letting projects choose between e.g. pylint and flake8) is racecar's call. It produces consistency across projects at the cost of some flexibility. Adding a tool to this list is a standards-change conversation, not a project-by-project decision.
+
+**Type-stub packages are a permitted append.** A project may add type-stub distributions to `dev` without a standards change: the PEP 561 stub-only form (`<pkg>-stubs`, e.g. `pandas-stubs`) and the typeshed form (`types-<pkg>`, e.g. `types-requests`). They are dev-only, carry no runtime code, and exist so `mypy` (a canon tool) can typecheck a project whose dependencies ship incomplete or no inline types (pandas is the common case: it has no mypy-trusted `py.typed`, so without `pandas-stubs` every pandas value is `Any` and strict mode fails). Because a stub is specific to the library it describes, it cannot live in a single frozen list, so `check_packaging.py` recognizes both naming conventions and does not flag them as beyond canon. This is the type-checking analogue of the pylint rule that the disable set is fixed but a project may append its own disables.
 
 **Specifically not on the list:**
 

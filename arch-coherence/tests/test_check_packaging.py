@@ -480,6 +480,33 @@ def test_missing_canon_dev_tool_is_blocker(tmp_path: Path) -> None:
     assert "pip-audit" in result.stdout
 
 
+def test_type_stub_append_to_dev_is_permitted(tmp_path: Path) -> None:
+    """Type-stub packages (PEP 561 ``<pkg>-stubs`` and typeshed ``types-<pkg>``) may be
+    appended to dev without a standards change (PACKAGING.md §6): mypy needs them to
+    typecheck a dependency that ships no ``py.typed``. They are not beyond canon, so they
+    do not trip even under ``--strict`` (which turns Findings into Blockers)."""
+    good = CANON_LIBRARY_PYPROJECT.replace(
+        '"pyyaml>=6.0",\n',
+        '"pyyaml>=6.0",\n    "pandas-stubs",\n    "types-requests",\n',
+    )
+    repo = _seed_src(tmp_path, **{"pyproject.toml": good})
+    result = _run(repo, "--strict")
+    assert result.returncode == 0, result.stdout
+    assert "beyond canon" not in result.stdout
+
+
+def test_non_stub_extra_dev_tool_is_flagged(tmp_path: Path) -> None:
+    """The stub exemption is narrow: a non-stub extra (flake8) is still beyond canon."""
+    extra = CANON_LIBRARY_PYPROJECT.replace(
+        '"pyyaml>=6.0",\n', '"pyyaml>=6.0",\n    "flake8",\n'
+    )
+    repo = _seed_src(tmp_path, **{"pyproject.toml": extra})
+    result = _run(repo, "--strict")
+    assert result.returncode == 1
+    assert "beyond canon" in result.stdout
+    assert "flake8" in result.stdout
+
+
 def test_dev_in_old_optional_dependencies_location_is_blocker(tmp_path: Path) -> None:
     """PEP 735 supersedes [project.optional-dependencies].dev."""
     bad = CANON_LIBRARY_PYPROJECT.replace(

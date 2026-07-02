@@ -9,30 +9,43 @@ detector, NOT a wall: gate genuine defects (the import-linter `layers` contract)
 surface choices (this script). See SURFACES.md §3-§5.
 
 This script is the surface, not the gate. It is ADVISORY: exit 0 by default,
-`--strict` to exit 1 on any Finding. It does two deterministic things:
+`--strict` to exit 1 on any Finding. It is **surface-rooted** and identifies roles by
+**name or mapping only** -- there is no structural guessing.
 
-  1. Role identification (SURFACES.md §5), declare-then-verify, three tiers:
-       Tier 1  canonical names: lib.py / api.py / mcp.py / __main__.py.
-       Tier 2  [tool.racecar.roles] manifest: declare role -> module per vertical.
-       Tier 3  structural inference: api = the articulation point (cut vertex)
-               every surface routes through to reach the lib; lib = the in-vertical
-               sink. A declared `api` that is NOT the cut vertex is a Finding; a
-               vertical with no single cut vertex (surfaces touch the lib directly,
-               surfaces > 1) is NON-CLASSIFIABLE -- and the non-classifiability is the
-               drift finding. Single-surface verticals collapse api==lib legitimately.
-       All tiers deterministic; ambiguity is resolved by the owner adding one
-       manifest line, never by a model (LLM-last; DRIFT.md entropy rule).
+  1. Surfaces are the only analysis anchors (SURFACES.md §7):
+       - `cli`     a package's `__main__.py`.
+       - `mcp`     a module `mcp.py` OR an `mcp/` package.
+       - `django`  the presence of `server/manage.py` (the whole server is one surface).
+     A package with NO surface is a **library** and is not analyzed at all -- silent.
+     "No surface, nothing to check" is the load-bearing tolerance gate.
 
-  2. Restated orchestration: extract each surface's api-call sequence as a normalized
-     token stream and flag a sequence appearing in two or more surfaces -- one
-     orchestration policy with two homes, the signal it belongs in `api`.
+     Discovery is further tolerant (the `__main__`-depth test, `_main_imports_deeper`):
+     a package whose only surface is a `__main__` that never imports deeper than its
+     own directory -- a dispatcher composing same-dir siblings and sibling/parent
+     packages, the `data/` + `sources/` ingestion shape -- names no role and is not a
+     classifiable vertical, so it is skipped (silent). A `sources/<protocol>` adapter
+     has no `__main__` at all and is likewise silent. A new shape under `src/<pkg>/`
+     is not a defect.
 
-Every output is a Finding ("should this live in api?"), never a Blocker.
+  2. Role identification -- NAME OR MAPPING ONLY (SURFACES.md §5):
+       - `api` = a module `api.py` OR a package `api/`; OR the module named in
+         `[tool.racecar.roles]`.
+       - `lib` = a module `lib.py` OR a package `lib/`; OR mapped.
+     No reachability, no cut-vertex, no sink inference. The name is the declaration
+     (the Django autodiscovery model); the manifest renames it. Ambiguity is resolved
+     by the owner adding one manifest line, never by a model (LLM-last; DRIFT.md).
+
+  3. Findings (advisory):
+       - `api-without-lib`: a unit with a surface whose `api` is named/mapped but has
+         no `lib` (named/mapped). The api fronts nothing -- add a lib or declare it.
+       - `restated-orchestration`: an api-call window appearing across two or more
+         surfaces of the same unit -- one policy with two homes, move it into `api`.
+     A unit with a surface but NO `api` is SILENT: the api is the anchor; with none
+     named/mapped there is nothing to verify, and the detector does not nag.
 
 Pure stdlib (tomllib + ast). Shape comes from check_packaging.detect_shape; the
 source-root resolution and package walk (`_src_roots` / `_top_packages` / `_dotted`)
-are local helpers below. The library pyproject is found by shape detection. No-ops
-(exit 0) on a project with no verticals.
+are local helpers below. The library pyproject is found by shape detection.
 
 Usage (invoked by `make arch`):
     python scripts/check_surface_orchestration.py [--root <dir>] [--threshold N] [--strict]
@@ -56,35 +69,34 @@ from check_packaging import detect_shape
 # more api calls in the same order across surfaces is the restatement signal.
 DEFAULT_THRESHOLD = 2
 
-# Canonical per-vertical role file names (SURFACES.md §2). A vertical is the lib+api
-# worker pair; __main__ and mcp are surfaces (a __main__ may stand alone as a CLI node).
+# Canonical per-vertical role names (SURFACES.md §2). `lib`/`api` are the worker pair;
+# `__main__` (cli) and `mcp` are surfaces. Each may be a module (`x.py`) or a package
+# (`x/` with __init__.py) -- both forms are recognized by name.
 CANON_LIB = "lib"
 CANON_API = "api"
 CANON_MAIN = "__main__"
 CANON_MCP = "mcp"
-FACE_NAMES = {CANON_MAIN, CANON_MCP}
+CANON_DJANGO = "django"
 # Directories that are never verticals.
 NON_VERTICAL_DIRS = {"shared", "tests", "test", "migrations", "__pycache__"}
-# Transport signatures that mark a module as a surface (Tier 3, SURFACES.md §5).
-TRANSPORT_IMPORTS = ("mcp", "flask", "fastapi", "django", "starlette", "aiohttp")
 
 
 @dataclass
 class Vertical:
-    """One feature submodule and the roles racecar identified within it."""
+    """One unit (a package with a surface) and the roles racecar identified within it."""
 
     name: str
     prefix: str  # dotted package prefix, e.g. "athena.prices"
     modules: dict[str, Path]  # short module name -> file path (in-vertical)
-    lib: str | None = None  # short module name of the lib role
-    api: str | None = None  # short module name of the api role
+    lib: str | None = None  # short name of the lib role (module or package)
+    api: str | None = None  # short name of the api role (module or package)
     surfaces: list[str] = field(default_factory=list)  # short names of surface modules
-    tier: str = "structural"  # how roles were identified: name|manifest|structural
+    tier: str = "name"  # how roles were identified: name|manifest
 
 
 @dataclass
 class Finding:
-    """A single surface-orchestration violation: which vertical, which rule, why."""
+    """A single surface-orchestration finding: which unit, which rule, why."""
 
     vertical: str
     rule: str
@@ -112,12 +124,14 @@ def _manifest(pyproject: Path) -> list[dict]:
 
 
 def _src_roots(root: Path, shape_name: str) -> list[Path]:
-    """Directories under which top-level importable packages live, per shape."""
+    """Directories under which top-level importable packages live, per shape.
+
+    `server/` is NOT walked for units: the whole server is one django surface (§7),
+    discovered separately by `_django_vertical`, not a bag of per-app verticals.
+    """
     roots: list[Path] = []
     if shape_name in ("src", "src+server"):
         roots.append(root / "src")
-    if shape_name in ("src+server", "server"):
-        roots.append(root / "server")
     roots.append(root)
     return [r for r in roots if r.is_dir()]
 
@@ -142,17 +156,36 @@ def _dotted(pkg_root: Path, directory: Path) -> str:
     return ".".join(rel.parts)
 
 
-# --- vertical discovery ------------------------------------------------------
+# --- unit discovery ----------------------------------------------------------
+
+
+def _subpackages(directory: Path) -> set[str]:
+    """Names of immediate subpackages (dirs holding __init__.py)."""
+    return {
+        p.name
+        for p in directory.iterdir()
+        if p.is_dir() and (p / "__init__.py").is_file()
+    }
+
+
+def _has_role(name: str, files: dict[str, Path], subpkgs: set[str]) -> bool:
+    """A canonical role is present as a module (`name.py`) OR a package (`name/`)."""
+    return name in files or name in subpkgs
 
 
 def _discover_verticals(src_roots: list[Path]) -> list[Vertical]:
-    """A vertical is a package dir co-locating role files (SURFACES.md §3).
+    """A unit is a package that OWNS a surface (SURFACES.md §7).
 
-    Identified structurally: any package directory (not shared/tests/...) holding at
-    least one canonical role file (lib.py / api.py / mcp.py / __main__.py) or two+
-    plain modules alongside a __main__. Filenames are not required to be canonical --
-    the manifest (Tier 2) can rename -- but the presence of a role file is the
-    discovery signal.
+    Surfaces are the only anchors, detected by name: `cli` = `__main__.py`; `mcp` =
+    `mcp.py` or an `mcp/` package. A package with no surface is a library and is not
+    discovered -- silent. Roles are recognized by canonical name (module or package
+    form); the manifest (Tier 2, `_identify`) can rename them. Nothing is inferred.
+
+    Tolerant (the `__main__`-depth test): a package whose only surface is a `__main__`
+    that names no role and never imports deeper than its own directory (composing
+    same-dir siblings and sibling/parent packages -- the `data/` + `sources/` ingestion
+    shape) is a dispatcher, not a `lib -> api -> surface` vertical, and is skipped. A
+    source adapter has no `__main__` at all and is likewise not a vertical.
     """
     verticals: list[Vertical] = []
     seen: set[Path] = set()
@@ -162,244 +195,153 @@ def _discover_verticals(src_roots: list[Path]) -> list[Vertical]:
                 continue
             if not (directory / "__init__.py").is_file() and directory != pkg:
                 continue
-            py = {
+            files = {
                 p.stem: p
                 for p in sorted(directory.glob("*.py"))
                 if p.stem != "__init__"
             }
-            has_worker = any(name in py for name in (CANON_LIB, CANON_API, CANON_MCP))
-            # A package whose ONLY role file is __main__.py (no co-located worker) is a
-            # CLI node, not a surfaces vertical: a CLI.md Pattern 1 discovery root that
-            # composes children, or a single-file tool. There is no lib->api structure to
-            # classify, so it is out of the surfaces detector's scope. A worker named other
-            # than lib/api/mcp still counts via the 2+-sibling-modules signal (SURFACES.md §3).
-            non_main_modules = [name for name in py if name != CANON_MAIN]
-            if not (has_worker or len(non_main_modules) >= 2):
+            subpkgs = _subpackages(directory)
+
+            # Surfaces by name -- the only analysis anchors. No surface -> library.
+            surfaces: list[str] = []
+            if CANON_MAIN in files:
+                surfaces.append(CANON_MAIN)
+            if _has_role(CANON_MCP, files, subpkgs):
+                surfaces.append(CANON_MCP)
+            if not surfaces:
                 continue
+
+            api = CANON_API if _has_role(CANON_API, files, subpkgs) else None
+            lib = CANON_LIB if _has_role(CANON_LIB, files, subpkgs) else None
+
+            # Tolerant discovery -- the __main__-depth test. A package whose only surface
+            # is a __main__, that names no api or lib and never descends into a deeper
+            # in-package layer, is a dispatch/composition surface (the data/ + sources/
+            # ingestion shape), not a vertical. A genuine vertical's __main__ caps an
+            # in-package stack it reaches deeper into, or the package names a role.
+            if (
+                set(surfaces) <= {CANON_MAIN}
+                and api is None
+                and lib is None
+                and not _main_imports_deeper(directory, _dotted(pkg, directory))
+            ):
+                continue
+
+            modules = dict(files)
+            if CANON_MCP in subpkgs and CANON_MCP not in modules:
+                init = directory / CANON_MCP / "__init__.py"
+                if init.is_file():
+                    modules[CANON_MCP] = init
+
             seen.add(directory)
             verticals.append(
                 Vertical(
-                    name=directory.name, prefix=_dotted(pkg, directory), modules=py
+                    name=directory.name,
+                    prefix=_dotted(pkg, directory),
+                    modules=modules,
+                    lib=lib,
+                    api=api,
+                    surfaces=sorted(surfaces),
                 )
             )
     return verticals
 
 
-# --- import graph (intra-vertical) -------------------------------------------
+def _django_vertical(root: Path) -> Vertical | None:
+    """The single django surface: `server/manage.py` present (SURFACES.md §7).
 
-
-def _intra_imports(path: Path, prefix: str, members: set[str]) -> set[str]:
-    """Short names of in-vertical modules that `path` imports.
-
-    Resolves absolute imports under `prefix` and relative imports at level 1.
+    The whole server is ONE surface, not a bag of per-app verticals. It carries no
+    modules and, absent a `[tool.racecar.roles]` mapping that names an `api`, it stays
+    silent (a surface with no api anchor -- nothing to verify).
     """
+    if not (root / "server" / "manage.py").is_file():
+        return None
+    return Vertical(name="server", prefix="server", modules={}, surfaces=[CANON_DJANGO])
+
+
+def _main_imports_deeper(directory: Path, prefix: str) -> bool:
+    """True if ``directory/__main__.py`` imports a module nested BELOW ``directory`` (a
+    subpackage / deeper module).
+
+    The discriminator between a vertical and a dispatcher. A source adapter
+    (``sources/<protocol>/``) has no ``__main__`` at all (a pure library, invoked by the
+    ``data`` parent) -> False. A ``data`` dispatcher's ``__main__`` reaches only same-dir
+    command modules and sibling/parent packages, never deeper -> False. Only a genuine
+    vertical's ``__main__`` caps an in-package stack by importing its own subpackage ->
+    True.
+    """
+    main = directory / "__main__.py"
+    if not main.is_file():
+        return False
+    subpkgs = _subpackages(directory)
+    if not subpkgs:
+        return False
     try:
-        tree = ast.parse(path.read_text(encoding="utf-8"))
+        tree = ast.parse(main.read_text(encoding="utf-8"))
     except (SyntaxError, OSError):
-        return set()
-    edges: set[str] = set()
+        return False
     for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
+        if isinstance(node, ast.ImportFrom):
+            if node.level == 1 and node.module and node.module.split(".")[0] in subpkgs:
+                return True  # from .subpkg[...] import ...
+            if node.level == 1 and node.module is None:
+                if any(alias.name in subpkgs for alias in node.names):
+                    return True  # from . import subpkg
+            if (
+                node.module
+                and node.module.startswith(prefix + ".")
+                and node.module[len(prefix) + 1 :].split(".")[0] in subpkgs
+            ):
+                return True  # absolute import into a subpackage
+        elif isinstance(node, ast.Import):
             for alias in node.names:
-                if alias.name.startswith(prefix + "."):
-                    tail = alias.name[len(prefix) + 1 :].split(".")[0]
-                    if tail in members:
-                        edges.add(tail)
-        elif isinstance(node, ast.ImportFrom):
-            if node.level == 1:  # from .X import ...  /  from . import X
-                if node.module:
-                    head = node.module.split(".")[0]
-                    if head in members:
-                        edges.add(head)
-                else:
-                    for alias in node.names:
-                        if alias.name in members:
-                            edges.add(alias.name)
-            elif node.module and node.module.startswith(prefix + "."):
-                tail = node.module[len(prefix) + 1 :].split(".")[0]
-                if tail in members:
-                    edges.add(tail)
-            elif node.module == prefix:
-                for alias in node.names:
-                    if alias.name in members:
-                        edges.add(alias.name)
-    return edges
-
-
-def _graph(v: Vertical) -> dict[str, set[str]]:
-    members = set(v.modules)
-    return {
-        name: _intra_imports(path, v.prefix, members)
-        for name, path in v.modules.items()
-    }
-
-
-def _reachable(
-    graph: dict[str, set[str]], src: str, dst: str, blocked: str | None
-) -> bool:
-    """Can `dst` be reached from `src` following import edges, skipping `blocked`?"""
-    if src == dst:
-        return True
-    stack, seen = [src], {src}
-    while stack:
-        cur = stack.pop()
-        for nxt in graph.get(cur, ()):
-            if nxt == blocked or nxt in seen:
-                continue
-            if nxt == dst:
-                return True
-            seen.add(nxt)
-            stack.append(nxt)
+                if (
+                    alias.name.startswith(prefix + ".")
+                    and alias.name[len(prefix) + 1 :].split(".")[0] in subpkgs
+                ):
+                    return True
     return False
 
 
-def _is_face(name: str, path: Path) -> bool:
-    """Surface by canonical name (__main__/mcp) or transport signature (SURFACES.md §5)."""
-    if name in FACE_NAMES:
-        return True
-    try:
-        src = path.read_text(encoding="utf-8")
-    except OSError:
-        return False
-    if 'if __name__ == "__main__"' in src or "if __name__ == '__main__'" in src:
-        if "argparse" in src:
-            return True
-    try:
-        tree = ast.parse(src)
-    except SyntaxError:
-        return False
-    imported: set[str] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            imported.update(a.name.split(".")[0] for a in node.names)
-        elif isinstance(node, ast.ImportFrom) and node.module:
-            imported.add(node.module.split(".")[0])
-    return any(t in imported for t in TRANSPORT_IMPORTS)
-
-
-# --- role identification -----------------------------------------------------
-
-
-def _sink(graph: dict[str, set[str]], candidates: set[str]) -> str | None:
-    """The in-vertical sink among `candidates`: imports no other member."""
-    sinks = [n for n in candidates if not graph.get(n, set()) & set(graph)]
-    return sinks[0] if len(sinks) == 1 else None
+# --- role identification: name or mapping only -------------------------------
 
 
 def _identify(v: Vertical, manifest_by_prefix: dict[str, dict]) -> list[Finding]:
-    """Fill v.lib / v.api / v.surfaces and return any role Findings."""
-    findings: list[Finding] = []
-    graph = _graph(v)
+    """Apply any manifest mapping over the name-detected roles; return Findings.
 
-    # Tier 2: manifest (authority when present).
+    Roles are already set from canonical names during discovery. The manifest (Tier 2)
+    is authority when present: it can rename `lib`/`api` and re-declare `surfaces`.
+    There is no Tier 3 -- nothing is inferred from the import graph.
+    """
     entry = manifest_by_prefix.get(v.prefix) or manifest_by_prefix.get(v.name)
     if entry:
         v.tier = "manifest"
-        v.lib = _short(entry.get("lib"), v.prefix)
-        v.api = _short(entry.get("api"), v.prefix)
-        v.surfaces = [
+        lib = _short(entry.get("lib"), v.prefix)
+        api = _short(entry.get("api"), v.prefix)
+        if lib is not None:
+            v.lib = lib
+        if api is not None:
+            v.api = api
+        surfaces = [
             s for s in (_short(f, v.prefix) for f in entry.get("surfaces", [])) if s
         ]
-    else:
-        # Tier 1: canonical names.
-        v.surfaces = sorted(n for n, p in v.modules.items() if _is_face(n, p))
-        if CANON_LIB in v.modules:
-            v.lib = CANON_LIB
-            v.tier = "name"
-        if CANON_API in v.modules:
-            v.api = CANON_API
-            v.tier = "name"
+        if surfaces:
+            v.surfaces = surfaces
 
-    # Tier 3: structural inference for whatever names/manifest did not pin.
-    non_faces = set(v.modules) - set(v.surfaces)
-    if v.lib is None:
-        v.lib = _sink(graph, non_faces)
-        if v.lib is not None and v.tier == "structural":
-            v.tier = "structural"
-
-    if not v.surfaces:
-        return findings  # no surface: a plain library vertical, nothing to route.
-
-    if v.lib is None:
-        # FD1: a top-level Pattern-1 pure-discovery root, whose sole surface is a __main__
-        # that composes child verticals by name and reaches no in-vertical sibling,
-        # co-residing with a shared layer (auth/config/domains/...), is out of surfaces
-        # scope, not a defective vertical. The siblings are a shared layer the root does
-        # not route through, so there is no lib->api->surface structure to classify.
-        # Suppress the finding for it (SURFACES.md §7 / FD1; advisory-only, never gating).
-        if v.surfaces == [CANON_MAIN] and not graph.get(CANON_MAIN):
-            return findings
-        findings.append(
-            Finding(
-                v.name,
-                "non-classifiable",
-                "no in-vertical lib sink found; declare [tool.racecar.roles] for "
-                f"'{v.name}' or co-locate a lib.py",
-            )
-        )
-        return findings
-
-    # Verify / infer the api as the articulation point between surfaces and lib.
-    if v.api is not None:
-        bypassers = [f for f in v.surfaces if _reachable(graph, f, v.lib, blocked=v.api)]
-        if bypassers and v.api != v.lib:
-            findings.append(
-                Finding(
-                    v.name,
-                    "api-not-cut-vertex",
-                    f"declared api '{v.api}' is not the articulation point: surface(s) "
-                    f"{bypassers} reach the lib '{v.lib}' without passing through it",
-                )
-            )
-    else:
-        findings.extend(_infer_api(v, graph))
-    return findings
-
-
-def _infer_api(v: Vertical, graph: dict[str, set[str]]) -> list[Finding]:
-    """Infer api as the cut vertex; emit the non-classifiability finding if none."""
-    assert v.lib is not None
-    if len(v.surfaces) == 1:
-        # Single surface: api==lib collapse is legitimate (SURFACES.md §1, §5). If a single
-        # mediator exists, name it; otherwise the surface imports lib directly -- fine.
-        cut = _cut_vertices(v, graph)
-        v.api = cut[0] if len(cut) == 1 else v.lib
+    if v.api is None:
+        # A surface with no api named or mapped: the api is the anchor, and with none
+        # there is nothing to verify. Silent -- do not nag (SURFACES.md §7).
         return []
-    cut = _cut_vertices(v, graph)
-    if len(cut) == 1:
-        v.api = cut[0]
-        return []
-    if not cut:
+    if v.lib is None:
         return [
             Finding(
                 v.name,
-                "non-classifiable",
-                f"surfaces {v.surfaces} reach the lib '{v.lib}' with no single mediating api "
-                "module; introduce an api.py or declare [tool.racecar.roles]",
+                "api-without-lib",
+                f"api '{v.api}' fronts no lib; add lib.py/lib/ or declare it in "
+                "[tool.racecar.roles]",
             )
         ]
-    return [
-        Finding(
-            v.name,
-            "ambiguous-api",
-            f"multiple candidate api modules {cut} mediate surfaces->lib; declare the "
-            "intended one in [tool.racecar.roles]",
-        )
-    ]
-
-
-def _cut_vertices(v: Vertical, graph: dict[str, set[str]]) -> list[str]:
-    """Non-surface, non-lib modules whose removal disconnects EVERY surface from the lib."""
-    assert v.lib is not None
-    candidates = set(v.modules) - set(v.surfaces) - {v.lib}
-    cut: list[str] = []
-    for node in sorted(candidates):
-        reaches = [f for f in v.surfaces if _reachable(graph, f, v.lib, blocked=None)]
-        if not reaches:
-            continue
-        if all(not _reachable(graph, f, v.lib, blocked=node) for f in reaches):
-            cut.append(node)
-    return cut
+    return []
 
 
 def _short(dotted: object, prefix: str) -> str | None:
@@ -493,7 +435,7 @@ def _restated(verticals: list[Vertical], threshold: int) -> list[Finding]:
 
 
 def main(argv: list[str]) -> int:
-    """Validate each declared vertical's surface orchestration; return an exit code."""
+    """Validate each discovered unit's surface orchestration; return an exit code."""
     parser = argparse.ArgumentParser(add_help=True)
     parser.add_argument("--root", type=Path, default=Path.cwd())
     parser.add_argument("--threshold", type=int, default=DEFAULT_THRESHOLD)
@@ -508,6 +450,9 @@ def main(argv: list[str]) -> int:
     src_roots = _src_roots(args.root, shape.name)
 
     verticals = _discover_verticals(src_roots)
+    django = _django_vertical(args.root)
+    if django is not None:
+        verticals.append(django)
     if not verticals:
         print("check_surface_orchestration: no surfaces verticals found; nothing to check")
         return 0

@@ -19,7 +19,7 @@
 #   <where>              setuptools package source path; see table below
 #   layered DAG rows     replace with the project's actual peers and leaves
 #
-# Lockfiles are optional and not part of canon (PACKAGING.md §5): a committed
+# Lockfiles are optional and not part of canon (racecar PACKAGING, lockfiles): a committed
 # `requirements.txt` is validated-if-present but never required, and there is no
 # `make lock` target — projects that want one generate it with their own tool.
 #
@@ -134,7 +134,7 @@ ignore-docstrings = true
 py-version = "3.12"
 # Library plugins only. pylint_django is NOT added here (it would load over the
 # library tree too); racecar.mk's `lint` target loads it on the server via
-# --load-plugins (PACKAGING.md §6).
+# --load-plugins (racecar PACKAGING, pylint-django).
 load-plugins = ["pylint_pytest"]
 
 [tool.pylint.MASTER]

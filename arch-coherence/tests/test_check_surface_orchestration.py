@@ -62,27 +62,34 @@ def test_clean_vertical_passes(tmp_path: Path) -> None:
     assert "OK (advisory)" in result.stdout
 
 
-def test_face_bypassing_api_is_flagged(tmp_path: Path) -> None:
-    """A surface importing the lib directly is not gated, but is surfaced."""
-    files = dict(_CLEAN)
-    files["__main__.py"] = "import argparse\nfrom .lib import engine\ndef main():\n    engine()\n"
+def test_api_without_lib_is_flagged(tmp_path: Path) -> None:
+    """A unit with a surface and a named `api` but no `lib` (named or mapped) is the one
+    structural finding: the api fronts nothing. Name/mapping only, no guessing."""
+    files = {
+        "api.py": "def run():\n    return 1\n",
+        "__main__.py": "import argparse\nfrom . import api\ndef main():\n    api.run()\n",
+    }
     repo = _seed(tmp_path, files)
     result = _run(repo)
-    assert "api-not-cut-vertex" in result.stdout
+    assert "api-without-lib" in result.stdout
     assert result.returncode == 0  # advisory by default
 
 
 def test_strict_exits_nonzero_on_finding(tmp_path: Path) -> None:
-    files = dict(_CLEAN)
-    files["__main__.py"] = "import argparse\nfrom .lib import engine\ndef main():\n    engine()\n"
+    files = {
+        "api.py": "def run():\n    return 1\n",
+        "__main__.py": "import argparse\nfrom . import api\ndef main():\n    api.run()\n",
+    }
     repo = _seed(tmp_path, files)
     result = _run(repo, "--strict")
     assert result.returncode == 1
-    assert "api-not-cut-vertex" in result.stdout
+    assert "api-without-lib" in result.stdout
 
 
-def test_non_classifiable_two_faces_no_api(tmp_path: Path) -> None:
-    """Two surfaces touching the lib directly with no mediating api is the drift finding."""
+def test_two_surfaces_no_api_is_silent(tmp_path: Path) -> None:
+    """Two surfaces importing the lib directly with no `api` named/mapped: silent. The api
+    is the anchor -- with none declared there is no chain to verify and nothing to restate
+    (the detector never guesses one structurally)."""
     files = {
         "lib.py": "def engine():\n    return 1\n",
         "__main__.py": "import argparse\nfrom .lib import engine\ndef main():\n    engine()\n",
@@ -90,7 +97,9 @@ def test_non_classifiable_two_faces_no_api(tmp_path: Path) -> None:
     }
     repo = _seed(tmp_path, files)
     result = _run(repo)
-    assert "non-classifiable" in result.stdout
+    assert result.returncode == 0
+    assert "api-without-lib" not in result.stdout
+    assert "restated-orchestration" not in result.stdout
 
 
 def test_single_face_api_lib_collapse_is_ok(tmp_path: Path) -> None:
@@ -180,34 +189,30 @@ def test_clean_vertical_emits_no_findings(tmp_path: Path) -> None:
     assert "OK (advisory)" in result.stdout
 
 
-def test_fd1_discovery_root_with_shared_layer_is_suppressed(tmp_path: Path) -> None:
-    """FD1: a top-level Pattern-1 discovery root whose sole surface is a `__main__` that
-    composes child verticals by name and reaches no in-vertical sibling, co-residing
-    with a shared layer (`auth`/`config`), is out of surfaces scope, not a non-classifiable
-    vertical. The two siblings make it pass discovery (2+ modules), but classification
-    must suppress the finding. Escalated from a wicket racecar-upgrade."""
+def test_dispatcher_root_with_shared_layer_is_silent(tmp_path: Path) -> None:
+    """A `__main__`-only package that names no `api`/`lib`, composes children, and reaches
+    no deeper in-package layer (a dispatcher / discovery root co-residing with a shared
+    layer) is out of scope. No surface->api->lib chain to classify -> silent."""
     (tmp_path / "pyproject.toml").write_text(PYPROJECT)
     root = tmp_path / "src" / "myapp"
     root.mkdir(parents=True)
     (root / "__init__.py").write_text("")
-    # discovery root: composes children by name, imports no sibling
     (root / "__main__.py").write_text(
         "import argparse\nfrom . import flights, dashboard\n"
         "def main():\n    argparse.ArgumentParser()\n"
     )
-    # shared layer: two independent modules, no intra imports (two sinks -> lib is None)
     (root / "auth.py").write_text("SECRET = 'x'\n")
     (root / "config.py").write_text("DEBUG = True\n")
     result = _run(tmp_path)
     assert result.returncode == 0, result.stdout + result.stderr
-    assert "non-classifiable" not in result.stdout
-    assert "OK (advisory)" in result.stdout
+    assert "Findings" not in result.stdout
 
 
-def test_fd1_is_narrow_main_reaching_a_sibling_still_flagged(tmp_path: Path) -> None:
-    """FD1 suppression is narrow: a `__main__` that reaches an in-vertical sibling is
-    wiring through it, so the non-classifiable finding still stands. Only a sibling-free
-    discovery root is out of scope; this guards against over-suppression."""
+def test_dispatcher_reaching_siblings_is_silent(tmp_path: Path) -> None:
+    """The tolerance is the point: a `__main__` composing same-dir siblings (no `api`/`lib`
+    named, no deeper import) is a dispatcher, not a defective vertical. Under the old
+    structural detector this was flagged non-classifiable; the name/mapping model correctly
+    leaves it silent -- a new shape under src/<pkg>/ is not a defect."""
     (tmp_path / "pyproject.toml").write_text(PYPROJECT)
     root = tmp_path / "src" / "myapp"
     root.mkdir(parents=True)
@@ -219,4 +224,5 @@ def test_fd1_is_narrow_main_reaching_a_sibling_still_flagged(tmp_path: Path) -> 
     (root / "auth.py").write_text("SECRET = 'x'\n")
     (root / "config.py").write_text("DEBUG = True\n")
     result = _run(tmp_path)
-    assert "non-classifiable" in result.stdout
+    assert result.returncode == 0
+    assert "Findings" not in result.stdout

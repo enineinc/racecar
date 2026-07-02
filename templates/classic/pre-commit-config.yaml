@@ -11,7 +11,7 @@ repos:
         name: isort
         entry: bash -c 'CONF=$(make -s print-LIB_PYPROJECT); python -m isort --settings-file "$CONF" "$@"' --
         language: python
-        additional_dependencies: [isort==5.13.2]
+        additional_dependencies: [isort==8.0.1]
         types: [python]
         exclude: '^scripts/'
 
@@ -19,7 +19,7 @@ repos:
         name: black
         entry: bash -c 'CONF=$(make -s print-LIB_PYPROJECT); python -m black --config "$CONF" "$@"' --
         language: python
-        additional_dependencies: [black==24.10.0]
+        additional_dependencies: [black==26.5.1]
         types: [python]
         exclude: '^scripts/'
 

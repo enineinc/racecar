@@ -286,6 +286,15 @@ the thing it watches").
   implicit magic. "Take all the good" only works paired with "leave the bad," else
   the borrowing becomes its own dogma.
 
+- **`api` returns data; the surface renders and owns exit codes.** Every `api`
+  function returns plain JSON-serializable data (a dict such as
+  `{"synced": {...}, "failed": [...]}`), never a formatted string, and raises a
+  package-level `ApiError` on a user-facing failure. The cli catches it, prints, and
+  sets the exit code; the rest face serializes it; the mcp face wraps it as tool
+  content. Strip the transport and `api` is unchanged. A **single-surface** package
+  may keep these `api`-role functions in the command module (the collapse the north
+  star permits) until a second surface lands, at which point they move to `api.py`.
+
 ## 7. The advisory detector
 
 `check_surface_orchestration.py` is the **surface, not the gate**. The `layers`
@@ -294,15 +303,34 @@ satisfies the topology and still **restates orchestration in its own body**
 (re-resolve inputs, re-default, re-seed credentials) calling only `api` primitives.
 That restatement is the drift this doctrine prevents, and a green topology hides it.
 
-The detector does two deterministic things, both **advisory** (exit 0 by default;
-`--strict` for a project that wants exit 1):
+The detector is **surface-rooted** and identifies roles by **name or mapping only** —
+there is no structural guessing. It does two deterministic things, both **advisory**
+(exit 0 by default; `--strict` for a project that wants exit 1):
 
-1. **Role identification** (§5): classify each vertical's `lib` / `api` / surfaces via
-   name → manifest → structure, and report any vertical that is **non-classifiable**
-   (no clean cut vertex) or whose **declared `api` is not the cut vertex**.
+1. **Surface-rooted role identification** (§5). Surfaces are the only analysis anchors:
+   `cli` = a package's `__main__.py`; `mcp` = `mcp.py` or an `mcp/` package; `django` =
+   the presence of `server/manage.py` (the whole server is one surface). A package with
+   **no surface is a library** and is not analyzed at all — silent. Within a unit, the
+   roles are read by **canonical name** (`api` = `api.py` or an `api/` package; `lib` =
+   `lib.py` or a `lib/` package — both module and directory forms count) **or by
+   `[tool.racecar.roles]` mapping**, never inferred from the import graph. Discovery is
+   further **tolerant** (the `__main__`-depth test): a package whose only surface is a
+   `__main__` that names no role and never imports deeper than its own directory
+   (composing same-dir siblings and sibling packages — the `data/` + `sources/`
+   ingestion shape) is a dispatcher, not a `lib → api → surfaces` vertical, and is not
+   discovered. A `sources/<protocol>` adapter has no `__main__` at all and is likewise
+   silent. A new shape under `src/<pkg>/` is not a defect.
 2. **Restated orchestration**: extract each surface's `api`-call sequence as a
    normalized token stream and flag a sequence that appears in **two or more**
-   surfaces — one orchestration policy with two homes, the signal it belongs in `api`.
+   surfaces of the same unit — one orchestration policy with two homes, the signal it
+   belongs in `api`.
+
+Only two findings, both advisory: **`api-without-lib`** (a unit whose `api` is named or
+mapped but fronts no `lib` — add `lib.py` / `lib/` or declare it in
+`[tool.racecar.roles]`) and **restated-orchestration**. A unit with a surface but no
+`api` named or mapped is **silent**: the `api` is the anchor, and with none there is
+nothing to verify — the detector does not nag. Libraries and dispatchers are silent by
+construction.
 
 Every output is a Finding ("should this live in `api`?"), not a Blocker. This is a
 duplication/structure detector in the [PYTHON.md §4](PYTHON.md#4-enforcement) checker

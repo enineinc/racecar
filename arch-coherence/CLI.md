@@ -251,6 +251,66 @@ if __name__ == "__main__":
 
 ---
 
+## Recommended conventions (the default shape for a new package)
+
+The patterns above are the contract; the conventions below are the defaults that
+keep packages looking alike (the more `gfem`, `arkheion`, `minerva`, ... converge,
+the cheaper each is to operate). Adopt them unless a package has a specific reason not to.
+
+**Default to Pattern 2 once a package has more than one command.** One
+`python -m <pkg> <subcommand>` entry (`sync`, `status`, ...) reads identically across
+projects. Reserve Pattern 3 (a flag-only leaf) for a package that genuinely has a single
+command. In Pattern 2: `commands()` returns `[]`, `subcommands()` lists the verbs, one
+`cmd_<name>(args)` handler per verb, `parser()` builds the subparsers without
+`parse_args()`, `main()` dispatches; a bare invocation prints help and exits 0 (the
+audit requires no-args to exit 0 at every node).
+
+**Standard flags — same name, same meaning, every package:**
+
+| flag | meaning |
+|---|---|
+| `--all` vs `--<item> NAME ...` | mutually exclusive, required target: everything, or a named subset |
+| `--from` / `--to` (dest `date_from` / `date_to`) | date window, `YYYY-MM-DD`; `--to` defaults to today |
+| `--dry-run` | plan the work, no side effects |
+| `-v` / `--verbose` | raise the log level (INFO default, `-v` for DEBUG) |
+| `--yes` | skip the confirmation prompt on a destructive verb |
+| `--data-root` | instance-data root, default `.data` |
+
+**Ingestion package shape (`data/` + `sources/`).** An ingestion package separates two
+axes. `<pkg>/data/` holds the domain-specific ETL and the CLI; `<pkg>/sources/<protocol>/`
+holds reusable, generic protocol adapters (e.g. a Delta Sharing client:
+`connect`/`list`/`pull`/`window`) with no domain specifics, so one protocol implementation
+deploys to any project that speaks it. A protocol earns the shared `sources/` home only
+when it is generic; a client that carries domain specifics stays inside `data/<domain>`
+(gfem keeps its ERCOT clients in `data/ercot` because they are ERCOT-specific). The CLI is
+`python -m <pkg>.data [--project <id>] <sync|status|discover>`, where `--project` is a
+top-level flag (before the subcommand) whose absence means all projects. Projects, tenants,
+and sites are entries in a config registry (profiles), not a package each: tenants that
+share one schema and protocol differ only by credential and scope, so a package-per-tenant
+is N-way duplication and drift. A tenant graduates to its own module under `data/` only when
+it needs tenant-specific code (the escape hatch). `sync` reads which protocol(s) each
+selected project has configured and dispatches to the matching `sources/<protocol>` adapter,
+which supports a project that speaks more than one protocol.
+
+**Logging, not `print()`, for progress.** Configure once at the CLI entry and log through
+a module logger; a long-running command must show activity as it works. `print()` stays
+confined to the listing helper and a command's final result (the §3 side-effect rule).
+
+    import logging
+    logger = logging.getLogger(__name__)
+
+    def main(argv=None):
+        args = parser().parse_args(argv)
+        logging.basicConfig(
+            level=logging.DEBUG if args.verbose else logging.INFO,
+            format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+        ...
+
+**Destructive verbs are cli-only.** A verb that deletes (e.g. `clean`) lists its targets,
+prompts `y/N` unless `--yes`, and is never exposed to the rest/mcp faces.
+
 ## Expected CLI behaviour
 
 ```

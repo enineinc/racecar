@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from ._common import _dist_name, _rel_for_audit, _toml_load
+from ._common import _dist_name, _is_type_stub, _rel_for_audit, _toml_load
 from ._constants import (
     CANON_BLACK_TARGET,
     CANON_BUILD_BACKEND,
@@ -123,7 +123,9 @@ def check_library_pyproject(  # pylint: disable=too-many-locals,too-many-stateme
         entry_names = {_dist_name(d) for d in dev if isinstance(d, str)}
         canon_set = {_dist_name(t) for t in CANON_DEV_TOOLS}
         missing = canon_set - entry_names
-        extra = entry_names - canon_set
+        # Type-stub packages (pandas-stubs, types-*) are library-specific and permitted
+        # appends to dev (PACKAGING.md §6); they are not "beyond canon".
+        extra = {n for n in entry_names - canon_set if not _is_type_stub(n)}
         if missing:
             findings.append(
                 Finding(
