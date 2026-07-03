@@ -4,6 +4,22 @@
 repos:
   - repo: local
     hooks:
+      # Secret scan first: a leaked credential must fail the commit before any other
+      # hook touches the staged set. gitleaks is a Go binary (not pip-installable), so
+      # it stays a repo: local / language: system hook backed by scripts/install_system_deps.sh
+      # rather than a remote repo — keeping the whole config deterministic and network-free
+      # at hook time, consistent with every other hook here. It reads the git index itself
+      # (--staged), so no filenames are passed and it always runs. --redact keeps any hit
+      # out of the terminal. Shipped by default but not in check_packaging's required set
+      # (like djhtml): its absence surfaces as advisory config drift on upgrade, not a Blocker,
+      # because it depends on a non-pip binary a consumer may not have.
+      - id: gitleaks
+        name: gitleaks — no hardcoded secrets in the staged diff
+        entry: gitleaks git --pre-commit --redact --staged --verbose
+        language: system
+        pass_filenames: false
+        always_run: true
+
       # isort first (orders imports), then black (formats the result, including the
       # reordered imports). Reverse order would force black to run twice.
       # Both use --settings-file/--config to match `make fmt` exactly.

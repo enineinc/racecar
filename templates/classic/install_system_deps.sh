@@ -35,5 +35,11 @@ install_if_missing() {
     esac
 }
 
+# racecar-shipped: gitleaks backs the `gitleaks` pre-commit hook (secret scan).
+# Homebrew carries it; Debian/Ubuntu do NOT package it in the default repos, so the
+# Linux branch below will fail loudly there. Install from the GitHub release binary
+# or via `go install github.com/gitleaks/gitleaks/v8@latest`, then rerun `make install`.
+install_if_missing gitleaks gitleaks gitleaks
+
 # Add project-specific system dependencies below.
 # Format: install_if_missing <command> <brew-package> <apt-package>

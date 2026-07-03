@@ -4,6 +4,20 @@ All notable changes to racecar are recorded here, in the style of
 [Keep a Changelog](https://keepachangelog.com). racecar is pre-1.0, so a minor
 bump may carry breaking changes for adopters; those are marked **Breaking**.
 
+## 0.16.0 - 2026-07-03
+
+### Added
+- **gitleaks secret scan in the canonical pre-commit hooks.** A `gitleaks` hook runs first in
+  the shipped pre-commit template, so a leaked credential fails the commit before any other hook
+  touches the staged set. It reads the git index directly (`--staged`) and redacts any hit
+  (`--redact`) from the terminal. It stays a local `language: system` hook backed by the
+  system-deps installer rather than a remote repo, keeping the hook set deterministic and
+  network-free at hook time. The gitleaks binary is added to the installer: Homebrew carries it;
+  Debian and Ubuntu do not package it, so those need a manual install. Shipped by default but
+  deliberately kept out of `check_packaging`'s required-hooks set, like `djhtml`, because it
+  depends on a non-pip binary a consumer may lack; its absence surfaces as advisory config drift
+  on upgrade, not a blocker.
+
 ## 0.15.1 - 2026-07-02
 
 ### Fixed
