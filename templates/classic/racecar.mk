@@ -97,7 +97,8 @@ RACECAR_ROOT ?= $(shell readlink "$(HOME)/.claude/skills/racecar" 2>/dev/null)
 
 .DEFAULT_GOAL := help
 .PHONY: help venv install install-dev check check-full fix fmt fmt-check lint \
-        test coverage typecheck arch audit docs clean distclean sync system-deps
+        test coverage typecheck arch audit docs clean distclean sync system-deps \
+        check-overrides
 
 help: ## Show this help
 	@awk 'BEGIN{FS=":.*?## ";n=0} \
@@ -131,7 +132,7 @@ system-deps: ## Install system dependencies outside pip (see scripts/install_sys
 
 install-dev: install ## install + PEP 735 dev group + pre-commit hooks (requires pip >= 25.1)
 	$(PIP) install -q --group $(LIB_PYPROJECT):dev
-	@if git rev-parse --git-dir >/dev/null 2>&1; then $(BIN)/pre-commit install; else echo "install-dev: skipping pre-commit install (not a git repo)"; fi
+	@if git rev-parse --git-dir >/dev/null 2>&1; then $(BIN)/pre-commit install --hook-type pre-commit --hook-type commit-msg; else echo "install-dev: skipping pre-commit install (not a git repo)"; fi
 	@if grep -qi '"django' $(LIB_PYPROJECT); then $(PIP) install -q --group $(LIB_PYPROJECT):django; fi
 
 
@@ -194,6 +195,19 @@ arch: ## lint-imports + §1 upward + §3 CLI tree + packaging canon + surface or
 	  $(PYTHON) scripts/check_dj_model_ref_as_string.py; \
 	else \
 	  echo "arch: skipping check_dj_model_ref_as_string (no manage.py found — not a Django project)"; \
+	fi
+	@$(MAKE) --no-print-directory check-overrides
+
+# Assert this repo has not overridden racecar: no [tool.racecar] table in pyproject and
+# a racecar.mk byte-identical to canon (fix racecar, do not override it — see
+# upgrade/README.md). Racecar-run-only: the check diffs against the racecar checkout's
+# templates/classic/, resolved via RACECAR_ROOT (the installed skill symlink). No-ops
+# gracefully when RACECAR_ROOT is unset.
+check-overrides: ## Assert the repo has not overridden racecar (pyproject + racecar.mk)
+	@if [ -n "$(RACECAR_ROOT)" ]; then \
+	  $(PYTHON) "$(RACECAR_ROOT)/scripts/check_racecar_overrides.py" --root .; \
+	else \
+	  echo "check-overrides: skipping (RACECAR_ROOT unset; install racecar as a skill or pass RACECAR_ROOT=/path/to/racecar)"; \
 	fi
 
 docs: ## doc-coherence pre-pass (links / §N / vocab) + subsystem docs + TODO + placement + brief

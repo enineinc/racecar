@@ -4,6 +4,31 @@ All notable changes to racecar are recorded here, in the style of
 [Keep a Changelog](https://keepachangelog.com). racecar is pre-1.0, so a minor
 bump may carry breaking changes for adopters; those are marked **Breaking**.
 
+## 0.15.0 - 2026-07-02
+
+### Added
+- **Version-bump gate (`scripts/check_version_bump.py`, commit-msg stage).** A commit whose
+  conventional type maps to a semver bump (feat, fix, perf, or a breaking change) fails when the
+  version home is unchanged between the index and HEAD. It resolves the version home per
+  COMMITS.md ([project].version, else a root VERSION file) and asserts only that a bump happened,
+  not that the magnitude is correct (that stays racecar-commit's). Non-bumpable types pass. Wired
+  into `templates/classic/pre-commit-config.yaml` and delivered to adopters via `sync_scripts`.
+- **Prose-punctuation gate (`scripts/check_prose_punctuation.py`, pre-commit + commit-msg).**
+  Enforces VOICE.md "No em-dashes in prose", extended to the en-dash and the `--` sentence dash.
+  It scans commit messages unconditionally, staged Markdown whole-file, and Python docstrings only
+  (code is not prose). A machine-generated file opts out inclusively by carrying the marker
+  `racecar:prose-exempt`, not through a central ignore-list. Delivered to adopters via
+  `sync_scripts`.
+- **racecar-overrides gate (`scripts/check_racecar_overrides.py`, consumer-side).** Asserts a repo
+  has not forked racecar: no `[tool.racecar]` table in pyproject.toml and a `racecar.mk`
+  byte-identical to canon (fix racecar, do not override it). It reuses `check_config_drift`'s
+  template-diff helper (one home) and is racecar-run-only, wired into `racecar.mk`'s `arch` target
+  (guarded on RACECAR_ROOT) and the upgrade procedure. It no-ops on racecar's own repo.
+
+### Changed
+- **`racecar.mk`'s `install-dev` installs the commit-msg hook type** (`pre-commit install
+  --hook-type pre-commit --hook-type commit-msg`), so the new commit-msg-stage gates actually fire.
+
 ## 0.13.4 - 2026-06-29
 
 ### Fixed

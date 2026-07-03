@@ -44,8 +44,13 @@ TEMPLATES = RACECAR_ROOT / "templates" / "classic"
 PAIRS = ((".pre-commit-config.yaml", "pre-commit-config.yaml"),)
 
 
-def _drift(project_file: Path, template_file: Path) -> list[str]:
-    """Unified diff (base -> project), or [] if in sync."""
+def unified_template_diff(project_file: Path, template_file: Path) -> list[str]:
+    """Unified diff (base -> project), or [] if in sync.
+
+    The one home for "how a vendored file differs from its racecar template". Reused by
+    check_racecar_overrides.py for the racecar.mk byte-identity assertion so the two
+    checks share a single diff mechanism.
+    """
     base = template_file.read_text(encoding="utf-8").splitlines()
     proj = project_file.read_text(encoding="utf-8").splitlines()
     return list(
@@ -72,7 +77,7 @@ def main(argv: list[str]) -> int:
             print(f"  {rel}: absent in project (base ships one; add or declare why)")
             any_drift = True
             continue
-        diff = _drift(project_file, template_file)
+        diff = unified_template_diff(project_file, template_file)
         if not diff:
             print(f"  {rel}: in sync with base")
             continue

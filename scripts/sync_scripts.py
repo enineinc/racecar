@@ -81,6 +81,8 @@ CHECK_SCRIPTS = (
     "doc-coherence/scripts/check_todo_format.py",
     "doc-coherence/scripts/check_file_placement.py",
     "llm-summary/scripts/check_brief.py",
+    "scripts/check_version_bump.py",
+    "scripts/check_prose_punctuation.py",
     "scripts/clean_files.sh",
 )
 

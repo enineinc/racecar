@@ -82,3 +82,27 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
+
+      # shared/VOICE.md — no em-dashes / en-dashes / `--` sentence dashes in prose.
+      # Whole-file for Markdown, docstrings only for Python. A generated artifact opts
+      # out inclusively by carrying the `racecar:prose-exempt` marker (no ignore-list).
+      - id: prose-punctuation
+        name: shared/VOICE.md — no em-dashes / en-dashes / `--` in prose (Markdown, Python docstrings)
+        entry: python scripts/check_prose_punctuation.py
+        language: python
+        types_or: [markdown, python]
+
+      # The commit-msg-stage hooks below need `pre-commit install --hook-type commit-msg`
+      # (racecar.mk's `install-dev` installs both hook types). They read the commit
+      # message, which only exists at commit-msg time.
+      - id: version-bump-gate
+        name: shared/COMMITS.md — a bumpable commit type must bump the version home
+        entry: python scripts/check_version_bump.py
+        language: python
+        stages: [commit-msg]
+
+      - id: prose-punctuation-commit-msg
+        name: shared/VOICE.md — no em-dashes / en-dashes / `--` in the commit message
+        entry: python scripts/check_prose_punctuation.py --commit-msg
+        language: python
+        stages: [commit-msg]

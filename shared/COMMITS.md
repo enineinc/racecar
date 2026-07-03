@@ -53,6 +53,10 @@ When the version home is part of the diff:
 - Do not use a separate `chore(bump)` commit. The subject describes the actual change.
 - Append a trailing line to the body: `Bump version to X.Y.Z.` — with the period.
 
+## Enforcement
+
+`scripts/check_version_bump.py` gates the type-to-bump rule at the commit-msg stage: a commit whose type maps to a semver bump (feat, fix, perf, or a breaking change) fails when the version home is unchanged between the index and HEAD. It asserts only that a bump happened, not that the magnitude is correct; the valid-increment rule above is racecar-commit's to apply. Non-bumpable types pass without a bump.
+
 ## References
 
 - Git `SubmittingPatches` (canonical for many open-source projects): <https://git-scm.com/docs/SubmittingPatches/2.41.0>
