@@ -3,8 +3,8 @@
 
 Enforces shared/COMMITS.md "Bump from commit type". The type is parsed from the
 commit message, so this is a `commit-msg`-stage hook (not a pre-commit-stage one):
-only at commit-msg time is the message available. The rule is one-directional --
-it fails a commit whose type maps to a semver bump (feat/fix/perf, or a breaking
+only at commit-msg time is the message available. The rule is one-directional. It
+fails a commit whose type maps to a semver bump (feat/fix/perf, or a breaking
 change) when the version home is byte-identical between the index and HEAD. It does
 NOT validate the bump magnitude (that COMMITS.md "Valid version increments" concern
 belongs to racecar-commit); it only asserts that some bump happened.

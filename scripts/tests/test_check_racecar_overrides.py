@@ -1,4 +1,4 @@
-"""check_racecar_overrides: a repo must not fork racecar (no [tool.racecar], canon racecar.mk)."""
+"""check_racecar_overrides: a repo must not fork racecar (only canon [tool.racecar] bindings, canon racecar.mk)."""
 
 from __future__ import annotations
 
@@ -18,26 +18,45 @@ CANONICAL = check_racecar_overrides.CANONICAL_RACECAR_MK
 
 
 def test_no_pyproject_is_not_an_override(tmp_path):
-    assert check_racecar_overrides.overrides_table(tmp_path) is False
+    assert check_racecar_overrides.disallowed_racecar_keys(tmp_path) == []
 
 
-def test_overrides_table_is_detected(tmp_path):
+def test_overrides_registry_is_detected(tmp_path):
     (tmp_path / "pyproject.toml").write_text(
         "[tool.racecar.overrides]\nline-length = 100\n", encoding="utf-8"
     )
-    assert check_racecar_overrides.overrides_table(tmp_path) is True
+    assert check_racecar_overrides.disallowed_racecar_keys(tmp_path) == ["overrides"]
 
 
-def test_bare_tool_racecar_table_is_detected(tmp_path):
+def test_bare_tool_racecar_scalar_is_detected(tmp_path):
     (tmp_path / "pyproject.toml").write_text(
         '[tool.racecar]\nx = "y"\n', encoding="utf-8"
     )
-    assert check_racecar_overrides.overrides_table(tmp_path) is True
+    assert check_racecar_overrides.disallowed_racecar_keys(tmp_path) == ["x"]
+
+
+def test_canon_bindings_are_clean(tmp_path):
+    # The surface / roles / subsystem-docs bindings are legitimate inputs, not overrides.
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.racecar.surface]\npackage = "pkg"\n'
+        "[tool.racecar.roles]\n"
+        "[tool.racecar.subsystem-docs]\nloc_threshold = 1000\n",
+        encoding="utf-8",
+    )
+    assert check_racecar_overrides.disallowed_racecar_keys(tmp_path) == []
+
+
+def test_canon_binding_plus_override_flags_only_the_override(tmp_path):
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.racecar.surface]\npackage = "pkg"\n[tool.racecar.overrides]\nx = 1\n',
+        encoding="utf-8",
+    )
+    assert check_racecar_overrides.disallowed_racecar_keys(tmp_path) == ["overrides"]
 
 
 def test_unrelated_tool_table_is_clean(tmp_path):
     (tmp_path / "pyproject.toml").write_text("[tool.black]\n", encoding="utf-8")
-    assert check_racecar_overrides.overrides_table(tmp_path) is False
+    assert check_racecar_overrides.disallowed_racecar_keys(tmp_path) == []
 
 
 # ---------------------------------------------------------------------------
@@ -78,6 +97,14 @@ def test_override_table_fails(tmp_path):
         "[tool.racecar.overrides]\nx = 1\n", encoding="utf-8"
     )
     assert check_racecar_overrides.main(["--root", str(tmp_path)]) == 1
+
+
+def test_surface_binding_repo_passes(tmp_path):
+    # A surfaces adopter carries [tool.racecar.surface]; the gate must not fail it.
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.racecar.surface]\npackage = "pkg"\n', encoding="utf-8"
+    )
+    assert check_racecar_overrides.main(["--root", str(tmp_path)]) == 0
 
 
 def test_edited_racecar_mk_fails(tmp_path):

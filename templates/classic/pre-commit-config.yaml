@@ -84,8 +84,9 @@ repos:
         always_run: true
 
       # shared/VOICE.md — no em-dashes / en-dashes / `--` sentence dashes in prose.
-      # Whole-file for Markdown, docstrings only for Python. A generated artifact opts
-      # out inclusively by carrying the `racecar:prose-exempt` marker (no ignore-list).
+      # Human prose only: Markdown minus its code blocks / inline code, and Python
+      # docstrings (code is machine-readable, exempt). A generated artifact opts out
+      # inclusively by carrying the `racecar:prose-exempt` marker (no ignore-list).
       - id: prose-punctuation
         name: shared/VOICE.md — no em-dashes / en-dashes / `--` in prose (Markdown, Python docstrings)
         entry: python scripts/check_prose_punctuation.py

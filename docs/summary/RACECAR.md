@@ -1,10 +1,10 @@
 ---
 generator:
   name: racecar-llm-summary
-  version: "0.13.2"
+  version: "0.15.1"
 target:
   repo: racecar
-  date: 2026-06-28
+  date: 2026-07-02
 bundle:
   - RACECAR.md
 
@@ -38,7 +38,13 @@ entities:
   - name: MechanicalCheck
     case: none
     purpose: A deterministic check script that fails a violation by naming file:line; the trust primitive (never an LLM as a gate).
-    notes: e.g. check_packaging, check_surface_auth, check_surface_orchestration, check_upward_imports, check_docs, check_subsystem_docs, check_changelog, check_brief. Run via make check and pre-commit; vendored into adopter repos.
+    notes: >-
+      e.g. check_packaging, check_surface_auth, check_surface_orchestration (advisory, surface-rooted), check_upward_imports,
+      check_docs, check_subsystem_docs, check_file_placement, check_todo_format, check_changelog, check_brief, and the 0.15.0
+      commit-time gates check_version_bump (a bumpable commit type must move the version home), check_prose_punctuation (no
+      em-dash / en-dash / `--` sentence dash in human prose), plus check_config_drift and the racecar-run-only
+      check_racecar_overrides (a repo has not forked canon). Run via make check and pre-commit; the prose and version-bump
+      gates run at pre-commit's commit-msg stage. Vendored into adopter repos.
   - name: AuthorizationServer
     case: none
     purpose: The OAuth 2.1 + WebAuthn FIDO2 Authorization Server that secure-server generates.
@@ -241,13 +247,15 @@ The surface is the **slash commands** (frontmatter `cli_verbs`, 16 skills) plus 
 - **CLI audit JSON** — produced by `check_cli_commands.py --json <pkg>`, consumed by `scaffold_surfaces.py`. The enriched command tree is both the exposure allow-list and the arg schema (`oneOf` mutex groups are JSON-Schema).
 - **Interface Manifest** — produced by `scaffold_surfaces.py::build_manifest` (audit + binding + api introspection), consumed by the surface templates; written to `server/docs/api/manifest.json`. The single source for OpenAPI + ENDPOINTS.
 - **Surface binding** — `[tool.racecar.surface]` in `pyproject.toml` (JSON form also accepted): per-command api callable, method, and scope. `--scaffold-binding` emits a default-deny stub.
-- **import-linter `layers` contract** — the one gated architectural contract (`[tool.importlinter]`); `check_surface_orchestration.py` is the advisory detector that surfaces reach-past-`api` choices.
+- **import-linter `layers` contract** — the one gated architectural contract (`[tool.importlinter]`); `check_surface_orchestration.py` is the advisory detector (exit 0 by default, `--strict` to fail) for surfaces reaching past `api`. Since 0.14.0 it is **surface-rooted**: it anchors only on the surfaces it can name or is told to map (`__main__.py` = cli, `mcp.py`/`mcp/` = mcp), with no structural guessing, so an ingestion-shaped package or a `sources/<protocol>` adapter is deliberately not a vertical and is not flagged (`arch-coherence/SURFACES.md §7`, `CLI.md`).
+- **Commit-time gates** (0.15.0, adopter-facing via `templates/classic/pre-commit-config.yaml`) — `check_version_bump.py` (commit-msg stage) fails a feat/fix/perf/breaking commit when the version home is unchanged between index and HEAD, asserting a bump happened, not its magnitude (`shared/COMMITS.md`). `check_prose_punctuation.py` (pre-commit + commit-msg) bans the em-dash, en-dash, and `--` sentence dash in **human prose only** — Markdown minus its code blocks and inline code, Python docstrings only, and the commit message; machine-readable content is exempt, and a generated file opts out inclusively via the `racecar:prose-exempt` marker (`shared/VOICE.md`). `install-dev` now installs both `pre-commit` and `commit-msg` hook types so the commit-msg gates fire.
 - **Shape markers** — `pyproject.toml` (root) + `src/` + `server/manage.py` on disk; `detect_shape` (Python) and `racecar.mk` (Make) read them in lockstep, held by `test_sync_scripts.py`.
 - **Resource-server auth rail** — `project/auth.py` validates a bearer token by RFC 7662 introspection against the AS; `check_surface_auth.py` fails a surface that ships anonymous or a command with no scope.
 
 ### §2.6 Configuration
 
-- `VERSION` (repo root) — the single version home (0.13.2); gated against the CHANGELOG by `check_changelog.py`.
+- `VERSION` (repo root) — the single version home (0.15.0), used because racecar's `pyproject.toml` has no `[project].version`; gated against the CHANGELOG by `check_changelog.py` and, in adopters, against the commit type by `check_version_bump.py`.
+- **No override registry by design.** `check_racecar_overrides.py` asserts a consuming repo declares no non-canon `[tool.racecar]` key and keeps a `racecar.mk` byte-identical to canon (customization lives in the owned `Makefile`, not a fork). The legitimate `[tool.racecar.*]` tables are the input bindings racecar's own checkers read — `surface` (scaffold_surfaces), `roles` (check_surface_orchestration), `subsystem-docs` (check_subsystem_docs); `[tool.racecar.overrides]` and any other key are flagged.
 - `pyproject.toml` `[tool.racecar.surface]` — the surface binding; `[tool.racecar.subsystem-docs]` — `loc_threshold` / `exclude` for the subsystem-docs check; `[tool.importlinter]` — the layers contract; `[tool.pylint.MASTER].ignore-paths` — the one ignore key check_docs honors.
 - Generated-server env (the output's config, not racecar's): `RACECAR_ALLOW_WRITES` (write rail, off by default), `AUTH_INTROSPECTION_URL` / `_CLIENT_ID` / `_CLIENT_SECRET` / `_CACHE_SECONDS` (resource-server introspection; unset → fail closed), `AUTH_ISSUER`.
 - Generated-AS env: `AUTH_SERVER_ISSUER` (fails loud in prod if a placeholder), `WEBAUTHN_RP_ID` / `_ORIGIN` / `_ALLOWED_AAGUIDS` (fail-closed when empty) / `WEBAUTHN_PACKED_ROOT_CERTS` (attestation roots; unset → AAGUID advisory), `OAUTH2_ACCESS_TOKEN_EXPIRE_SECONDS`.
@@ -281,7 +289,7 @@ The surface is the **slash commands** (frontmatter `cli_verbs`, 16 skills) plus 
 ### §2.10 Operational
 
 - **Install:** `./install` (in the racecar checkout) symlinks the skills into `~/.claude/skills/` and wires the SessionStart/PreCompact hooks; idempotent, refuses to clobber present-but-wrong files. `make doctor` (or `/racecar-doctor`) verifies the install with evidence (a load token reproduced from context).
-- **Self-gate:** `make check` (pylint 10/10, 277 tests, doc + changelog + brief checks). `make arch` is not a racecar target — the arch *checks* are vendored into adopters, not run against racecar's own tooling.
+- **Self-gate:** `make check` enforces pylint 10/10, 324 tests, and the doc + changelog + brief checks. `make arch` is not a racecar target — the arch *checks* are vendored into adopters, not run against racecar's own tooling. (As of 0.15.1 the lint stage is red: `check_surface_orchestration.py` rates 9.99/10 — `W0621` redefined `main`, `R0911` too-many-returns — a regression from the 0.14.0 rewrite; every other stage is green.)
 - **Adopter gate:** `make check` + pre-commit in the consuming repo, using the synced scripts. Enforcement is local (pre-commit, make), never CI-as-gate; the owner authorizes, the tooling confirms.
 - **No deploy, no schedule, no healthcheck** — racecar ships files, not a running service.
 

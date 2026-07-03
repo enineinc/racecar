@@ -6,10 +6,13 @@ upgrade/SKILL.md: "There is no `[tool.racecar.overrides]`; the Makefile fold abs
 build customization structurally." A repo that dislikes a racecar default changes the
 standard (an Escalate finding), it does not fork it locally.
 
-  1. pyproject.toml carries no `[tool.racecar]` table (its `[tool.racecar.overrides]`
-     form, or any other `[tool.racecar.*]` subtable). racecar has no such table by
-     design; its presence is a local override registry, the second-home drift racecar
-     fights.
+  1. pyproject.toml declares no non-canon `[tool.racecar]` key. The only legitimate
+     `[tool.racecar.*]` tables are the input bindings racecar's own checkers read:
+     `surface` (scaffold_surfaces), `roles` (check_surface_orchestration), and
+     `subsystem-docs` (check_subsystem_docs). Any other key, notably the
+     `[tool.racecar.overrides]` registry, is a local override, the second-home drift
+     racecar fights. A new binding is added to this allow-list in racecar, never
+     smuggled into a consumer's config.
   2. racecar.mk is byte-identical to the canonical `templates/classic/racecar.mk`.
      racecar.mk is the same file in every repo (it self-detects the shape at make-time),
      so any difference is a hand-edit of canon. Build customization belongs in the owned
@@ -40,14 +43,26 @@ from check_config_drift import unified_template_diff
 RACECAR_ROOT = Path(__file__).resolve().parent.parent
 CANONICAL_RACECAR_MK = RACECAR_ROOT / "templates" / "classic" / "racecar.mk"
 
+# The only legitimate `[tool.racecar.*]` subtables: input bindings racecar's own checkers
+# read. Everything else under `[tool.racecar]` (notably `overrides`) is a local override.
+ALLOWED_RACECAR_KEYS = frozenset({"surface", "roles", "subsystem-docs"})
 
-def overrides_table(root: Path) -> bool:
-    """True when the project's pyproject.toml declares a `[tool.racecar]` table."""
+
+def disallowed_racecar_keys(root: Path) -> list[str]:
+    """Return the non-canon `[tool.racecar.*]` keys a project declares, sorted.
+
+    Empty when the project declares only canon bindings (ALLOWED_RACECAR_KEYS) or no
+    `[tool.racecar]` table at all. Any other key is a local override, the drift this
+    gate catches.
+    """
     pyproject = root / "pyproject.toml"
     if not pyproject.is_file():
-        return False
+        return []
     data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
-    return "racecar" in data.get("tool", {})
+    racecar = data.get("tool", {}).get("racecar", {})
+    if not isinstance(racecar, dict):
+        return ["<non-table [tool.racecar]>"]
+    return sorted(key for key in racecar if key not in ALLOWED_RACECAR_KEYS)
 
 
 def racecar_mk_drift(root: Path) -> list[str]:
@@ -76,11 +91,14 @@ def main(argv: list[str]) -> int:
         return 2
 
     violations = 0
-    if overrides_table(root):
+    extra_keys = disallowed_racecar_keys(root)
+    if extra_keys:
         print(
-            "  pyproject.toml declares a [tool.racecar] table; racecar has no override "
-            "registry. Remove it and change the standard instead (fix racecar, do not "
-            "override it). See upgrade/README.md.",
+            "  pyproject.toml declares non-canon [tool.racecar] key(s): "
+            f"{', '.join(extra_keys)}. The only [tool.racecar] tables are the surface / "
+            "roles / subsystem-docs bindings racecar's checkers read; racecar has no "
+            "override registry. Remove the extra key and change the standard instead "
+            "(fix racecar, do not override it). See upgrade/README.md.",
             file=sys.stderr,
         )
         violations += 1

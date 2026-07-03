@@ -9,7 +9,6 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 import check_prose_punctuation  # noqa: E402
 
-
 # ---------------------------------------------------------------------------
 # the punctuation detector (pure)
 # ---------------------------------------------------------------------------
@@ -30,6 +29,16 @@ def test_double_dash_sentence_is_flagged():
     assert check_prose_punctuation.find_violations("word--word")
 
 
+def test_double_dash_at_line_end_is_flagged():
+    # A `--` sentence dash whose second clause wraps to the next line: the dash sits at
+    # end-of-line with no trailing space. find_violations scans line by line, so the
+    # trailing-whitespace form must accept end-of-line too.
+    assert check_prose_punctuation.find_violations("one-directional --")
+    assert check_prose_punctuation.find_violations("one-directional --\nit fails") == [
+        (1, "`--` used as a sentence dash; use a comma or period")
+    ]
+
+
 def test_cli_flag_is_not_flagged():
     assert check_prose_punctuation.find_violations("pass --flag to it") == []
 
@@ -37,6 +46,15 @@ def test_cli_flag_is_not_flagged():
 def test_markdown_rule_and_table_separator_not_flagged():
     assert check_prose_punctuation.find_violations("---") == []
     assert check_prose_punctuation.find_violations("| ----- | ----- |") == []
+
+
+def test_markdown_prose_strips_code_but_keeps_line_numbers():
+    # A fenced block and an inline span are machine-readable and exempt; prose around them
+    # is still scanned, and reported line numbers stay aligned with the source.
+    md = "clean line\n```\ncode — dash\n```\ninline `x — y` code\nprose — here\n"
+    prose = check_prose_punctuation._markdown_prose(md)
+    hits = check_prose_punctuation.find_violations(prose)
+    assert hits == [(6, "em-dash (U+2014); use a comma, colon, or period")]
 
 
 def test_clean_prose_passes():
@@ -49,7 +67,7 @@ def test_line_numbers_are_reported():
 
 
 # ---------------------------------------------------------------------------
-# file handling: Markdown whole-file, Python docstrings only, opt-out marker
+# file handling: Markdown prose (code excluded), Python docstrings only, opt-out marker
 # ---------------------------------------------------------------------------
 
 

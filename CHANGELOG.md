@@ -4,6 +4,21 @@ All notable changes to racecar are recorded here, in the style of
 [Keep a Changelog](https://keepachangelog.com). racecar is pre-1.0, so a minor
 bump may carry breaking changes for adopters; those are marked **Breaking**.
 
+## 0.15.1 - 2026-07-02
+
+### Fixed
+- **The racecar-overrides gate no longer rejects racecar's own bindings.** 0.15.0 flagged any
+  `[tool.racecar]` table as a fork, which would fail every adopter that declares the `surface`,
+  `roles`, or `subsystem-docs` binding racecar's own checkers read (surface generation, the
+  orchestration detector, the subsystem-docs check). The gate now allows those three canon
+  bindings and flags only non-canon keys: `[tool.racecar.overrides]` and anything else.
+- **The prose-punctuation gate exempts machine-readable content.** The em-dash / en-dash / `--`
+  ban now applies to human prose only. Markdown is scanned minus its fenced code blocks and inline
+  code spans, matching the "code is machine-readable, exempt" rule already applied to Python
+  docstrings; VOICE.md states the exemption. The `--` detector also now catches a sentence dash at
+  a line wrap that the previous pattern missed, and the version-bump checker's own docstring no
+  longer trips that rule.
+
 ## 0.15.0 - 2026-07-02
 
 ### Added
