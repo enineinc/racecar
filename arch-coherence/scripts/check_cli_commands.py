@@ -74,8 +74,16 @@ empties) for its own needs; downstream does NOT enrich.
 
 # CLI
 
-    python scripts/check_cli_commands.py <root.package> [<root.package> ...]
-    python scripts/check_cli_commands.py --json <root.package>
+    python scripts/check_cli_commands.py [<root> ...]
+    python scripts/check_cli_commands.py --json <root>
+
+A `<root>` is a dotted package name (`gfem`) or a filesystem path to the
+package directory (`src/gfem`). A path to a namespace directory with no
+`__init__.py` — `src`, or `.` — is descended one level to its sole child
+package (ambiguity errors). With no `<root>` at all, the default is `src`
+when a src/ layout is present, else the current directory. A path root is
+put on `sys.path` and `PYTHONPATH` so its `python -m <pkg>` probes resolve
+without an editable install.
 
 Default output is the walked tree plus a violations summary. With
 `--json`, emits the enriched tree (single dict for one root, list of
@@ -392,12 +400,28 @@ def _read_subcommands(
     return result, []
 
 
+# Directories `_resolve_root` added to sys.path so a path-given or src-layout
+# root imports. Subprocess probes inherit them via PYTHONPATH; see `_run`.
+_PROBE_PATHS: list[str] = []
+
+
 def _run(pkg: str, *args: str) -> subprocess.CompletedProcess[str]:
+    env = os.environ.copy()
+    if _PROBE_PATHS:
+        # `_resolve_root` put these on the in-process sys.path so the package
+        # imports; the `python -m <pkg>` child needs them too, or the probe
+        # fails "No module named <pkg>" for any package not pip-installed into
+        # the venv (a src-layout root run without an editable install).
+        prior = env.get("PYTHONPATH")
+        env["PYTHONPATH"] = os.pathsep.join(
+            [*_PROBE_PATHS, *([prior] if prior else [])]
+        )
     return subprocess.run(
         [sys.executable, "-m", pkg, *args],
         capture_output=True,
         text=True,
         check=False,
+        env=env,
     )
 
 
@@ -1132,10 +1156,41 @@ def render_tree(node: Node, depth: int = 0) -> list[str]:
 # ---------- CLI ---------------------------------------------------------- #
 
 
+def _descend_to_package(arg: str, namespace_dir: Path) -> Path:
+    """`namespace_dir` is a directory with no `__init__.py` — a src-layout root
+    like `src`, or the cwd under `.`. Descend one level to its sole child
+    package. Zero or several is ambiguous and errors, asking for an explicit
+    root; racecar's shape model puts exactly one package under `src`."""
+    packages = sorted(
+        child
+        for child in namespace_dir.iterdir()
+        if child.is_dir() and (child / "__init__.py").is_file()
+    )
+    if len(packages) == 1:
+        return packages[0]
+    if not packages:
+        raise SystemExit(
+            f"check_cli_commands: `{arg}` has no __init__.py and contains no "
+            "child package; point at the package directory (e.g. `src/<pkg>`)"
+        )
+    names = ", ".join(p.name for p in packages)
+    raise SystemExit(
+        f"check_cli_commands: `{arg}` holds several packages ({names}); "
+        "name one explicitly (e.g. `src/<pkg>`)"
+    )
+
+
+def _default_root() -> str:
+    """No root on the command line: prefer a `src/` layout, else the cwd.
+    Both are resolved through `_resolve_root`, which descends to the package."""
+    return "src" if Path("src").is_dir() else "."
+
+
 def _resolve_root(arg: str) -> str:
     """Turn `src/gfem` or `./src/gfem` into `gfem`, with the enclosing directory
-    added to sys.path so the package becomes importable. Dotted names pass
-    through unchanged."""
+    added to sys.path so the package becomes importable. A namespace directory
+    with no `__init__.py` (e.g. `src`, or the cwd under `.`) is descended one
+    level to its sole child package. Dotted names pass through unchanged."""
     path = Path(arg)
     looks_like_path = ("/" in arg) or ("\\" in arg) or path.exists()
     if not looks_like_path:
@@ -1144,12 +1199,12 @@ def _resolve_root(arg: str) -> str:
     if not abs_path.is_dir():
         raise SystemExit(f"check_cli_commands: `{arg}` is not a directory")
     if not (abs_path / "__init__.py").is_file():
-        raise SystemExit(
-            f"check_cli_commands: `{arg}` has no __init__.py; not a Python package"
-        )
+        abs_path = _descend_to_package(arg, abs_path)
     parent = str(abs_path.parent)
     if parent not in sys.path:
         sys.path.insert(0, parent)
+    if parent not in _PROBE_PATHS:
+        _PROBE_PATHS.append(parent)
     return abs_path.name
 
 
@@ -1160,10 +1215,12 @@ def main(argv: list[str]) -> int:
     )
     parser.add_argument(
         "roots",
-        nargs="+",
+        nargs="*",
         help=(
             "Dotted package names (e.g. `gfem`) or filesystem paths "
-            "to the package directory (e.g. `src/gfem`)."
+            "to the package directory (e.g. `src/gfem`). Defaults to `src` "
+            "when a src/ layout is present, else the current directory; "
+            "either is descended to its sole child package."
         ),
     )
     parser.add_argument(
@@ -1181,7 +1238,7 @@ def main(argv: list[str]) -> int:
     )
     args = parser.parse_args(argv)
 
-    roots = [_resolve_root(r) for r in args.roots]
+    roots = [_resolve_root(r) for r in (args.roots or [_default_root()])]
     trees = [audit_cli_tree(root, max_workers=args.workers) for root in roots]
     all_violations: list[tuple[str, str]] = []
     for tree in trees:

@@ -515,6 +515,86 @@ def test_importable_api(tmp_path: Path) -> None:
     assert json.loads(result.stdout) == expected
 
 
+# ---------- root resolution + required-arg leaves ----------------------- #
+
+
+def _write_clean_leaf(pkg_dir: Path) -> None:
+    """A Pattern 3 leaf with a REQUIRED positional and a `parser()` factory —
+    clean by the §3 contract. The required positional is the point: the audit
+    must never invoke it bare, so it must not be false-flagged."""
+    pkg_dir.mkdir(parents=True, exist_ok=True)
+    (pkg_dir / "__init__.py").write_text("")
+    (pkg_dir / "__main__.py").write_text(
+        "import argparse\n"
+        "def commands(): return []\n"
+        "def parser():\n"
+        "    p = argparse.ArgumentParser()\n"
+        "    p.add_argument('name')  # required positional\n"
+        "    return p\n"
+        "def main():\n"
+        "    parser().parse_args()\n"
+        'if __name__ == "__main__":\n'
+        "    main()\n"
+    )
+
+
+def _run_from(cwd: Path, *argv: str) -> subprocess.CompletedProcess[str]:
+    """Invoke the script with the given argv and cwd, and NO PYTHONPATH — the
+    script must make the package importable to its own subprocess probes."""
+    env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+    return subprocess.run(
+        [sys.executable, str(SCRIPT), *argv],
+        cwd=str(cwd),
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def test_required_arg_leaf_is_not_false_flagged(tmp_path: Path) -> None:
+    """A leaf whose CLI has a required positional must pass: the audit runs
+    only `--help` (exits 0 before argparse validates required args) and never
+    invokes the leaf bare. Guards the 'no-args probe is gated on non-empty
+    commands()' contract."""
+    _write_clean_leaf(tmp_path / "fubar")
+    proc = _run_from(tmp_path, "fubar")
+    assert (
+        proc.returncode == 0
+    ), f"required-arg leaf false-flagged:\n{proc.stdout}\n{proc.stderr}"
+    assert "All checks passed." in proc.stdout
+
+
+def test_src_layout_path_descends_to_sole_package(tmp_path: Path) -> None:
+    """`check_cli_commands.py src` resolves `src/<pkg>` and audits it end to
+    end — including the subprocess probes, with no editable install and no
+    PYTHONPATH."""
+    _write_clean_leaf(tmp_path / "src" / "fubar")
+    proc = _run_from(tmp_path, "src")
+    assert proc.returncode == 0, f"{proc.stdout}\n{proc.stderr}"
+    assert "=== fubar ===" in proc.stdout
+
+
+def test_no_arg_defaults_to_src_layout(tmp_path: Path) -> None:
+    """With no root argument and a src/ layout present, the script defaults to
+    `src` and descends to the sole package."""
+    _write_clean_leaf(tmp_path / "src" / "fubar")
+    proc = _run_from(tmp_path)
+    assert proc.returncode == 0, f"{proc.stdout}\n{proc.stderr}"
+    assert "=== fubar ===" in proc.stdout
+
+
+def test_ambiguous_src_layout_errors(tmp_path: Path) -> None:
+    """Several packages under `src` is ambiguous — the script refuses to guess
+    and asks for an explicit root, rather than silently picking one."""
+    _write_clean_leaf(tmp_path / "src" / "fubar")
+    _write_clean_leaf(tmp_path / "src" / "other")
+    proc = _run_from(tmp_path, "src")
+    assert proc.returncode != 0
+    assert "several packages" in proc.stderr
+    assert "fubar" in proc.stderr and "other" in proc.stderr
+
+
 # ---------- diagnostics ------------------------------------------------- #
 
 
