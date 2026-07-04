@@ -39,6 +39,17 @@ bump may carry breaking changes for adopters; those are marked **Breaking**.
   (sorted parametrize sources, or workers disagree on the test list and abort), is documented as the
   owner's cost to accept. Codifies the pattern an adopter (gfem) had already proven.
 
+## 0.17.0 - 2026-07-03
+
+### Changed
+- **`check_cli_commands.py` infers the audit root from a `src/` layout.** The CLI audit now accepts a
+  filesystem path or no argument at all and resolves the package root, instead of requiring an explicit
+  dotted name: a source directory with no package marker is descended to its sole package, ambiguity is
+  refused rather than guessed, and with no argument it defaults to the `src/` layout when present else
+  the current directory. The resolved import path is carried onto the subprocess probes so the audit
+  runs against a package that is not installed into the environment (an editable install had masked the
+  gap). (Backfilled: this shipped in the 0.17.0 version bump but was not recorded here at the time.)
+
 ## 0.16.0 - 2026-07-03
 
 ### Added
