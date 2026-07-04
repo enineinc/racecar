@@ -308,10 +308,11 @@ dev = [
     "pre-commit",         # git hooks
     "validate-pyproject", # PEP 621 schema validation (community OSS)
     "pyyaml",             # frontmatter parser for check_brief.py (llm-summary briefs)
+    "pytest-xdist",       # parallel test workers (opt-in; see "Parallel tests" below)
 ]
 ```
 
-**Status of each tool.** Eight of the twelve are mainstream de facto canon in modern Python: black, isort, pylint, mypy, pytest, pytest-cov, pip-audit, and pre-commit appear on the CI of most serious community projects. A reviewer at any modern Python shop will recognize them. The remaining four are racecar's specific commitments:
+**Status of each tool.** Nine of the thirteen are mainstream de facto canon in modern Python: black, isort, pylint, mypy, pytest, pytest-cov, pip-audit, pytest-xdist, and pre-commit appear on the CI of most serious community projects. A reviewer at any modern Python shop will recognize them. The remaining four are racecar's specific commitments:
 
 - `import-linter` — [`PYTHON.md`](PYTHON.md) §4 makes the import-graph DAG an enforced architectural property.
 - `pylint-pytest` — racecar projects use pytest as the canonical test runner; the plugin suppresses W0621 (redefined-outer-name) false positives on fixture parameters, which would otherwise force every fixture-consuming test to carry a noisy disable.
@@ -319,6 +320,14 @@ dev = [
 - `pyyaml` — the YAML frontmatter parser `check_brief.py` needs to validate an `llm-summary` brief. The brief lives in the adopter's own `docs/summary/<REPO>.md`, so the adopter must be able to validate it without the racecar checkout; that self-sufficiency is why `check_brief.py` is synced (it is the one synced check with a non-stdlib dependency, and `pyyaml` is its reason for being canon). The template `docs:` target runs `check_brief` guarded, so a repo with no brief pays only the inert dependency.
 
 `pip-tools` is intentionally not on the list: the canon does not include a lockfile-generation workflow (see §5). Projects that want a lockfile install pip-tools themselves or use `pip freeze`.
+
+**Parallel tests are opt-in, never canon-default.** `pytest-xdist` ships in the dev group so any repo can flip on parallel workers without touching dependencies, but racecar never sets `-n` in canon: not in the library pyproject `addopts`, not in `racecar.mk`. A suite runs serially until the owning repo decides otherwise, because parallelism is a determinism trade the owner makes, not a default the standard imposes. A repo whose suite is large enough to pay for worker startup turns it on in the **owned** `Makefile` (which `include`s `racecar.mk`), by overriding the `PYTEST_ARGS` variable `racecar.mk`'s `test` target already threads through:
+
+```make
+PYTEST_ARGS := -n auto   # parallel by default; `make test PYTEST_ARGS=''` runs serial
+```
+
+The one hard requirement xdist adds: **deterministic test collection.** Workers each collect independently, so any parametrize source backed by a hash-ordered `set`/`dict` makes workers disagree on the test list and xdist aborts. Keep every parametrize source sorted. This is the whole cost of the pattern, and it is the owning repo's to accept, which is why the switch lives in owned space, not canon.
 
 **Django shapes add two canonical dev tools.** Shapes `src+server` and `server` install a second PEP 735 group, `[dependency-groups].django`, for Django-only dev tools. Two entries are racecar-canonical; `check_packaging.py` requires both in the django group for any repo with a `manage.py`. The rest of that group (test, coverage, web-surface tooling like `openapi-spec-validator`) is project-choice, not canon.
 

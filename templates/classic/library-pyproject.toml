@@ -60,6 +60,7 @@ dev = [
     "pre-commit",
     "validate-pyproject",
     "pyyaml>=6.0",                 # frontmatter parser for check_brief.py (racecar-llm-summary briefs)
+    "pytest-xdist",                # parallel test workers; inert until PYTEST_ARGS enables `-n`
 ]
 django = [
     # Django-specific dev tools. Install with: make install-dev
