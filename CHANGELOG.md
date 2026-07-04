@@ -4,6 +4,41 @@ All notable changes to racecar are recorded here, in the style of
 [Keep a Changelog](https://keepachangelog.com). racecar is pre-1.0, so a minor
 bump may carry breaking changes for adopters; those are marked **Breaking**.
 
+## 0.18.2 - 2026-07-03
+
+### Removed
+- **The prose-punctuation dash gate is retired (`scripts/check_prose_punctuation.py`).** Shipped in
+  0.15.0 to ban the em-dash and, by extension, the en-dash and the `--` sentence dash in human prose,
+  it produced more false positives than the drift it caught: a `--` is a CLI long option or a POSIX
+  end-of-options marker far more often than a sentence dash, and the commit-message scan had no
+  code-span exemption. The em-dash rule stays in `shared/VOICE.md` as a voice convention applied by the
+  writer and caught in review, not mechanically. The script, its test, and both pre-commit hooks
+  (`prose-punctuation`, `prose-punctuation-commit-msg`) are removed; the script is added to
+  `sync_scripts`' `REMOVED_SCRIPTS` so an adopter's vendored copy is deleted on the next `make sync`.
+  Adopter-facing only in that the two hooks disappear from the regenerated pre-commit config, and
+  nothing an adopter depends on breaks (the hooks rejected valid content); no repo action is required.
+
+## 0.18.1 - 2026-07-03
+
+### Changed
+- **`make check-full` runs serially.** It previously fan-out its six targets with `$(MAKE) -j`, which
+  interleaved their output and made a failure hard to attribute. It now runs them in order. The clean
+  alternative (keep parallelism, group output with `--output-sync`) needs GNU Make 4.0, and racecar
+  targets 3.81 (macOS stock), so serial is the portable fix. `check-full` is the pre-push / CI-cadence
+  gate, not the fast `check`, so legible attributable output is worth more there than the wall-clock.
+
+## 0.18.0 - 2026-07-03
+
+### Added
+- **`pytest-xdist` in the canonical dev group; parallel tests are an opt-in the owning repo makes.**
+  The plugin now ships in `[dependency-groups].dev` (PACKAGING.md §6, `templates/classic/library-pyproject.toml`)
+  so any repo can turn on parallel workers without a dependency change. racecar never sets `-n` in
+  canon (not in the library `addopts`, not in `racecar.mk`): a suite runs serially until its owner
+  decides otherwise, in the owned `Makefile` via `PYTEST_ARGS := -n auto`, which `racecar.mk`'s
+  `test` target already threads through. The one requirement xdist adds, deterministic collection
+  (sorted parametrize sources, or workers disagree on the test list and abort), is documented as the
+  owner's cost to accept. Codifies the pattern an adopter (gfem) had already proven.
+
 ## 0.16.0 - 2026-07-03
 
 ### Added

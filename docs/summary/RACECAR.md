@@ -41,10 +41,9 @@ entities:
     notes: >-
       e.g. check_packaging, check_surface_auth, check_surface_orchestration (advisory, surface-rooted), check_upward_imports,
       check_docs, check_subsystem_docs, check_file_placement, check_todo_format, check_changelog, check_brief, and the 0.15.0
-      commit-time gates check_version_bump (a bumpable commit type must move the version home), check_prose_punctuation (no
-      em-dash / en-dash / `--` sentence dash in human prose), plus check_config_drift and the racecar-run-only
-      check_racecar_overrides (a repo has not forked canon). Run via make check and pre-commit; the prose and version-bump
-      gates run at pre-commit's commit-msg stage. Vendored into adopter repos.
+      commit-time gate check_version_bump (a bumpable commit type must move the version home), plus check_config_drift and the
+      racecar-run-only check_racecar_overrides (a repo has not forked canon). Run via make check and pre-commit; the version-bump
+      gate runs at pre-commit's commit-msg stage. Vendored into adopter repos.
   - name: AuthorizationServer
     case: none
     purpose: The OAuth 2.1 + WebAuthn FIDO2 Authorization Server that secure-server generates.
@@ -248,7 +247,7 @@ The surface is the **slash commands** (frontmatter `cli_verbs`, 16 skills) plus 
 - **Interface Manifest** — produced by `scaffold_surfaces.py::build_manifest` (audit + binding + api introspection), consumed by the surface templates; written to `server/docs/api/manifest.json`. The single source for OpenAPI + ENDPOINTS.
 - **Surface binding** — `[tool.racecar.surface]` in `pyproject.toml` (JSON form also accepted): per-command api callable, method, and scope. `--scaffold-binding` emits a default-deny stub.
 - **import-linter `layers` contract** — the one gated architectural contract (`[tool.importlinter]`); `check_surface_orchestration.py` is the advisory detector (exit 0 by default, `--strict` to fail) for surfaces reaching past `api`. Since 0.14.0 it is **surface-rooted**: it anchors only on the surfaces it can name or is told to map (`__main__.py` = cli, `mcp.py`/`mcp/` = mcp), with no structural guessing, so an ingestion-shaped package or a `sources/<protocol>` adapter is deliberately not a vertical and is not flagged (`arch-coherence/SURFACES.md §7`, `CLI.md`).
-- **Commit-time gates** (0.15.0, adopter-facing via `templates/classic/pre-commit-config.yaml`) — `check_version_bump.py` (commit-msg stage) fails a feat/fix/perf/breaking commit when the version home is unchanged between index and HEAD, asserting a bump happened, not its magnitude (`shared/COMMITS.md`). `check_prose_punctuation.py` (pre-commit + commit-msg) bans the em-dash, en-dash, and `--` sentence dash in **human prose only** — Markdown minus its code blocks and inline code, Python docstrings only, and the commit message; machine-readable content is exempt, and a generated file opts out inclusively via the `racecar:prose-exempt` marker (`shared/VOICE.md`). `install-dev` now installs both `pre-commit` and `commit-msg` hook types so the commit-msg gates fire.
+- **Commit-time gate** (0.15.0, adopter-facing via `templates/classic/pre-commit-config.yaml`) — `check_version_bump.py` (commit-msg stage) fails a feat/fix/perf/breaking commit when the version home is unchanged between index and HEAD, asserting a bump happened, not its magnitude (`shared/COMMITS.md`). `install-dev` installs both `pre-commit` and `commit-msg` hook types so the commit-msg gate fires. (A prose-punctuation dash gate shipped alongside it in 0.15.0 and was retired in 0.18.2: its false-positive rate exceeded its value; the em-dash rule is now a `shared/VOICE.md` voice convention, not a checker.)
 - **Shape markers** — `pyproject.toml` (root) + `src/` + `server/manage.py` on disk; `detect_shape` (Python) and `racecar.mk` (Make) read them in lockstep, held by `test_sync_scripts.py`.
 - **Resource-server auth rail** — `project/auth.py` validates a bearer token by RFC 7662 introspection against the AS; `check_surface_auth.py` fails a surface that ships anonymous or a command with no scope.
 
