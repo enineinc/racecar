@@ -82,7 +82,6 @@ CHECK_SCRIPTS = (
     "doc-coherence/scripts/check_file_placement.py",
     "llm-summary/scripts/check_brief.py",
     "scripts/check_version_bump.py",
-    "scripts/check_prose_punctuation.py",
     "scripts/clean_files.sh",
 )
 
@@ -95,6 +94,7 @@ REMOVED_SCRIPTS = (
     "check_string_relations.py",
     "repo_context.py",
     "check_claude_shape.py",
+    "check_prose_punctuation.py",  # retired: dash gate, false positives > value (VOICE.md)
 )
 
 # Templates delivered create-if-missing only (--templates). Existing copies are
