@@ -138,8 +138,8 @@ install-dev: install ## install + PEP 735 dev group + pre-commit hooks (requires
 
 check: fmt-check lint test ## Fast gate (~30s; pre-commit cadence)
 
-check-full: ## Full gate (parallel; pre-push / CI cadence) — adds typecheck + arch + docs
-	@$(MAKE) -j fmt-check lint test typecheck arch docs
+check-full: ## Full gate (pre-push / CI cadence) — adds typecheck + arch + docs
+	@$(MAKE) fmt-check lint test typecheck arch docs
 
 audit: ## pip-audit dependency vulnerability scan (standalone; run weekly / on-demand)
 	$(PYTHON) -m pip_audit --strict
