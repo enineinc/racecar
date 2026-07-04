@@ -259,6 +259,33 @@ def _django_vertical(root: Path) -> Vertical | None:
     return Vertical(name="server", prefix="server", modules={}, surfaces=[CANON_DJANGO])
 
 
+def _import_reaches_subpackage(node: ast.AST, prefix: str, subpkgs: set[str]) -> bool:
+    """True if a single import ``node`` reaches a subpackage in ``subpkgs``.
+
+    Split out of _main_imports_deeper so that function stays under the return-count cap;
+    the branch set is identical (relative and absolute ImportFrom, plain Import). Relative
+    and absolute forms are mutually exclusive per node, so the early returns preserve the
+    original fall-through semantics.
+    """
+    if isinstance(node, ast.ImportFrom):
+        if node.level == 1 and node.module and node.module.split(".")[0] in subpkgs:
+            return True  # from .subpkg[...] import ...
+        if node.level == 1 and node.module is None:
+            return any(alias.name in subpkgs for alias in node.names)  # from . import subpkg
+        return bool(  # absolute import into a subpackage
+            node.module
+            and node.module.startswith(prefix + ".")
+            and node.module[len(prefix) + 1 :].split(".")[0] in subpkgs
+        )
+    if isinstance(node, ast.Import):
+        return any(
+            alias.name.startswith(prefix + ".")
+            and alias.name[len(prefix) + 1 :].split(".")[0] in subpkgs
+            for alias in node.names
+        )
+    return False
+
+
 def _main_imports_deeper(directory: Path, prefix: str) -> bool:
     """True if ``directory/__main__.py`` imports a module nested BELOW ``directory`` (a
     subpackage / deeper module).
@@ -270,37 +297,17 @@ def _main_imports_deeper(directory: Path, prefix: str) -> bool:
     vertical's ``__main__`` caps an in-package stack by importing its own subpackage ->
     True.
     """
-    main = directory / "__main__.py"
-    if not main.is_file():
+    main_py = directory / "__main__.py"
+    if not main_py.is_file():
         return False
     subpkgs = _subpackages(directory)
     if not subpkgs:
         return False
     try:
-        tree = ast.parse(main.read_text(encoding="utf-8"))
+        tree = ast.parse(main_py.read_text(encoding="utf-8"))
     except (SyntaxError, OSError):
         return False
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom):
-            if node.level == 1 and node.module and node.module.split(".")[0] in subpkgs:
-                return True  # from .subpkg[...] import ...
-            if node.level == 1 and node.module is None:
-                if any(alias.name in subpkgs for alias in node.names):
-                    return True  # from . import subpkg
-            if (
-                node.module
-                and node.module.startswith(prefix + ".")
-                and node.module[len(prefix) + 1 :].split(".")[0] in subpkgs
-            ):
-                return True  # absolute import into a subpackage
-        elif isinstance(node, ast.Import):
-            for alias in node.names:
-                if (
-                    alias.name.startswith(prefix + ".")
-                    and alias.name[len(prefix) + 1 :].split(".")[0] in subpkgs
-                ):
-                    return True
-    return False
+    return any(_import_reaches_subpackage(node, prefix, subpkgs) for node in ast.walk(tree))
 
 
 # --- role identification: name or mapping only -------------------------------
