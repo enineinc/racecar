@@ -17,6 +17,7 @@ CANON_DEV_TOOLS = [
     "pre-commit",
     "validate-pyproject",
     "pyyaml",
+    "pytest-xdist",  # parallel test workers; inert until PYTEST_ARGS enables -n (PACKAGING.md §6)
 ]
 
 # Django shapes carry a second PEP 735 group, [dependency-groups].django. Two
