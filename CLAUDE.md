@@ -59,6 +59,9 @@ Load: [llm-summary/SPEC.md](llm-summary/SPEC.md)
 Topic: Ownership — tooling enables design and confirms correctness; responsibility stays with the owner
 Load: [shared/OWNERSHIP.md](shared/OWNERSHIP.md)
 
+Topic: Principles — the irreducible universal axioms every rule and lens derives from
+Load: [shared/PRINCIPLES.md](shared/PRINCIPLES.md)
+
 Topic: Drift — the doctrine for fighting entropy continuously
 Load: [shared/DRIFT.md](shared/DRIFT.md)
 
