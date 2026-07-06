@@ -8,6 +8,14 @@ All notable changes to racecar are recorded here, in the style of
 [Keep a Changelog](https://keepachangelog.com). racecar is pre-1.0, so a minor
 bump may carry breaking changes for adopters; those are marked **Breaking**.
 
+## 0.20.0 - 2026-07-06
+
+### Added
+- `scripts/rc-commit.sh`, the owner's editor-reviewed commit helper (`git commit -eF`).
+
+### Changed
+- `racecar-commit` now decomposes by default (inventories the whole tree, commits as one or as an ordered series); `racecar-commit-decompose` is retained as an alias, and `commit-preflight`'s caller reference is corrected.
+
 ## 0.19.0 - 2026-07-06
 
 ### Added

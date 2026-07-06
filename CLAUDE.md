@@ -17,8 +17,8 @@ This is the routing table. Load the file that applies to the task at hand. Do no
 Topic: Agent persona — interaction style and thought process when applying racecar standards
 Load: [shared/PERSONA.md](shared/PERSONA.md)
 
-Topic: Architectural coherence — DAG axioms and review lens
-Load: [arch-coherence/AXIOMS.md](arch-coherence/AXIOMS.md)
+Topic: Architectural coherence — the four DAG-verifying checks (acyclicity, direction, layer integrity, depth-plus-one) and review lens
+Load: [arch-coherence/CHECKS.md](arch-coherence/CHECKS.md)
 
 Topic: Python architectural coherence — language-specific rules and enforcement
 Load: [arch-coherence/PYTHON.md](arch-coherence/PYTHON.md)
@@ -74,6 +74,9 @@ Load: [shared/DRIFT.md](shared/DRIFT.md)
 Topic: Voice — shared conventions for prescriptive writing (standards and review outputs)
 Load: [shared/VOICE.md](shared/VOICE.md)
 
+Topic: Vocabulary — the literal severity and verdict tokens every review output must use (Blocker/Major/Minor/Nit, Ship/Revise/Rework)
+Load: [shared/VOCABULARY.md](shared/VOCABULARY.md)
+
 Topic: TODO list rendering format
 Load: [shared/TODO_FORMAT.md](shared/TODO_FORMAT.md)
 
@@ -86,7 +89,7 @@ Load: [shared/GLOSSARY.md](shared/GLOSSARY.md)
 Topic: Commits — message convention, type→bump mapping, version-home rules
 Load: [shared/COMMITS.md](shared/COMMITS.md)
 
-Topic: Commit authoring — procedure for drafting a conventional commit with deterministic version bump from the staged diff
+Topic: Commit authoring — inventory the working tree and commit it as one conventional commit or a dependency-ordered series (decompose by default), each with a deterministic version bump
 Load: [commit/SKILL.md](commit/SKILL.md)
 
 Topic: Upgrade — bring an existing repo in line with current racecar with nuance (no clobber); classify each divergence Conform / Escalate (intentional-and-right divergence is kept in place with a comment, no override registry), owner-authorized, idempotent; optional surfaces uplift
@@ -119,7 +122,7 @@ Load: [normalize/SKILL.md](normalize/SKILL.md)
 Topic: Commit preflight — dry-run the pre-commit hooks before committing
 Load: [commit-preflight/SKILL.md](commit-preflight/SKILL.md)
 
-Topic: Commit decompose — split a working tree into a sequence of conventional commits
+Topic: Commit decompose — alias of commit authoring; splitting a working tree into an ordered commit series is now the default behavior of racecar-commit, kept so existing invocations still resolve
 Load: [commit-decompose/SKILL.md](commit-decompose/SKILL.md)
 
 ## Enforcement

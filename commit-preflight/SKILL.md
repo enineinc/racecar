@@ -31,4 +31,4 @@ Make a commit green *before* attempting it, so you never burn a round trip on a 
 - Never runs `git commit` — the owner commits (per [`shared/OWNERSHIP.md`](../shared/OWNERSHIP.md)).
 - Auto-fixes only formatting hooks; it never edits source to satisfy a logic/doc check — those are surfaced for a human decision.
 - Assumes the staged files are not also dirty-unstaged (a half-staged file makes pre-commit's stash ambiguous). If they are, stage or stash the rest first.
-- One commit at a time. To green a whole series, [`racecar-commit-decompose`](../commit-decompose/SKILL.md) calls this per group.
+- One commit at a time. To green a whole series, [`racecar-commit`](../commit/SKILL.md) calls this per group when it commits a decomposed tree.
