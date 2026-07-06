@@ -20,10 +20,11 @@ more.
 surfaces consume — and it is kept structurally free of Django's ORM
 ([`../arch-coherence/PACKAGING.md`](../arch-coherence/PACKAGING.md)).
 
-**Shape.** Canon single-package layout is root `src/<pkg>`. A repo that grows multiple co-versioned
-libraries moves to the workspace form `{packages,pypkg}/<pkg>/src/<pkg>` — recognized by
-`detect_shape`, but introducing that grouping is a separate, later concern (it waits for the second
-real library).
+**Shape.** Canon single-package layout is root `src/<pkg>`. A repo that grew a second co-versioned
+library would move to the workspace form `{packages,pypkg}/<pkg>/src/<pkg>`, which `detect_shape` does
+not yet recognize (`_shape.py`: "not yet recognized"). That grouping ships when the second library is
+real, not before; single-library-per-repo is the current design stance, so the trigger is
+intentionally unmet.
 
 Mechanism: `scripts/init_project.py` lays down the `src/<pkg>` skeleton, the root `pyproject.toml`, the
 `Makefile` (owned + `racecar.mk` include), and the pre-commit config. Idempotent; owner-authorized (it

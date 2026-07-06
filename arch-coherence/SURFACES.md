@@ -46,7 +46,7 @@ autodiscovery contract); the import shape is not.
 
 The arrow reads **"provides for"**: `lib` provides for `api`, `api` provides for
 each surface. **Import edges run the reverse**: a surface imports `api`, `api` imports
-`lib`. The graph is a DAG; [check 1 Acyclicity](AXIOMS.md#1-acyclicity-root-axiom)
+`lib`. The graph is a DAG; [check 1 Acyclicity](CHECKS.md#1-acyclicity-root-axiom)
 is non-negotiable here as everywhere.
 
 Three roles:
@@ -115,22 +115,22 @@ the surface names should be fixed. `mcp.py`-mandatory-**if you have an mcp surfa
 exactly `admin.py`-mandatory-**if you have admin**. That is a contract, not dogma.
 
 The fixed thing is the names, not the import shape: there is no import wall (§3). A
-project that names its files differently is not in violation — it declares the mapping in a manifest (§4 Tier 2). The canonical
+project that names its files differently is not in violation — it declares the mapping in a manifest (§5 Tier 2). The canonical
 name is the **default you receive** (§5), not a cage.
 
 ## 3. Per-vertical co-location
 
-A project has verbs (features): `catalog`, `fetch`, `report`; `prices`,
-`dispatch`. For **each verb**, its roles live in the **same submodule**, canonically
+A project has verticals (features): `catalog`, `fetch`, `report`; `prices`,
+`dispatch`. For **each vertical**, its roles live in the **same submodule**, canonically
 named:
 
 ```
 src/<pkg>/
-  <verb>/
+  <vertical>/
     __init__.py   ← namespace only
-    lib.py        ← lib role   (the engine for this verb)
-    api.py        ← api role   (orchestration policy for this verb)
-    __main__.py   ← cli surface   (thin adapter; calls <verb>.api)
+    lib.py        ← lib role   (the engine for this vertical)
+    api.py        ← api role   (orchestration policy for this vertical)
+    __main__.py   ← cli surface   (thin adapter; calls <vertical>.api)
     mcp.py        ← mcp surface   (when present)
   shared/         ← shared primitives BELOW all verticals
     <primitive>.py
@@ -152,7 +152,7 @@ Two kinds of rule, and they get different machinery.
 
 **Gate genuine defects.** A cycle or an upward import is *incoherent* — like a type
 error, catching it is unambiguous help. **Acyclicity + direction stay a hard gate**,
-via a single `import-linter` `layers` contract (the [layer-integrity](AXIOMS.md#3-layer-integrity)
+via a single `import-linter` `layers` contract (the [layer-integrity](CHECKS.md#3-layer-integrity)
 axiom applied to the tiers). This is the **only gated import contract** the surfaces
 axis adds.
 
@@ -174,10 +174,10 @@ Hold even this as judgment, not a new law.
 
 ### The one gated contract (copy-pasteable)
 
-Parameterized by package name `<pkg>` and verb names `<verb_a>`, `<verb_b>`. Add to
-the library pyproject's `[tool.importlinter]` alongside the layered-DAG contract
-from [`PACKAGING.md`](PACKAGING.md) §3. `lint-imports` then reports
-`Contracts: N kept, 0 broken.`
+Parameterized by package name `<pkg>` and vertical names `<verb_a>`, `<verb_b>`. Add to
+the library pyproject's `[tool.importlinter]` (see [`PACKAGING.md`](PACKAGING.md) for the
+pyproject layout this contract sits in; this section is its one home). `lint-imports`
+then reports `Contracts: N kept, 0 broken.`
 
 ```toml
 [tool.importlinter]
@@ -195,7 +195,7 @@ layers = [
     "<pkg>.shared",                                                   # primitives below all verticals
 ]
 # The environment layer (<pkg>.config) is intentionally NOT a layer row:
-# any tier may read it (environment-layer exception, README.md).
+# any tier may read it (environment-layer exception, CHECKS.md §2).
 ```
 
 There is **no second `forbidden` contract.** Surface→worker is the advisory detector's
@@ -228,7 +228,9 @@ Three tiers, ordered by explicitness:
    surfaces = ["athena.prices.__main__", "athena.mcp"]
    ```
 
-3. **Structural inference** (fallback; reports its own uncertainty):
+3. **Structural inference** (a reviewer's manual lens — *not* performed by the current
+   detector, which does Tiers 1-2 only; see §7). What a reviewer looks for when no name
+   or manifest settles a role:
    - **cli** = a `__main__.py`, or `if __name__ == "__main__"` + an argparse parser.
    - **mcp / web** = a transport signature: imports an MCP SDK / JSON-RPC stdio
      loop; or `flask` / `fastapi` / `django`.
@@ -239,12 +241,13 @@ Three tiers, ordered by explicitness:
    - **lib** = the transport-less **sink** below `api`: the node `api` imports that
      fans out to internals and imports nothing further in-vertical.
 
-**Declare, then verify.** The name or manifest *declares*; the structure *verifies*.
-A declared-`api` that is **not** the cut vertex is a Finding. When inference cannot
-find a clean cut vertex (the surfaces touch the lib directly, with no module mediating
-them), **the non-classifiability is itself the drift finding** — identifiability and
-good structure are the same property. A vertical you cannot cleanly classify is a
-vertical whose orchestration has no single home.
+**Declare, then verify.** The name or manifest *declares*. Verifying that the declared
+`api` is structurally the real orchestration point is a **reviewer's** judgment, not the
+detector's: a declared-`api` that is not the cut vertex is drift worth catching, though
+the tool does not compute it. When no module cleanly mediates the surfaces and the lib,
+that non-classifiability is itself the finding — identifiability and good structure are
+the same property. What the detector flags mechanically is narrower: an `api` fronting
+no `lib`, and orchestration restated across surfaces (§4, §7).
 
 **Edge: single-surface `api == lib` collapse.** At exactly one surface there is no
 separate cut vertex — the surface imports the lib directly and `api` legitimately
@@ -264,7 +267,7 @@ the thing it watches").
   **second home** for it (Tier 1 drift) and, when the symbol is named after a
   submodule, **shadows** that submodule — a real import breakage (verified on the
   `lib → api → surfaces` proving ground). Environment-layer config goes in a `config`
-  module, not `__init__` (PYTHON.md §1 permits either; this narrows to `config`).
+  module, not `__init__` (consistent with PYTHON.md §1, which also mandates `config`).
 - **Cardinality vs mechanism.** `api` models `n` accounts/tenants as the **general
   case** with `n = 1` as the default — a key into existing storage and a loop that
   happens to run once (`accounts["default"]`, `for account in accounts:`). That is
@@ -360,7 +363,7 @@ The `django` shape and the `django` surface are two views of one thing: the shap
 holding no orchestration of its own*.
 
 **Reconcile with llm-summary.** The brief's `external_surface` kinds
-([llm-summary/README.md](../llm-summary/SPEC.md#frontmatter-yaml)) enumerate surfaces
+([llm-summary/SPEC.md](../llm-summary/SPEC.md#frontmatter-yaml)) enumerate surfaces
 from the outside: `http_routes` (django), `cli_verbs` (cli), `library_exports`
 (api), plus `webhooks` and `signals`. The `mcp` surface adds the `mcp_tools` kind.
 

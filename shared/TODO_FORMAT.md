@@ -4,7 +4,7 @@ pnode: [../README.md]
 
 # TODO List Rendering Format
 
-Accessed via [`../README.md`](../README.md). If you arrived here directly, read that first.
+Accessed via [`../README.md`](../README.md), the human storefront. Agents receive this file force-loaded via `CLAUDE.md` and do not read README.
 
 This file has two halves. The **source schema** is how open work is written on disk — the contract every project's `TODO.md` and per-concern TODO sections must satisfy, enforced mechanically by [`../doc-coherence/scripts/check_todo_format.py`](../doc-coherence/scripts/check_todo_format.py). The **render format** is how a sorted view is produced on demand; it reads the source and never rewrites it.
 

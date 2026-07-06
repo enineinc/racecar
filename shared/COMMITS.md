@@ -4,7 +4,7 @@ pnode: [../README.md]
 
 # Commits
 
-Accessed via [`../README.md`](../README.md). If you arrived here directly, read that first.
+Accessed via [`../README.md`](../README.md), the human storefront. Agents receive this file force-loaded via `CLAUDE.md` and do not read README.
 
 Rules for commit messages in this repo. Apply without deviation when authoring or suggesting a commit.
 

@@ -16,7 +16,7 @@ Run it with `/racecar-arch-coherence`, or `make arch` for the mechanical subset 
 
 | Doc | Covers |
 |---|---|
-| [`AXIOMS.md`](AXIOMS.md) | **Start here.** The review lens: the four DAG axioms (acyclicity, direction, layer integrity, depth-plus-one), red flags, feedback format. |
+| [`CHECKS.md`](CHECKS.md) | **Start here.** The review lens: the four DAG axioms (acyclicity, direction, layer integrity, depth-plus-one), red flags, feedback format. |
 | [`SURFACES.md`](SURFACES.md) | The `lib → api → surfaces` shape: one library, thin surfaces, the gated `layers` contract, the advisory orchestration detector. |
 | [`GENERATION.md`](GENERATION.md) | Surface generation: deriving a REST + MCP Django ASGI surface from the CLI surface + `api`. The Interface Manifest, the binding, MCP wire conformance. Executed by [`../create-server/SKILL.md`](../create-server/SKILL.md) over the library's `src/<pkg>/api`. |
 | [`PYTHON.md`](PYTHON.md) | Python specifics: module structure, `__init__.py` / `__main__.py` roles, `import-linter` enforcement. |

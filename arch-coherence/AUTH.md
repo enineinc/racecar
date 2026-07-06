@@ -59,7 +59,7 @@ test suite.
 - Not authentication of a *human at a browser page* (session login) bolted onto a machine API. The
   surfaces are machine interfaces; the human factor lives at the Authorization Server's login, which
   issues the token the machine then carries.
-- Not mTLS on one surface and tokens on another. One path (AUTH-03). mTLS is a transport-layer add-on
+- Not mTLS on one surface and tokens on another. One path. mTLS is a transport-layer add-on
   a deployer may stack at the edge, but it is device-bound and cannot be the surface's auth scheme,
   because MCP access must be device- and location-agnostic.
 - Not a JWT. A self-describing token puts claims on the wire and resists revocation; the opaque

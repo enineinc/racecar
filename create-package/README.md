@@ -50,9 +50,10 @@ $REPO/
 
 ## Edges and limits
 
-- **One library.** Canon is a single root `src/<pkg>`. Multiple co-versioned libraries are the
-  workspace form (`{packages,pypkg}/<pkg>/src/<pkg>`), recognized by `detect_shape`, but the grouping
-  skill waits for the second real library.
+- **One library, by current design.** Canon is a single root `src/<pkg>`. Multiple co-versioned
+  libraries would be the workspace form (`{packages,pypkg}/<pkg>/src/<pkg>`), which `detect_shape` does
+  not yet recognize; that grouping ships when a repo genuinely holds a second co-versioned library, a
+  trigger left deliberately unmet today.
 - **Django-free.** The library never imports Django; the ORM is walled out of the data plane
   ([`../arch-coherence/PACKAGING.md`](../arch-coherence/PACKAGING.md)). That wall is why the CLI cannot
   fold into the server.

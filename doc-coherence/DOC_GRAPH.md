@@ -37,9 +37,9 @@ A genuine "see also" to a doc that is neither parent nor child (a lens citing `G
 
 Deterministic, stdlib only, no model. Subchecks:
 
-- **types** — every `pnode` (and `see_also`) entry is a relative path that resolves to an existing in-scope `.md` file.
+- **types** — every `pnode` (and `see_also`) entry is a relative path that resolves to an existing file (a `SKILL.md` or `CLAUDE.md` target is allowed even though those are exempt from carrying their own `pnode`).
 - **dag** — the graph assembled from all `pnode` edges is acyclic.
-- **consistency** — where a doc's body carries an `Accessed via [X]` link, `X` is among its declared `pnode`. The prose is the human echo of the machine edge; the checker keeps them agreed so neither drifts.
+- **consistency** — where a doc's body carries an `Accessed via` link, that link's target path is among its declared `pnode`. The prose is the human echo of the machine edge; the checker keeps them agreed so neither drifts.
 
 `CLAUDE.md` and each `SKILL.md` are exempt (the machine baseline and the skill definitions, each with its own frontmatter schema); an excluded file may still be a `pnode` *target*. Vendored template trees, the demo, and the generated briefs are out of scope. Every other in-scope doc declares `pnode`, and one missing it is a Finding. The checker reads only the `pnode` and `see_also` lines, so a doc whose other frontmatter is not strict YAML still validates.
 

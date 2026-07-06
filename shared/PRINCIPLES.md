@@ -4,7 +4,7 @@ pnode: [../README.md]
 
 # Principles
 
-Accessed via [`../README.md`](../README.md). If you arrived here directly, read that first.
+Accessed via [`../README.md`](../README.md), the human storefront. Agents receive this file force-loaded via `CLAUDE.md` and do not read README.
 
 The irreducible first principles racecar is built on. Every rule, lens, and check in this repo
 derives from one of the axioms below. Every axiom is a principle, of two kinds. A **known
@@ -50,7 +50,7 @@ practical, legible form.
 - **Why.** A cycle, including one papered over by a lazy import, destroys local reasoning: you
   can no longer change one place and predict what else moves. Upward imports and layer leaks
   reintroduce the cycle the axiom forbids.
-- **Enforced by.** The single `import-linter` `layers` contract ([`../arch-coherence/AXIOMS.md`](../arch-coherence/AXIOMS.md),
+- **Enforced by.** The single `import-linter` `layers` contract ([`../arch-coherence/CHECKS.md`](../arch-coherence/CHECKS.md),
   [`../arch-coherence/SURFACES.md`](../arch-coherence/SURFACES.md) §4); `check_upward_imports`; the
   depth-plus-one isolation rule (a layer enumerates only its immediate children). A cycle defaults
   to Blocker and supersedes prose reasoning.
@@ -74,15 +74,13 @@ place; every other location points to it and does not restate it.
   §Scope); `__init__.py` is namespace-only so no symbol gets a second home
   ([`../arch-coherence/SURFACES.md`](../arch-coherence/SURFACES.md) §6); TODO federation by concern
   with `TODO.md` as a resolver, not a second copy ([TODO_FORMAT.md](TODO_FORMAT.md)).
-- **Corollary — bounded test surface.** One home applied to test artifacts. Reconcile each
-  config's output to source material through a manifest-driven driver; never hand-write a golden
-  per model. Hand-written test *code* stays O(1) in models — the three manifolds (tie / identity /
-  integrity) and one driver — while test *instances* are bounded by configs × transforms and
-  realized as catalog rows, not new files. That product is the ceiling: any count above it is
-  duplication (this axiom), and any fixture that carries a real model to reach it is exposure
-  ([scope honesty](#r-03-scope-honesty)). Enforced by the reconciliation scaffold
-  ([`../eng-review/RECONCILIATION.md`](../eng-review/RECONCILIATION.md)): the tracked tree is the
-  manifolds and the driver; per-model specifics are catalog data outside version control.
+- **Corollary — bounded test surface.** One home applied to test artifacts: hand-written test
+  *code* stays O(1) in models (a few generic manifolds plus one driver), while test *instances* are
+  bounded by configs × transforms and realized as catalog data, not new files per model. That
+  product is the ceiling: any count above it is duplication (this axiom), and any fixture that
+  carries a real model to reach it is exposure ([scope honesty](#r-04-scope-honesty)). The
+  mechanism, the manifolds, and the private catalog are homed in
+  [`../eng-review/RECONCILIATION.md`](../eng-review/RECONCILIATION.md) (not restated here).
 - **Origin.** DRY and single source of truth (Hunt and Thomas, *The Pragmatic Programmer*).
 
 ### P-03. Reconcile to source; do not re-derive from memory
@@ -103,22 +101,22 @@ Trace to the source; do not reinvent it.
 - **Origin.** Dijkstra: testing shows the presence, not the absence, of bugs. The trace-to-source
   discipline itself is folk engineering, no single owner.
 
-### P-04. The enforced contract is truth; resolve drift at the largest frame
+### P-04. Resolve drift at the largest frame that explains the symptom
 
-When prose and the mechanically-enforced contract disagree, the contract is truth and the prose
-is the bug. When a drift has symptoms at several frames, resolve it at the largest frame that
-explains the symptom, and fix there.
+When a drift shows symptoms at several frames, resolve it at the largest frame that explains the
+symptom, and fix there. A local symptom and its root often sit at different frames; tidying the
+symptom leaves the cause.
 
-- **Rests on.** The executed contract is what runs, by definition; prose is only a claim about it.
-- **Why.** The contract is executed continuously; prose is verified only when someone remembers.
-  A defense that is discrete and pull-triggered cannot keep pace with entropy that rises on every
-  change. And tidying a local symptom destroys the evidence that pointed at the global root.
-- **Enforced by.** "The truth is the `import-linter` contract, not the prose" applied across the
-  portfolio (gfinfra `CLAUDE.md`); the frame-aware severity rule, grade at the frame where the
-  damage lands ([DRIFT.md](DRIFT.md)); the drift ledger, which floats to the top anything whose
-  subject changed since its last verification.
-- **Origin.** Root-cause over symptom (Ohno's five whys, Toyota). "The running system is the
-  truth" is folk, no single owner.
+- **Rests on.** A defect and its symptom can occupy different frames; removing the symptom does not
+  remove the cause, so the defect regenerates from the frame left untouched.
+- **Why.** Tidying a local symptom destroys the evidence that pointed at the global root, and the
+  root, still there, resurfaces elsewhere. Grading and fixing at the frame where the damage lands is
+  what makes a fix hold rather than recur.
+- **Enforced by.** The frame-aware severity rule, grade at the frame where the damage lands
+  ([DRIFT.md](DRIFT.md)); and, planned but not yet built, a drift ledger to float to the top
+  anything whose subject changed since its last verification ([DRIFT.md](DRIFT.md) "The ledger"
+  frames it as the aspirational clock).
+- **Origin.** Root-cause over symptom (Ohno's five whys, Toyota).
 
 ### P-05. Idempotent by default; re-running changes nothing
 
@@ -132,8 +130,8 @@ cannot be idempotent says so and refuses a blind repeat rather than double-apply
   invisible state the framework refuses to trust ([reconcile to source](#p-03-reconcile-to-source-do-not-re-derive-from-memory)).
   After a partial failure, non-idempotent tooling makes recovery a gamble, so drift accumulates in the
   one place automation was meant to remove it. Idempotency is also what lets a gate run continuously at
-  no cost ([enforced, not professed](#r-01-enforced-not-professed)) and a scaffold be re-applied as the
-  canon evolves ([make the right thing easy](#r-05-make-the-right-thing-easy-help-not-law)).
+  no cost ([enforced, not professed](#r-02-enforced-not-professed-the-enforced-contract-is-truth)) and a scaffold be re-applied as the
+  canon evolves ([make the right thing easy](#r-06-make-the-right-thing-easy-help-not-law)).
 - **Enforced by.** The scaffolding cascade writes only its own layer and refuses when its precondition
   is absent, never clobbering or double-writing (`create-package` / `create-server` / `secure-server`,
   [`../arch-coherence/GENERATION.md`](../arch-coherence/GENERATION.md)); `./install` and
@@ -148,44 +146,68 @@ cannot be idempotent says so and refuses a blind repeat rather than double-apply
 Stances racecar takes: chosen, some contrarian, held with the same force as a known one and
 defended by results, not proof.
 
-### R-01. Enforced, not professed
+### R-01. A detector must have lower entropy than what it watches
 
-A rule that matters is a deterministic check that fails at `file:line`. Prose is not
-enforcement.
+A detector must have lower entropy than the thing it watches. A generator cannot be its own gate,
+and an observer as noisy as its subject cannot separate signal from its own variance.
 
-- **Rests on.** An unexecuted rule gives no runtime signal, and a rule that gives no signal rots.
-- **Why.** A professed rule rots silently: entropy rises on every commit while a rule nobody
-  runs stays green in the reader's imagination only. A check either passes or names the
-  violation.
+- **Rests on.** An instrument must be more stable than what it measures; an observer with entropy
+  equal to or above its subject adds noise rather than reading it.
+- **Why.** If the detector varies as much as the watched thing, a real finding is indistinguishable
+  from the detector having a different day. This is the keystone: checks-over-prose
+  ([R-02](#r-02-enforced-not-professed-the-enforced-contract-is-truth)) and model-last
+  ([R-03](#r-03-determinism-over-heuristic-the-model-is-last-never-the-gate)) are both this law
+  applied, and the permanence argument ([`../MANIFESTO.md`](../MANIFESTO.md)) rests entirely on it.
+- **Enforced by.** Every gate is a deterministic script with an exit code, auditable once and then
+  trusted; the model is confined to the residue no predicate can decide and is never the arbiter
+  (R-02, R-03); a generator (an LLM) is never wired to gate its own output ([DRIFT.md](DRIFT.md):
+  the detector must have lower entropy than the thing it watches).
+- **Origin.** Requisite variety (Ashby, cybernetics) and the reproducibility instinct (reproducible
+  builds; control theory keeps a nondeterministic component out of the loop). The detector-entropy
+  framing is racecar's operative statement of it, not an original law.
+
+### R-02. Enforced, not professed; the enforced contract is truth
+
+A rule that matters is a deterministic check that fails at `file:line`; prose is not enforcement.
+When prose and the mechanically-enforced contract disagree, the contract is truth and the prose is
+the bug.
+
+- **Rests on.** An unexecuted rule gives no runtime signal, and a rule that gives no signal rots;
+  the executed contract is what runs, by definition, while prose is only a claim about it.
+- **Why.** A professed rule rots silently: entropy rises on every commit while a rule nobody runs
+  stays green in the reader's imagination only. The contract is executed continuously; prose is
+  verified only when someone remembers, and a defense that is discrete and pull-triggered cannot
+  keep pace. A check either passes or names the violation.
 - **Enforced by.** `make check` / `make check-full` / `make arch`; `import-linter`,
   `check_upward_imports`, `check_docs`, the pre-commit hook suite
-  ([`../arch-coherence/PACKAGING.md`](../arch-coherence/PACKAGING.md) §9). The corollary rule for
-  claiming completion: no `done` without the production-path command and its exit code
-  ([OPERATIONAL.md](OPERATIONAL.md) rules 7 to 12); a falsifiable doc invariant must have a test
+  ([`../arch-coherence/PACKAGING.md`](../arch-coherence/PACKAGING.md) §9); "the truth is the
+  `import-linter` contract, not the prose" applied across the portfolio (gfinfra `CLAUDE.md`). The
+  corollary rule for claiming completion: no `done` without the production-path command and its exit
+  code ([OPERATIONAL.md](OPERATIONAL.md) rules 7 to 12); a falsifiable doc invariant must have a test
   that fails when it is violated ([OPERATIONAL.md](OPERATIONAL.md) rule 10).
-- **Origin.** The lint and policy-as-code tradition; no single owner.
+- **Origin.** The lint and policy-as-code tradition; "the running system is the truth" is folk, no
+  single owner.
 
-### R-02. Determinism over heuristic; the model is last, never the gate
+### R-03. Determinism over heuristic; the model is last, never the gate
 
 No LLM in the constant, trustworthy loop. Every gate is a script and an exit code. The model
 is used to *mechanize* judgment or for the residue no predicate can decide, fed by deterministic
 pre-filtering, never as the arbiter.
 
-- **Rests on.** The detector must have lower entropy than the thing it watches, so a generator
-  cannot be its own gate.
-- **Why.** The detector must have lower entropy than the thing it watches. An LLM watching an
-  LLM is a second source of the same noise: it runs the check differently every time, and you
-  cannot tell a real finding from the model having a different day.
+- **Rests on.** [R-01](#r-01-a-detector-must-have-lower-entropy-than-what-it-watches): a detector
+  must have lower entropy than the thing it watches, so a generator cannot be its own gate.
+- **Why.** An LLM watching an LLM is a second source of the same noise (R-01): it runs the check
+  differently every time, and you cannot tell a real finding from the model having a different day.
 - **Enforced by.** Every Tier-2 check is stdlib Python plus exit codes, zero model calls
-  ([DRIFT.md](DRIFT.md) Tier 2); role identification is deterministic (name, then manifest, then
-  structural inference), never an LLM guess ([`../arch-coherence/SURFACES.md`](../arch-coherence/SURFACES.md)
+  ([DRIFT.md](DRIFT.md) Tier 2); role identification is deterministic (name, then manifest), never
+  an LLM guess ([`../arch-coherence/SURFACES.md`](../arch-coherence/SURFACES.md)
   §5); the model is confined to the periodic sweep, fed by the mechanical pre-pass
   ([DRIFT.md](DRIFT.md) Tier 3).
 - **Origin.** The reproducibility instinct (reproducible builds; control theory keeps a
   nondeterministic component out of the loop). Turning it on the model in the loop is racecar's
   stance, not an original idea.
 
-### R-03. Scope honesty
+### R-04. Scope honesty
 
 A label means exactly its contents; a file's location means exactly its role. A generic that
 carries specifics, or a name that overstates, is a lie the reader cannot see.
@@ -196,13 +218,14 @@ carries specifics, or a name that overstates, is a lie the reader cannot see.
   global drift ([DRIFT.md](DRIFT.md)).
 - **Enforced by.** doc-coherence scope-honesty and file-naming checks
   ([`../doc-coherence/PROTOCOL.md`](../doc-coherence/PROTOCOL.md) checks 2 and 3); role
-  identification by declare-then-verify, where a declared `api` that is not the cut vertex is a
-  Finding and a vertical you cannot classify is itself the drift
-  ([`../arch-coherence/SURFACES.md`](../arch-coherence/SURFACES.md) §5).
+  identification by declare-then-verify — a name or manifest declares each role and the advisory
+  detector surfaces an `api` fronting no `lib` or orchestration restated across surfaces
+  ([`../arch-coherence/SURFACES.md`](../arch-coherence/SURFACES.md) §5, §7). A declared `api` that
+  is not the structural cut vertex is drift a reviewer catches, not a mechanized gate.
 - **Origin.** Naming as a promise and the principle of least astonishment; folk, no single owner.
   Adjacent to Parnas's information hiding.
 
-### R-04. Ownership is not delegable
+### R-05. Ownership is not delegable
 
 Tooling enables design and confirms correctness. It does not authorize. A green check is
 confirmation, not a merge verdict; a failing check does not by itself veto a ship. Enforcement is
@@ -218,7 +241,7 @@ local, not a CI gate that decides without the owner in the loop.
 - **Origin.** "You build it, you run it" (Werner Vogels), and Deming's refusal to inspect quality
   in after the fact.
 
-### R-05. Make the right thing easy; help, not law
+### R-06. Make the right thing easy; help, not law
 
 The good shape is the default you receive, not a wall you are forced into. Gate genuine defects;
 surface choices. A rule that reads as a wall is a defect in the rule.
@@ -235,7 +258,7 @@ surface choices. A rule that reads as a wall is a defect in the rule.
 - **Origin.** The paved road / golden path (Netflix, Spotify) and the pit of success (Rico
   Mariani); affordances (Donald Norman).
 
-### R-06. Agent-grade software is data-plane-dominant
+### R-07. Agent-grade software is data-plane-dominant
 
 Agent-grade software connects to real data: broad in volume, shallow in complexity. The more
 useful the package, the more data it moves and the smaller the ORM-governed fraction becomes. So
@@ -260,11 +283,11 @@ server that never touches it.
 
 Two axioms in genuine tension, and how the framework resolves each.
 
-1. **Enforced-not-professed (R-01) vs help-not-law (R-05).** If everything mechanical becomes a
+1. **Enforced-not-professed (R-02) vs help-not-law (R-06).** If everything mechanical becomes a
    hard gate, choices get walled and the framework produces compliance, not understanding. The
    discriminator resolves it: *does the forbidden state ever have a legitimate instance?* Always a
    defect (a cycle) earns a gate; sometimes legitimate (a surface reaching past `api`) earns an
-   advisory Finding. Ownership (R-04) breaks the residual tie: the check confirms, the owner
+   advisory Finding. Ownership (R-05) breaks the residual tie: the check confirms, the owner
    authorizes.
 
 2. **One home (P-02) vs the deliberately duplicated shape decision.** The shape logic lives in

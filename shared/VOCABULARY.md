@@ -2,7 +2,7 @@
 pnode: [../README.md]
 ---
 
-# VOCABULARY.md — review-output literals
+# Vocabulary — review-output literals
 
 One home for the literals every racecar lens emits. Each lens README repeats them inline (so a reviewer reading the lens does not have to follow a link to know what to write); the inlined copies are kept in lockstep by the doc-coherence vocabulary-identity check in `doc-coherence/scripts/check_docs.py`.
 

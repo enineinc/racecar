@@ -4,7 +4,7 @@ pnode: [../README.md]
 
 # Operational discipline
 
-Accessed via [`../README.md`](../README.md). If you arrived here directly, read that first.
+Accessed via [`../README.md`](../README.md), the human storefront. Agents receive this file force-loaded via `CLAUDE.md` and do not read README.
 
 Operational discipline for agent execution — applies during review-lens analysis ([`../arch-coherence/README.md`](../arch-coherence/README.md), [`../doc-coherence/README.md`](../doc-coherence/README.md), [`../eng-review/README.md`](../eng-review/README.md)), where reads, greps, and test runs are expensive, and during general implementation work. Tool calls are not locally cheap; cost compounds across the conversation. State-changing tool calls compound worse — a wrong probe wastes a turn, a wrong mutation wastes recovery.
 

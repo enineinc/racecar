@@ -10,24 +10,25 @@ racecar is for a builder shipping real software with AI agents across more than 
 
 ## The principles
 
-racecar is eleven principles held in force by mechanical checks. The contribution is not the ideas, which are old, but the binding: enforcing them together, on your machine, without drift. Each has one home in [`shared/PRINCIPLES.md`](shared/PRINCIPLES.md), where it is stated as the axiom, what it rests on, the failure it prevents, the check that enforces it, and its origin. There are two kinds, both held with the same force: **known principles** (P), the established canon racecar adopts, and **racecar principles** (R), the stances racecar takes. Each group runs in dependency order, foundational first.
+racecar is twelve principles, held in force where you work: most by mechanical checks that fire at a file and line, the rest by construction and owner discipline. The contribution is not the ideas, which are old, but the binding: enforcing them together, without drift. Each has one home in [`shared/PRINCIPLES.md`](shared/PRINCIPLES.md), where it is stated as the axiom, what it rests on, the failure it prevents, the check that enforces it, and its origin. There are two kinds, both held with the same force: **known principles** (P), the established canon racecar adopts, and **racecar principles** (R), the stances racecar takes. Each group runs in dependency order, foundational first.
 
 **Known principles** — established, and resting on a theorem, a tautology, or long-settled practice.
 
 - **P-01. Dependencies form a directed acyclic graph.** Imports flow outward and downward, never up into a module's own root; no cycles. *The Acyclic Dependencies Principle (Martin), information hiding (Parnas), levelization (Lakos).*
 - **P-02. One home per artifact.** Every fact, rule, or value lives in exactly one place; everything else points to it, and does not restate it. *DRY and single source of truth (Hunt and Thomas).*
 - **P-03. Reconcile to source; do not re-derive from memory.** Verify a claim against the source's own mechanic, not a summary, an agent's report, or a green dashboard. *Dijkstra: testing shows the presence, not the absence, of bugs.*
-- **P-04. The enforced contract is truth; fix drift at the largest frame.** When prose and the running check disagree, the check wins and the prose is the bug. Resolve a drift at the largest frame that explains it, not the local symptom. *Root-cause over symptom (Ohno's five whys).*
+- **P-04. Resolve drift at the largest frame that explains the symptom.** When a drift shows symptoms at several frames, fix it at the largest one that explains it, not the local symptom, which leaves the cause to resurface. *Root-cause over symptom (Ohno's five whys).*
 - **P-05. Idempotent by default; re-running changes nothing.** A scaffolder, installer, sync, or gate is safe to run again; re-execution is the ordinary case, not the error path. *Long-standing in mathematics and distributed systems.*
 
 **Racecar principles** — the stances racecar takes: chosen, some contrarian, defended by results.
 
-- **R-01. Enforced, not professed.** A rule that matters is a check that fails by naming a file and a line. Prose is not enforcement. *The lint and policy-as-code tradition; no single owner.*
-- **R-02. Determinism; the model is last, never the gate.** Every gate is a script and an exit code. The AI is used last, to mechanize judgment or for the residue no rule can decide, never as the arbiter. *racecar's trust thesis; the reproducibility instinct is old, but the stance is not claimed as original.*
-- **R-03. Scope honesty.** A name means exactly its contents; a file's location means exactly its role. A generic that carries specifics is a lie the reader cannot see. *Naming as a promise, and least astonishment; folk wisdom, no single owner.*
-- **R-04. Ownership is not delegable.** Tooling enables and confirms; it does not authorize. A green check is confirmation, not a merge verdict, and enforcement runs on the owner's machine, never as a CI gate that decides. *"You build it, you run it" (Vogels), and Deming's refusal to inspect quality in after the fact.*
-- **R-05. Make the right thing easy; help, not law.** The good shape is the default you receive, not a wall you are forced into. Gate genuine defects; surface choices. A rule that reads as a wall is a defect in the rule. *The paved road and the pit of success.*
-- **R-06. Agent-grade software is data-plane-dominant.** The library is the center, holding the data plane; the ORM is confined to a control-plane server that never touches it. *racecar's architecture bet; the data-plane / control-plane split is standard systems vocabulary.*
+- **R-01. A detector must have lower entropy than what it watches.** A generator cannot be its own gate; an observer as noisy as its subject cannot tell signal from its own variance. Checks-over-prose and model-last are both this law applied. *Requisite variety (Ashby) and the reproducibility instinct; the detector-entropy framing is racecar's, not an original law.*
+- **R-02. Enforced, not professed; the enforced contract is truth.** A rule that matters is a check that fails by naming a file and a line; prose is not enforcement. When prose and the running check disagree, the check wins and the prose is the bug. *The lint and policy-as-code tradition; "the running system is the truth" is folk.*
+- **R-03. Determinism; the model is last, never the gate.** Every gate is a script and an exit code. The AI is used last, to mechanize judgment or for the residue no rule can decide, never as the arbiter. *racecar's trust thesis; the reproducibility instinct is old, but the stance is not claimed as original.*
+- **R-04. Scope honesty.** A name means exactly its contents; a file's location means exactly its role. A generic that carries specifics is a lie the reader cannot see. *Naming as a promise, and least astonishment; folk wisdom, no single owner.*
+- **R-05. Ownership is not delegable.** Tooling enables and confirms; it does not authorize. A green check is confirmation, not a merge verdict, and enforcement runs on the owner's machine, never as a CI gate that decides. *"You build it, you run it" (Vogels), and Deming's refusal to inspect quality in after the fact.*
+- **R-06. Make the right thing easy; help, not law.** The good shape is the default you receive, not a wall you are forced into. Gate genuine defects; surface choices. A rule that reads as a wall is a defect in the rule. *The paved road and the pit of success.*
+- **R-07. Agent-grade software is data-plane-dominant.** The library is the center, holding the data plane; the ORM is confined to a control-plane server that never touches it. *racecar's architecture bet; the data-plane / control-plane split is standard systems vocabulary.*
 
 ## What it does for you
 
@@ -68,7 +69,7 @@ Keeping orchestration in `api` means it lives in one place instead of being copi
 - `/racecar-start-django-project`: scaffold a vanilla Django project (the `server/` shell); generic, no racecar knowledge.
 - `/racecar-create-server`: generate the REST + MCP surfaces in `server/` over `src/<pkg>/api` (delegates the shell to start-django-project).
 - `/racecar-secure-server`: close the surfaces with an OAuth 2.1 Authorization Server (WebAuthn hardware-key login, opaque tokens, per-tool scopes).
-- `/racecar-deploy-server`: ship `server/` to a host: Apache vhosts, the per-surface processes, TLS *(planned)*.
+- `/racecar-deploy-server`: ship `server/` to a host: Apache vhosts, the per-surface processes, TLS *(planned; this skill is a TODO, not yet built)*.
 
 **Adopt it in your own project.** Scaffold a new one with the shape already wired:
 
@@ -81,8 +82,8 @@ or bring an existing project up to standard with `/racecar-upgrade`, which folds
     # athena/prices/loader.py  (business module)
     from athena import settings    # BLOCKED: upward import into own root
 
-    # fix: read inherited state through the package's own __init__.py
-    from athena.prices import settings
+    # fix: read inherited state through the package's own config module
+    from athena.prices.config import settings
 
 **The rest of the toolkit.** Three review lenses (`arch-coherence/`, `eng-review/`, `doc-coherence/`) plus the `llm-summary/` brief generator, invoked as `/racecar-arch-coherence`, `/racecar-eng-review`, `/racecar-doc-coherence`, and `/racecar-llm-summary` (which packages a repo into one shareable file another LLM can interview without the source). There are also commit helpers (`/racecar-commit`, `/racecar-commit-preflight`, `/racecar-commit-decompose`), an adoption auditor (`/racecar-normalize`), the nuanced upgrader (`/racecar-upgrade`), and a wiring doctor (`/racecar-doctor`). The always-on baseline (persona, drift doctrine, voice, ownership, commit rules) lives in `shared/`.
 

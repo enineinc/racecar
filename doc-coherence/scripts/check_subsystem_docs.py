@@ -11,7 +11,7 @@ Discovery:
   - `pyproject.toml` `[tool.importlinter].contracts` is parsed to collect every
     dotted package referenced as a container, layer, importer, imported, module,
     or source/forbidden module. Each dotted package is resolved to a directory
-    by checking `<root>/<pkg>`, `<root>/src/<pkg>`, `<root>/src/<pkg>`.
+    by checking `<root>/<pkg>`, `<root>/src/<pkg>`, `<root>/server/<pkg>`.
   - From each resolved root, walk recursively. A directory is "major" iff it
     contains at least one non-excluded subdirectory OR its direct-child source
     files sum to `loc_threshold` non-blank lines (default 1000).

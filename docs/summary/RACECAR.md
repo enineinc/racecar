@@ -4,7 +4,7 @@ generator:
   version: "0.18.3"
 target:
   repo: racecar
-  date: 2026-07-05
+  date: 2026-07-06
 bundle:
   - RACECAR.md
 
@@ -40,7 +40,7 @@ entities:
     purpose: A deterministic check script that fails a violation by naming file:line; the trust primitive (never an LLM as a gate).
     notes: >-
       e.g. check_packaging, check_surface_auth, check_surface_orchestration (advisory, surface-rooted), check_upward_imports,
-      check_docs, check_subsystem_docs, check_file_placement, check_todo_format, check_changelog, check_brief, and the 0.15.0
+      check_docs, check_doc_graph (the pnode doc-graph DAG), check_subsystem_docs, check_file_placement, check_todo_format, check_changelog, check_brief, and the 0.15.0
       commit-time gate check_version_bump (a bumpable commit type must move the version home), plus check_config_drift and the
       racecar-run-only check_racecar_overrides (a repo has not forked canon). Run via make check and pre-commit; the version-bump
       gate runs at pre-commit's commit-msg stage. Vendored into adopter repos.
@@ -58,12 +58,12 @@ entities:
     notes: shared/*.md (PRINCIPLES, PERSONA, DRIFT, OPERATIONAL, OWNERSHIP, COMMITS, VOICE, GLOSSARY, VOCABULARY, TODO_FORMAT) plus the CLAUDE.md router; loaded by the session_load_standards hook.
   - name: Axiom
     case: none
-    purpose: One of the ten irreducible first principles (I-1..I-10) every racecar rule, lens, and check derives from.
-    notes: Homed in shared/PRINCIPLES.md, each stated as axiom + why + enforced-by so it is testable, not aspirational. E.g. one-home-per-artifact (I-1, with the bounded-test-surface corollary), enforced-not-professed (I-2), determinism-over-heuristic (I-3), acyclic dependencies (I-4), scope honesty (I-5), ownership-not-delegable (I-8), idempotent-by-default (I-10). MANIFESTO.md argues the why at length and credits the prior art the axioms borrow from.
+    purpose: One of the twelve first principles every racecar rule, lens, and check derives from, split into known principles (P-01..P-05) and racecar principles (R-01..R-07).
+    notes: Homed in shared/PRINCIPLES.md, each stated in five parts (axiom + rests-on + why + enforced-by + origin) so it is testable and credited. Known principles are the borrowed canon (P-01 acyclic dependencies, P-02 one home, P-03 reconcile-to-source, P-04 resolve-drift-at-the-largest-frame, P-05 idempotent-by-default); racecar principles are the stances racecar takes (R-01 a-detector-must-have-lower-entropy-than-what-it-watches, R-02 enforced-not-professed/the-enforced-contract-is-truth, R-03 determinism/model-last, R-04 scope honesty, R-05 ownership-not-delegable, R-06 help-not-law, R-07 agent-grade-software-is-data-plane-dominant). The file is itself DAG-ordered (P-01 applied to the axioms). MANIFESTO.md argues the why and credits the prior art each descends from.
   - name: Reconciliation
     case: none
     purpose: A scaffold that ties an engine's output to reference data as a fixed set of generic manifolds over a private catalog, replacing one golden test per model.
-    notes: Homed in eng-review/RECONCILIATION.md. Three manifolds — tie (engine vs an authoritative oracle within tolerance), identity (an accounting/algebraic law inside the engine's own output), integrity (a reference surface's structural soundness). A tie's oracle is either a handcrafted synthetic checksum (crafted per transform for edges/corners, tracked, always-on) or a real reference surface (confidential, in the private gitignored catalog). The tracked tree names no model; the catalog instance and reference data stay outside version control (the security partition). This is I-1 applied to test artifacts, so hand-written test code stays O(1) in models while instances become catalog rows bounded by configs x transforms.
+    notes: Homed in eng-review/RECONCILIATION.md. Three manifolds — tie (engine vs an authoritative oracle within tolerance), identity (an accounting/algebraic law inside the engine's own output), integrity (a reference surface's structural soundness). A tie's oracle is either a handcrafted synthetic checksum (crafted per transform for edges/corners, tracked, always-on) or a real reference surface (confidential, in the private gitignored catalog). The tracked tree names no model; the catalog instance and reference data stay outside version control (the security partition). This is P-02 (one home) applied to test artifacts, so hand-written test code stays O(1) in models while instances become catalog rows bounded by configs x transforms.
   - name: Hook
     case: none
     purpose: A Claude Code SessionStart / PreCompact hook that force-loads the baseline and checks sync.
@@ -205,7 +205,7 @@ The audience is the author (Vishal Apte) and the repos that adopt racecar: a por
 | `start-django-project/` | The generic, racecar-agnostic Django scaffold `create-server` delegates to. |
 | `commit/`, `commit-preflight/`, `commit-decompose/` | Commit authoring, pre-commit dry-run, working-tree decomposition. |
 | `normalize/`, `upgrade/`, `doctor/`, `expert/` | Adoption audit, non-clobbering upgrade, install verification, expert output overlay. |
-| `shared/` | The always-on baseline: the ten first-principle axioms (`PRINCIPLES.md`) plus persona, drift, operational, ownership, commits, voice, glossary, vocabulary, TODO format. |
+| `shared/` | The always-on baseline: the twelve first principles (`PRINCIPLES.md`, known P-01..P-05 and racecar R-01..R-07) plus persona, drift, operational, ownership, commits, voice, glossary, vocabulary, TODO format. |
 | `scripts/` | Cross-cutting scripts: init, sync, doctor, changelog/config-drift checks, claude.md wiring. |
 | `templates/` | `classic/` (the project scaffold copied into adopters); `arch-coherence/templates/` holds the generation mirror trees. |
 | `hooks/` | SessionStart / PreCompact hooks that force-load the baseline and check sync. |
@@ -230,7 +230,7 @@ The baseline is force-loaded every SessionStart by `hooks/session_load_standards
 
 ### §2.2 Entities
 
-racecar's entities are mostly **conceptual primitives** (frontmatter `case: none`): a Lens, a Surface, a ProjectShape, a MechanicalCheck, the Cascade, the AuthorizationServer, an **Axiom** (one of the ten first principles the whole framework derives from, `shared/PRINCIPLES.md`), and **Reconciliation** (the manifolds-over-a-private-catalog testing scaffold, `eng-review/RECONCILIATION.md`). The on-disk ones are the Skill pair (`SKILL.md` + `README.md`), the Baseline (`shared/*.md`), and the InterfaceManifest (`server/docs/api/manifest.json`). The one content tree is the **MirrorTree**: three template directories under `arch-coherence/templates/` whose layout matches the generated output 1:1. See frontmatter `entities` for the full set; there are no ORM models — racecar persists nothing of its own.
+racecar's entities are mostly **conceptual primitives** (frontmatter `case: none`): a Lens, a Surface, a ProjectShape, a MechanicalCheck, the Cascade, the AuthorizationServer, an **Axiom** (one of the twelve first principles the whole framework derives from, split known P-01..P-05 and racecar R-01..R-07, `shared/PRINCIPLES.md`), and **Reconciliation** (the manifolds-over-a-private-catalog testing scaffold, `eng-review/RECONCILIATION.md`). The on-disk ones are the Skill pair (`SKILL.md` + `README.md`), the Baseline (`shared/*.md`), and the InterfaceManifest (`server/docs/api/manifest.json`). The one content tree is the **MirrorTree**: three template directories under `arch-coherence/templates/` whose layout matches the generated output 1:1. See frontmatter `entities` for the full set; there are no ORM models — racecar persists nothing of its own.
 
 ### §2.3 Relationships
 
@@ -284,11 +284,12 @@ The surface is the **slash commands** (frontmatter `cli_verbs`, 16 skills) plus 
 
 ### §2.9 Design decisions
 
-- **The ten axioms are the derivation root.** `shared/PRINCIPLES.md` names the irreducible first principles (I-1..I-10) every rule, lens, and check descends from, each stated as axiom + why + enforced-by so it is testable. `MANIFESTO.md` argues the why and, in a "prior art" section, states plainly that racecar invents none of the axioms (DRY, the Acyclic Dependencies Principle, Parnas information hiding, Lakos levelization, Deming, Lehman, Cunningham): the wager is enforcing borrowed wisdom together without drift, unproven at fleet scale, not originality. (commit `4fd53e4`.)
-- **Reconciliation as a scaffold, not golden-per-model.** `eng-review/RECONCILIATION.md` encodes engine-to-reference testing as three generic manifolds (tie / identity / integrity) over a private, gitignored catalog. The tie's oracle is a handcrafted synthetic checksum (tracked, always-on, correctness-bearing because its output is independently derived) or a real reference surface (confidential, catalog-only). The security partition (tracked code names no model; reference data stays out of version control) and the bounded-test-surface corollary of I-1 (test code O(1) in models; instances = configs x transforms as catalog rows) both fall out of it.
+- **The twelve principles are the derivation root, split known vs racecar.** `shared/PRINCIPLES.md` names the first principles every rule, lens, and check descends from: five **known principles** (P-01..P-05, the borrowed canon that rests on a theorem or long-settled practice) and seven **racecar principles** (R-01..R-07, the stances racecar takes). Each is stated in five parts (axiom, rests-on, why, enforced-by, origin), and the file is itself DAG-ordered. `MANIFESTO.md` argues the why and, in a "prior art" section, states plainly that racecar originates none of them (DRY, the Acyclic Dependencies Principle, Parnas, Lakos, Dijkstra, Deming, Lehman, Cunningham): the wager is enforcing borrowed wisdom together without drift, unproven at fleet scale, not originality.
+- **Reconciliation as a scaffold, not golden-per-model.** `eng-review/RECONCILIATION.md` encodes engine-to-reference testing as three generic manifolds (tie / identity / integrity) over a private, gitignored catalog. The tie's oracle is a handcrafted synthetic checksum (tracked, always-on, correctness-bearing because its output is independently derived) or a real reference surface (confidential, catalog-only). The security partition (tracked code names no model; reference data stays out of version control) and the bounded-test-surface corollary of P-02 (test code O(1) in models; instances = configs x transforms as catalog rows) both fall out of it.
 - **Identity and token model recorded as an ADR.** `arch-coherence/adr/adr-identity-and-token-model.md` fixes the opaque-bearer + introspection identity decision as a durable architectural record. (commit `86739b1`.)
-- **Mechanical over heuristic; LLM-last.** Every gate is a deterministic script; the model never decides pass/fail. (`shared/DRIFT.md`, `shared/OWNERSHIP.md`, I-3.)
-- **One home per rule.** Each rule lives in exactly one canonical doc; other docs link, never restate. Drift is fought by eliminating the surface first. (I-1.)
+- **The documentation is itself a checked DAG.** `doc-coherence/DOC_GRAPH.md` + `check_doc_graph.py` require every non-CLAUDE, non-SKILL doc to declare its parent once in `pnode` frontmatter; children and peers are derived, never stored, and the graph is held acyclic with `Accessed via` prose kept in agreement (P-01 and P-02 turned on the docs themselves). The reviewer-facing arch lens was renamed `AXIOMS.md` → `CHECKS.md` in the same pass, since the axioms now live in `PRINCIPLES.md`.
+- **Mechanical over heuristic; LLM-last.** Every gate is a deterministic script; the model never decides pass/fail. (`shared/DRIFT.md`, `shared/OWNERSHIP.md`, R-01/R-03.)
+- **One home per rule.** Each rule lives in exactly one canonical doc; other docs link, never restate. Drift is fought by eliminating the surface first. (P-02.)
 - **gitleaks secret scan and opt-in parallel tests.** A `gitleaks` pre-commit hook fails a leaked credential before any other hook (0.16.0); `pytest-xdist` ships in the dev group but racecar never sets `-n` in canon, leaving parallelism as the owning repo's opt-in (0.18.0). `check-full` runs its targets serially for attributable output on GNU Make 3.81 (0.18.1). The CLI audit infers its root from a `src/` layout instead of a required dotted name (0.17.0).
 - **"surface" is canon; "face" retired.** `lib → api → surfaces {cli, rest, mcp}`; binding key `[tool.racecar.surface]`. (0.13.0, commit `d032a59`; superseded the `faces`/`FACES.md` vocabulary.)
 - **Shape is the PYTHON_LIBRARY × DJANGO_PROJECT presence product.** `has_library × has_django` is the primitive; the enum (src / src+server / server / unknown) is the derived label, and `(neither)` is a no-shape finding, not a silent `src`. Governed by on-disk markers, no config flag; the `pypkg/` wrapper was removed in 0.13.0 (the library is canon root `src/<pkg>`). `server`-only (Django, no library) is in scope: a control-plane-only app or a raw scaffold. (commits `323fa77`, `d032a59`.)

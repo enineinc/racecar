@@ -213,8 +213,9 @@ check-overrides: ## Assert the repo has not overridden racecar (pyproject + race
 	  echo "check-overrides: skipping (RACECAR_ROOT unset; install racecar as a skill or pass RACECAR_ROOT=/path/to/racecar)"; \
 	fi
 
-docs: ## doc-coherence pre-pass (links / §N / vocab) + subsystem docs + TODO + placement + brief
+docs: ## doc-coherence pre-pass (links / §N / vocab) + doc graph + subsystem docs + TODO + placement + brief
 	$(PYTHON) scripts/check_docs.py
+	$(PYTHON) scripts/check_doc_graph.py
 	$(PYTHON) scripts/check_subsystem_docs.py
 	$(PYTHON) scripts/check_todo_format.py
 	$(PYTHON) scripts/check_file_placement.py

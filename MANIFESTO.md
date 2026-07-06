@@ -60,17 +60,18 @@ thematic sections below argue the theses that draw on them.
 - **P-01** dependencies form a directed acyclic graph — [in full](shared/PRINCIPLES.md#p-01-dependencies-form-a-directed-acyclic-graph)
 - **P-02** one home per artifact — [in full](shared/PRINCIPLES.md#p-02-one-home-per-artifact)
 - **P-03** reconcile to source; do not re-derive from memory — [in full](shared/PRINCIPLES.md#p-03-reconcile-to-source-do-not-re-derive-from-memory)
-- **P-04** the enforced contract is truth — [in full](shared/PRINCIPLES.md#p-04-the-enforced-contract-is-truth-resolve-drift-at-the-largest-frame)
+- **P-04** resolve drift at the largest frame — [in full](shared/PRINCIPLES.md#p-04-resolve-drift-at-the-largest-frame-that-explains-the-symptom)
 - **P-05** idempotent by default — [in full](shared/PRINCIPLES.md#p-05-idempotent-by-default-re-running-changes-nothing)
 
 **Racecar principles**
 
-- **R-01** enforced, not professed — [in full](shared/PRINCIPLES.md#r-01-enforced-not-professed)
-- **R-02** determinism; the model is last, never the gate — [in full](shared/PRINCIPLES.md#r-02-determinism-over-heuristic-the-model-is-last-never-the-gate)
-- **R-03** scope honesty — [in full](shared/PRINCIPLES.md#r-03-scope-honesty)
-- **R-04** ownership is not delegable — [in full](shared/PRINCIPLES.md#r-04-ownership-is-not-delegable)
-- **R-05** make the right thing easy; help, not law — [in full](shared/PRINCIPLES.md#r-05-make-the-right-thing-easy-help-not-law)
-- **R-06** agent-grade software is data-plane-dominant — [in full](shared/PRINCIPLES.md#r-06-agent-grade-software-is-data-plane-dominant)
+- **R-01** a detector must have lower entropy than what it watches — [in full](shared/PRINCIPLES.md#r-01-a-detector-must-have-lower-entropy-than-what-it-watches)
+- **R-02** enforced, not professed; the enforced contract is truth — [in full](shared/PRINCIPLES.md#r-02-enforced-not-professed-the-enforced-contract-is-truth)
+- **R-03** determinism; the model is last, never the gate — [in full](shared/PRINCIPLES.md#r-03-determinism-over-heuristic-the-model-is-last-never-the-gate)
+- **R-04** scope honesty — [in full](shared/PRINCIPLES.md#r-04-scope-honesty)
+- **R-05** ownership is not delegable — [in full](shared/PRINCIPLES.md#r-05-ownership-is-not-delegable)
+- **R-06** make the right thing easy; help, not law — [in full](shared/PRINCIPLES.md#r-06-make-the-right-thing-easy-help-not-law)
+- **R-07** agent-grade software is data-plane-dominant — [in full](shared/PRINCIPLES.md#r-07-agent-grade-software-is-data-plane-dominant)
 
 ## The three gates: why this was a large-team luxury, and no longer is
 
@@ -116,24 +117,24 @@ The velocity is sustained. Drift is caught at the moment it is introduced, so it
 down in the expensive refactor that unmanaged drift forces. You go fast because the shape holds a
 year in.
 
-## Binding over reading: the trust thesis (R-02)
+## Binding over reading: the trust thesis (R-01, R-03)
 
 A check you cannot reproduce is not a check. Every gate in racecar is deterministic: a script
 that fails a violation by naming `file:line`, never a model asked to judge. The model is the
 last, deferred stage, used to *mechanize* judgment (turn a rule into a deterministic check) or
 for irreducible judgment fed by deterministic pre-filtering, never as the gate itself. The rule
-of thumb: the detector must have lower entropy than the thing it watches. An LLM watching an
-LLM is not a detector; it is a second source of the same noise. Most AI-assisted tooling puts
-the model in the loop as the arbiter; racecar puts it last (R-02).
+of thumb, and the keystone the rest rests on: the detector must have lower entropy than the thing
+it watches (R-01). An LLM watching an LLM is not a detector; it is a second source of the same
+noise. Most AI-assisted tooling puts the model in the loop as the arbiter; racecar puts it last (R-03).
 
 Corollary: AI multiplies foundations, it does not replace them. On a strong foundation it is
 leverage; on weak judgment it amplifies slop faster. So the foundation, the deterministic
 canon, is the thing worth building.
 
-## A generator cannot gate itself: why the deterministic check is permanent (R-02)
+## A generator cannot gate itself: why the deterministic check is permanent (R-01)
 
 There is an obvious objection: if the model keeps improving, isn't racecar scaffolding a better
-model makes obsolete? No, and the reason is R-02 turned on the model watching itself.
+model makes obsolete? No, and the reason is R-01 turned on the model watching itself.
 
 Two things hide inside "the model should just do this." The first is knowledge: has it read the
 giants. That half decays toward the model; a stronger model does close it, and largely has. The
@@ -156,7 +157,7 @@ structurally first (eliminate the surface: one home, P-02), then by automatic pe
 checks, then by periodic sweep, in that order. A local fix to a drift symptom masks the global
 cause; resolve it at the largest frame that explains it (P-04).
 
-## Agent-grade software is data-plane-dominant: the architecture thesis (R-06)
+## Agent-grade software is data-plane-dominant: the architecture thesis (R-07)
 
 The packages worth building for an agent connect to real data: broad in volume, shallow in
 complexity. The more useful the package, the more data it moves, and the smaller the
@@ -177,7 +178,7 @@ for).
 
 This looks like it contradicts the conventional Django canon (fat models, the ORM at the
 center, the O'Reilly and Two Scoops tradition). It does not. It bounds where that canon applies.
-This is scope honesty (R-03) turned on the books: their advice is right, their implicit
+This is scope honesty (R-04) turned on the books: their advice is right, their implicit
 claim to *universality* is the bug.
 
 The mechanism is shape detection, read off disk, not imposed. An app genuinely tied to the ORM
@@ -246,8 +247,8 @@ Held to its own standard, racecar must be falsifiable:
 - If the fleet migration grinds into bespoke per-repo patching, the portfolio thesis fails: it
   is N copies of a dialect, not one canon.
 - If a deterministic gate cannot express a rule and an LLM has to judge it, the trust thesis
-  (R-02) has a hole at that rule.
-- If the library-centric shape (R-06) forces the data plane through the ORM anyway, the
+  (R-03) has a hole at that rule.
+- If the library-centric shape (R-07) forces the data plane through the ORM anyway, the
   architecture principle is wrong for that class of package.
 - If the marginal cost of applying the canon to the next repo does not approach zero, the
   affordability claim (the first two gates) was fixed cost dressed as leverage.

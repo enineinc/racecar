@@ -25,7 +25,7 @@ Cross-cutting concern.
 
 ## 3. Linting
 
-`pylint` is the racecar linter (see [`PYTHON.md` §3](PYTHON.md#3-formatting)), but it has no Django-aware rules out of the box. `pylint-django` fills that gap: it understands model fields, queryset types, and `get_user_model()` — things a plain linter cannot infer without a Django runtime.
+`pylint` is the racecar linter (see [`PYTHON.md` §5](PYTHON.md#5-linting-verification)), but it has no Django-aware rules out of the box. `pylint-django` fills that gap: it understands model fields, queryset types, and `get_user_model()` — things a plain linter cannot infer without a Django runtime.
 
 **Django projects must load it:**
 

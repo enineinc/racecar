@@ -39,7 +39,7 @@ The shape is the **product of two independent presences** racecar reads off the 
 | — | ✓ | **`server`** — standalone Django, no library |
 | — | — | **neither** — a no-shape finding (`unknown` in Python, `stock` in Make), neutral defaults (§7) |
 
-The `(—, —)` cell is a real cell, not a fallback to `src`: a root `pyproject.toml` with neither a `src/` library nor a `server/` Django project is reported as "not a recognized shape," never silently classified as a library. Without a root `pyproject.toml` at all, the repo is likewise unclassifiable (the same cell). Django is marked by `server/manage.py`, never a bare `server/` directory: a `server/` holding only a pyproject (no `manage.py`) is not a runnable Django app, so it does not make the project a server. **TODO: multi-library support is deferred.** The `{packages,pypkg}/<pkg>/src/<pkg>` workspace form (multiple co-versioned libraries in one repo) is a separate, future capability, not built here. An abstraction waits for the second real consumer: the grouping container earns its place only when a genuine second co-versioned library exists. Deferring also leaves a governance question unfought: `packages/` is uv/pnpm/Pants workspace convention, not PSF/PyPA canon, and whether a bare directory name (no dependency, no config block, trivially renamable) trips the no-VC-tooling rule (§1) or that rule reaches only tool *dependencies and lock-in* is a real interpretation call. Settle it when the skill is built; name the skill for the act (grouping), not the container, so the container name stays a swappable detail.
+The `(—, —)` cell is a real cell, not a fallback to `src`: a root `pyproject.toml` with neither a `src/` library nor a `server/` Django project is reported as "not a recognized shape," never silently classified as a library. Without a root `pyproject.toml` at all, the repo is likewise unclassifiable (the same cell). Django is marked by `server/manage.py`, never a bare `server/` directory: a `server/` holding only a pyproject (no `manage.py`) is not a runnable Django app, so it does not make the project a server. **Multi-library support is trigger-gated, not built.** The `{packages,pypkg}/<pkg>/src/<pkg>` workspace form (multiple co-versioned libraries in one repo) ships the moment a single repo genuinely holds a second co-versioned library, and not before: an abstraction earns its place at its second real consumer, never on speculation. That trigger is deliberately unmet today. Single-library-per-repo is the current design stance, an intentional choice and not a backlog item, so the grouping container has no instance to serve yet. When the trigger fires, one governance question comes with it: `packages/` is uv/pnpm/Pants workspace convention, not PSF/PyPA canon, and whether a bare directory name (no dependency, no config block, trivially renamable) trips the no-VC-tooling rule (§1) or that rule reaches only tool *dependencies and lock-in* is a real interpretation call. Settle it when the skill is built; name the skill for the act (grouping), not the container, so the container name stays a swappable detail.
 
 That rule lives in exactly two places, held in lockstep by a coherence test: `arch-coherence/scripts/check_packaging.py` (`detect_shape`, used by the audit) and `templates/classic/racecar.mk` (the same decision in Make, so the build is self-contained — see §7). It is duplicated on purpose, not shared: the build must be able to determine its own shape with nothing but `make` present (no Python, no venv), and a foundation that needs an external process to know what it is would not be a foundation. The cost of the duplication is bounded by the coherence test, not waved away.
 
@@ -360,6 +360,7 @@ The one hard requirement xdist adds: **deterministic test collection.** Workers 
 ```toml
 [dependency-groups]
 django = [
+    "djhtml>=3.0",                # CANON (required): idempotent Django/Jinja template-tag reindenter
     "coverage>=7.4",              # Django test runner needs coverage directly (pytest-cov is pytest-only)
     "django-debug-toolbar>=4.0",  # local dev; api surface only, DEBUG-gated
     "django-extensions>=3.2",     # local dev; surface-agnostic, DEBUG-gated
@@ -381,7 +382,7 @@ A racecar-create-server surface generates its OpenAPI document from the Interfac
 Manifest (GENERATION.md §"Generated API docs"); `openapi-spec-validator` validates
 it. There is no `drf-spectacular` and no DRF — the spec is not introspected from
 views. Projects not using debug-toolbar or django-extensions may omit them.
-`coverage` and `pylint-django` are expected on all server-shape projects.
+`djhtml` and `pylint-django` are the canonical pair `check_packaging.py` requires on every server-shape project (`CANON_DJANGO_TOOLS`); `coverage` is commonly present for the Django test runner but is project-choice, not canon.
 
 ## 7. Makefile contract
 

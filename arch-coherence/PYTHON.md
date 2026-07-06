@@ -6,19 +6,19 @@ pnode: [README.md]
 
 Accessed via [`README.md`](README.md). If you arrived here directly, read that first.
 
-The Python-specific expression of architectural coherence. For the language-agnostic axioms this section derives from, see [`README.md`](README.md). For Python engineering hygiene — naming, formatting, testing, linting workflow, Definition of Done — see [`../eng-review/PYTHON.md`](../eng-review/PYTHON.md). For Django-specific coherence, see [`DJANGO.md`](DJANGO.md).
+The Python-specific expression of architectural coherence. For the language-agnostic checks this section derives from, see [`CHECKS.md`](CHECKS.md). For Python engineering hygiene — naming, formatting, testing, linting workflow, Definition of Done — see [`../eng-review/PYTHON.md`](../eng-review/PYTHON.md). For Django-specific coherence, see [`DJANGO.md`](DJANGO.md).
 
 Sections are ordered as a DAG — most independent first, most dependent last.
 
 ## 1. Module Structure
 
-How code is organized into files and packages. Every package has two specialty files — `__init__.py` and `__main__.py` — with opposite roles on the dependency graph. This section owns the Python-specific shape of the direction axiom in [check 2 Direction](AXIOMS.md#2-direction).
+How code is organized into files and packages. Every package has two specialty files — `__init__.py` and `__main__.py` — with opposite roles on the dependency graph. This section owns the Python-specific shape of the direction axiom in [check 2 Direction](CHECKS.md#2-direction).
 
 **`__init__.py` — the package's namespace.** It declares what the package IS when imported and holds no logic: empty or a docstring, never code, never re-exports. Re-exporting a symbol up into `__init__` makes a second home for it ([P-02](../shared/PRINCIPLES.md#p-02-one-home-per-artifact)) and, when the symbol is named after a submodule, shadows it — a real import breakage. A package's public symbols live in its named modules (`api.py` where the surfaces shape applies); inherited environment-layer state is read through a `config` module, not re-exported through `__init__`. The full rule and its proving-ground rationale are in [SURFACES.md §6](SURFACES.md#6-supporting-rules) (one home).
 
 **`__main__.py` — the execution entry point.** It imports outward, reaching down into the package's own subtree to dispatch work. Its dependencies go inward-subtree only; never upward to a parent package (env-layer carve-out excepted). For the full `__main__.py` + `commands()` / `subcommands()` / `parser()` pattern that makes this structural, see [CLI.md](CLI.md).
 
-**Other `.py` modules never import upward directly.** Business-logic modules stay within their own subtree, import from peers in the allowed direction (see [check 2 Direction](AXIOMS.md#2-direction)), or read inherited state through their own package's `config` module — not from the root directly. This is the rule `check_upward_imports.py` enforces; see §4.
+**Other `.py` modules never import upward directly.** Business-logic modules stay within their own subtree, import from peers in the allowed direction (see [check 2 Direction](CHECKS.md#2-direction)), or read inherited state through their own package's `config` module — not from the root directly. This is the rule `check_upward_imports.py` enforces; see §4.
 
 **When a library is exposed through more than one surface**, these module roles map onto the `lib → api → {cli, mcp, web/django}` tiers: the worker is `lib`, the orchestration policy is `api`, and each surface is a wrapper on `api` (the cli surface being `__main__`). Where orchestration lives, the per-vertical co-location, the canonical file names (an autodiscovery contract: `lib.py` / `api.py` / `mcp.py` / `__main__.py`), and the single gated `layers` contract plus the advisory detector are in [SURFACES.md](SURFACES.md) (one home; not restated here).
 
@@ -26,17 +26,17 @@ How code is organized into files and packages. Every package has two specialty f
 
 How modules connect to each other. Depends on module structure being sound.
 
-**Direction.** Imports flow outward or downward only. This is an architectural rule — see [check 2 Direction](AXIOMS.md#2-direction) for the axiom and rationale. This section covers the file-level enforcement.
+**Direction.** Imports flow outward or downward only. This is an architectural rule — see [check 2 Direction](CHECKS.md#2-direction) for the axiom and rationale. This section covers the file-level enforcement.
 
 **Top-level only.** All imports live at the top of the file. No exceptions. Lazy imports — imports inside functions, methods, or conditional blocks — are never acceptable. They are a band-aid over a structural problem. If moving an import to the top of the file breaks something, that breakage is the real bug. Diagnose it: extract shared code into a third module, restructure the dependency graph, or flag it for discussion. Do not bury it inside a function and move on.
 
-**Circular dependencies.** A lazy import is usually a symptom of a circular dependency that was papered over instead of resolved. The fix is structural. See [check 1 Acyclicity](AXIOMS.md#1-acyclicity-root-axiom).
+**Circular dependencies.** A lazy import is usually a symptom of a circular dependency that was papered over instead of resolved. The fix is structural. See [check 1 Acyclicity](CHECKS.md#1-acyclicity-root-axiom).
 
 ## 3. CLI
 
 The CLI surface (`__main__.py` patterns, `commands()` / `subcommands()` / `parser()` contracts, audit JSON schema, mutex group encoding) is its own document — see [CLI.md](CLI.md). The Python-language piece of the rule lives here:
 
-**No inward references in `__main__.py`.** Entry points are the top layer of the dependency graph; they import downward into their own subtree only. No `from ..` — that would couple children to parents and mask circular dependencies (see [check 1 Acyclicity](AXIOMS.md#1-acyclicity-root-axiom) and [check 2 Direction](AXIOMS.md#2-direction)).
+**No inward references in `__main__.py`.** Entry points are the top layer of the dependency graph; they import downward into their own subtree only. No `from ..` — that would couple children to parents and mask circular dependencies (see [check 1 Acyclicity](CHECKS.md#1-acyclicity-root-axiom) and [check 2 Direction](CHECKS.md#2-direction)).
 
 ## 4. Enforcement
 
@@ -44,11 +44,11 @@ Enforcement here is local confirmation the owner can rely on, not a CI gate that
 
 Five tools enforce the coherence rules:
 
-- `import-linter` checks acyclicity and direction ([`README.md`](README.md) checks 1–2).
+- `import-linter` checks acyclicity and direction ([`CHECKS.md`](CHECKS.md#the-four-checks-dag-ordered) checks 1–2).
 - `scripts/check_upward_imports.py` enforces §1 (no upward imports from business modules to the root package), file-by-file.
 - `scripts/check_cli_commands.py` enforces the [CLI contract](CLI.md) — `commands()` / `subcommands()` / `parser()` plus the three patterns plus the audit JSON schema — by walking the CLI tree, confirming every `python -m <pkg>` lists its registered children, introspecting argparse parsers when `parser()` is exposed, and surfacing orphan `__main__.py` files that no parent registers.
 - `scripts/check_dj_model_ref_as_string.py` enforces [DJANGO.md §2](DJANGO.md#2-orm-relations) (no cross-module string ORM relations); skipped automatically when the consumer repo has no `manage.py`.
-- `scripts/check_surface_orchestration.py` is the advisory detector for [SURFACES.md §7](SURFACES.md#7-the-advisory-detector): it identifies each vertical's `lib` / `api` / surfaces (by canonical name, `[tool.racecar.roles]` manifest, or structural inference) and flags non-classifiable verticals plus orchestration restated across surfaces. Findings (recommendations), exit 0 by default; `--strict` exits 1. Discovers verticals structurally; no-ops when none are found. Runs via `make arch`, not pre-commit.
+- `scripts/check_surface_orchestration.py` is the advisory detector for [SURFACES.md §7](SURFACES.md#7-the-advisory-detector): it identifies each vertical's `lib` / `api` / surfaces by canonical name or `[tool.racecar.roles]` manifest only (no structural inference) and flags two things — an `api` that fronts no `lib`, and orchestration restated across two or more surfaces of one vertical. A vertical with a surface but no named or mapped `api` is silent. Findings (recommendations), exit 0 by default; `--strict` exits 1. No-ops when no surface is found. Runs via `make arch`, not pre-commit.
 - `scripts/check_docs.py` enforces the [doc-coherence](../doc-coherence/README.md) mechanical pre-pass.
 
 `check_upward_imports.py`, `check_docs.py`, and `check_dj_model_ref_as_string.py` are wired into `pre-commit` and run on every commit via `.pre-commit-config.yaml`. `check_cli_commands.py` is a full-tree audit — it shells out `python -m <pkg>` for every node, which is too expensive for a per-commit hook — so it runs via `make arch PKG=<path>`, in CI, or on-demand. The per-project contract (layers, forbidden edges) lives in `pyproject.toml` under `[tool.importlinter]`.
@@ -61,7 +61,7 @@ Templates live in [`../templates/classic/`](../templates/classic/) — a single 
    - `arch-coherence/scripts/check_upward_imports.py`
    - `arch-coherence/scripts/check_cli_commands.py`
    - `arch-coherence/scripts/check_packaging.py` (also imported by `check_upward_imports.py` and `check_surface_orchestration.py` for shape detection)
-   - `arch-coherence/scripts/check_surface_orchestration.py` (surfaces projects; no-ops without `[tool.racecar.roles]`)
+   - `arch-coherence/scripts/check_surface_orchestration.py` (surfaces projects; no-ops when no surface is found)
    - `arch-coherence/scripts/check_dj_model_ref_as_string.py` (Django projects; skipped at runtime otherwise)
    - `doc-coherence/scripts/check_docs.py`
 2. In the library pyproject's `[tool.importlinter]`, replace `<root>` with your top-level package name and fill the layer rows with your own packages.

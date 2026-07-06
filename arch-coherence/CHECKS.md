@@ -2,21 +2,17 @@
 pnode: [README.md]
 ---
 
-# Architectural Coherence — Axioms & Review Lens
+# Architectural Coherence — the Four Checks
 
 Accessed via [`README.md`](README.md). If you arrived here directly, read that first.
 
-Apply this lens to verify a system's architectural DAG: imports are acyclic, dependencies flow in a single direction, layers do not leak, peer edges do not form cycles. For Python, `import-linter` mechanizes the properties; this lens is the reviewer-facing version and also checks whether the documented architecture matches what the code actually does.
+Apply this lens to verify a system's architectural DAG: imports are acyclic, dependencies flow in a single direction, layers do not leak, peer edges do not form cycles. The one first principle these four checks verify, dependencies form a directed acyclic graph, is [P-01](../shared/PRINCIPLES.md#p-01-dependencies-form-a-directed-acyclic-graph), homed in PRINCIPLES.md; this file is its four practical, checkable forms, not a second home for it. For Python, `import-linter` mechanizes the properties; this lens is the reviewer-facing version and also checks whether the documented architecture matches what the code actually does.
 
 ## The architecture racecar prescribes: one library, many surfaces
 
-The axioms below protect a specific shape. State the shape first, in plain terms, because every rule in this file exists to serve it.
+The four checks below protect a specific shape. State the shape first, in plain terms, because every rule in this file exists to serve it.
 
-**What the shape is.** A racecar project is one library exposed through several thin surfaces. Three tiers, each with one job:
-
-- **`lib`, the worker.** The engine: compute, fetch, transform, persist. It does the actual work and knows nothing about who calls it. No input parsing, no credential prompting, no defaulting.
-- **`api`, the orchestration.** The worker plus the policy that makes it callable without ceremony: resolve inputs, seed credentials, apply defaults, dispatch to the right worker. This is the one home for that policy.
-- **surfaces, the adapters.** `cli`, `mcp`, `django`, and any other entry point. A surface does exactly three things: translate input from its transport, call `api`, render the result in its transport's idiom. No policy lives here.
+**What the shape is.** A racecar project is one library exposed through several thin surfaces. Three tiers: `lib` does the work and knows nothing about who calls it; `api` holds the orchestration policy (resolve inputs, seed credentials, apply defaults, dispatch); the surfaces (`cli`, `mcp`, `django`, ...) each translate their transport, call `api`, and render the result.
 
 ```
                    ┌──> cli  (__main__)
@@ -24,9 +20,7 @@ The axioms below protect a specific shape. State the shape first, in plain terms
                    └──> django
 ```
 
-The arrow reads "provides for": `lib` provides for `api`, `api` provides for each surface. The import edges run the reverse (a surface imports `api`, `api` imports `lib`), and the resulting graph is a DAG.
-
-**Why the shape is this and not flatter.** Remove the `api` tier and the orchestration policy has nowhere to live but inside each surface. With three surfaces that is three copies of "resolve inputs, seed credentials, default, dispatch," and three copies is three places the policy drifts out of sync (Tier 1 drift, see [../shared/DRIFT.md](../shared/DRIFT.md)). The `api` tier exists so that policy has exactly one home and the surfaces hold none of it. That is the entire reason for the structure. The four axioms below are how a reviewer verifies the structure stays honest.
+The arrow reads "provides for": `lib` provides for `api`, `api` provides for each surface. The import edges run the reverse (a surface imports `api`, `api` imports `lib`), and the resulting graph is a DAG. The `api` tier exists so orchestration policy has exactly one home rather than one drifting copy per surface (Tier 1 drift, see [../shared/DRIFT.md](../shared/DRIFT.md)). The four checks below are how a reviewer verifies the structure stays honest.
 
 The full doctrine (a surface is a wrapper on `api`; the canonical file names that make surfaces autodiscoverable; the single gated `layers` contract plus the advisory detector that *surfaces* — not walls — surface-reaches-past-`api` choices; the role-identification tiers; and the placement principle) lives in [SURFACES.md](SURFACES.md).
 
@@ -40,7 +34,7 @@ For language-specific coherence, see [PYTHON.md](PYTHON.md) (module structure, i
 
 1. Load this file in full.
 2. If `import-linter` is configured, run it first. Any broken contract is a Blocker and supersedes prose reasoning.
-3. Apply the **four axioms and their checks**, in order. If an earlier check fails, later checks are moot — fix upstream first.
+3. Apply the **four checks**, in order. If an earlier check fails, later checks are moot — fix upstream first.
 4. Scan the **architectural red flags**.
 5. Group findings by root cause when one defect has many surface occurrences (one cycle can show up as N lazy-import lines).
 6. For prose hygiene, file naming, link integrity, or rule testability → [doc-coherence](../doc-coherence/README.md). For code-level hygiene → [eng-review](../eng-review/README.md).
@@ -48,9 +42,9 @@ For language-specific coherence, see [PYTHON.md](PYTHON.md) (module structure, i
 
 Do not summarize the artifact. Go straight to issues.
 
-## The axioms and their checks (DAG-ordered)
+## The four checks (DAG-ordered)
 
-Everything below derives from one axiom: **the import graph is acyclic.**
+Everything below derives from one first principle: **the import graph is acyclic** (P-01).
 
 ### 1. Acyclicity (root axiom)
 
@@ -84,7 +78,7 @@ fubar/                ← root package
 
 #### Environment layer exception
 
-Configuration derived from outside the project — environment variables, `.env` files, CLI flags parsed at the top — is an environment layer. It typically lives in the root package's entry file (in Python: `__init__.py` — see [PYTHON.md §1 Module Structure](PYTHON.md#1-module-structure)) or a dedicated `config`/`core` module. Any module in the tree may import from the environment layer; this is semantically equivalent to importing external state. The outward rule applies to business-logic dependencies, not to environment access.
+Configuration derived from outside the project — environment variables, `.env` files, CLI flags parsed at the top — is an environment layer. In Python it lives in a dedicated `config` module, not `__init__.py` (see [PYTHON.md §1 Module Structure](PYTHON.md#1-module-structure) and [SURFACES.md §6](SURFACES.md#6-supporting-rules)). Any module in the tree may import from the environment layer; this is semantically equivalent to importing external state. The outward rule applies to business-logic dependencies, not to environment access.
 
 **Constraint on the environment layer.** The environment layer must not import from its children at module load. Read env, compute constants, done. Importing a child during the layer's initialization reintroduces the very circularity the axiom prevents — the child will try to import back to get its configuration, and the layer is not yet fully initialized.
 
@@ -178,8 +172,8 @@ Common voice: [../shared/VOICE.md](../shared/VOICE.md).
 
 ## Invocation
 
-> Load `arch-coherence/AXIOMS.md`. Review this architecture for cycles, upward imports, and layer violations. Run `import-linter` first if configured.
+> Load `arch-coherence/CHECKS.md`. Review this architecture for cycles, upward imports, and layer violations. Run `import-linter` first if configured.
 
-> Using `arch-coherence/AXIOMS.md`, check whether the architecture the docs describe matches the import graph the code actually has.
+> Using `arch-coherence/CHECKS.md`, check whether the architecture the docs describe matches the import graph the code actually has.
 
 If the artifact passes all four checks and trips no architectural red flags, say so in one line and stop.

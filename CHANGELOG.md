@@ -8,6 +8,20 @@ All notable changes to racecar are recorded here, in the style of
 [Keep a Changelog](https://keepachangelog.com). racecar is pre-1.0, so a minor
 bump may carry breaking changes for adopters; those are marked **Breaking**.
 
+## 0.19.0 - 2026-07-06
+
+### Added
+- pnode documentation node-graph: every tracked text doc declares its parent once in frontmatter; `check_doc_graph.py` holds the graph to a DAG (types / dag / consistency) and is wired into `make check` and the adopter `docs` target (`doc-coherence/DOC_GRAPH.md`).
+- Reconciliation testing scaffold (`eng-review/RECONCILIATION.md`): generic manifolds (tie / identity / integrity) over a private, gitignored catalog, in place of model-named golden tests.
+- Glossary terms for the load-bearing vocabulary (surface, shape, vertical, layer, provider, data/control plane), and a VOCABULARY row in the resolver.
+
+### Changed
+- **Breaking:** the axioms are restated as twelve first principles (known `P-01..P-05`, racecar `R-01..R-07`), each in five parts. The entropy law is promoted to `R-01`; the fused `P-04` is split (largest-frame stays `P-04`, contract-is-truth folds into `R-02`); the former `R-01..R-06` shift to `R-02..R-07`. Any reference to an axiom by number or anchor moves. `MANIFESTO.md` is rewritten as the argument for them.
+- `arch-coherence/AXIOMS.md` renamed to `CHECKS.md` (the four checks), since the axioms now live in `PRINCIPLES.md`.
+
+### Fixed
+- A full cross-doc reconciliation across three reader altitudes: doc-vs-code contradictions (the surfaces detector, the Django dev-tool canon, subsystem shape resolution), scope-honesty overclaims turned on racecar itself (the README headline, P-04's unbuilt-ledger enforcement, R-01's reach), a storefront example that taught a gated-against pattern, and the shared-doc access preamble.
+
 ## 0.18.3 - 2026-07-05
 
 ### Fixed
@@ -500,7 +514,7 @@ without clobbering the owned `Makefile`.
   `check_packaging_rules/` package, composed by a plain `run_all`.
 - Documentation checks are reference-driven (reachability from README / CLAUDE /
   SKILL seeds), not a fixed taxonomy. Dense lens content moved to named topic docs
-  (`AXIOMS.md`, `WORKFLOW.md`, `PROTOCOL.md`, `SPEC.md`) with human-readable
+  (`CHECKS.md`, `WORKFLOW.md`, `PROTOCOL.md`, `SPEC.md`) with human-readable
   resolver READMEs.
 
 ### Fixed

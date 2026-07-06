@@ -5,7 +5,7 @@ description: Architectural coherence review — verify the import graph is acycl
 
 # racecar-arch-coherence
 
-Load [`AXIOMS.md`](AXIOMS.md) in full. It holds the four architectural checks (acyclicity, direction, layer integrity, depth-plus-one isolation) with their sub-axioms (environment-layer exception under direction; domain boundaries under layer integrity), mental models, red flags, decision patterns, feedback format, and invocation prompts.
+Load [`CHECKS.md`](CHECKS.md) in full. It holds the four architectural checks (acyclicity, direction, layer integrity, depth-plus-one isolation) with their sub-axioms (environment-layer exception under direction; domain boundaries under layer integrity), mental models, red flags, decision patterns, feedback format, and invocation prompts.
 
 Operational reminder: if `import-linter` is configured on the target project, run it first. Any broken contract is a Blocker and supersedes prose reasoning.
 

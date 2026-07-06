@@ -4,7 +4,7 @@ pnode: [../README.md]
 
 # Drift
 
-Accessed via [`../README.md`](../README.md). If you arrived here directly, read that first.
+Accessed via [`../README.md`](../README.md), the human storefront. Agents receive this file force-loaded via `CLAUDE.md` and do not read README.
 
 Drift is the gradual divergence of a system from itself — between two places that should agree, or between what the system is and what it was meant to be. Entropy is the enemy this whole framework fights; this file is the doctrine for fighting it constantly. Terminology: [GLOSSARY.md](GLOSSARY.md).
 

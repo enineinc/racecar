@@ -1,10 +1,10 @@
 ---
-pnode: [../README.md]
+pnode: [SKILL.md]
 ---
 
 # Upgrade: bring a repo in line with racecar, with nuance
 
-Accessed via [`../README.md`](../README.md) / [`../CLAUDE.md`](../CLAUDE.md). If you arrived here directly, read that first.
+Accessed via [`SKILL.md`](SKILL.md). If you arrived here directly, read that first.
 
 This is the **nuanced upgrade** procedure: take an existing project and move it toward current racecar without assuming everything already in the repo is wrong. A naive upgrade treats the standard as truth and the repo as deviation, then clobbers. This one does not. The existing repo is a set of decisions, not a pile of mistakes, and some of those decisions are better than racecar's defaults or are legitimate in a context racecar does not know.
 

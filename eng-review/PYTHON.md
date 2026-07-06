@@ -19,7 +19,7 @@ How you work, not what you write. Items here guide judgment and process; they ar
 
 ## 2. Naming
 
-What things are called. Independent of structure and tooling. "Names describe function, not format" is the scope-honesty rule expressed at the code level — the same rule appears at the review level in [`README.md`](README.md) (check 1 — scope honesty of names) and at the prose level in [`../doc-coherence/README.md`](../doc-coherence/PROTOCOL.md#the-five-document-checks) (check 2 — scope honesty of labels).
+What things are called. Independent of structure and tooling. "Names describe function, not format" is the scope-honesty rule expressed at the code level — the same rule appears at the review level in [`WORKFLOW.md`](WORKFLOW.md) (check 1 — scope honesty of names) and at the prose level in [`../doc-coherence/PROTOCOL.md`](../doc-coherence/PROTOCOL.md#the-five-document-checks) (check 2 — scope honesty of labels).
 
 - **Names describe function, not format.** A business module that parses or writes data is named `data.py`, not `yaml.py` — file format is auto-detected from extension, not assumed. (Tooling config files like `pyproject.toml` or `pre-commit-config.yaml` name the tool or format by convention; this rule is about code modules.)
 - **Names describe a specific concept.** Module names must not be `utils`, `helpers`, `common`, `misc`, or `shared` when a specific concept applies — a module of date-parsing functions is `dates`, not `utils`.
