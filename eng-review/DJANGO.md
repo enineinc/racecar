@@ -1,3 +1,7 @@
+---
+pnode: [README.md]
+---
+
 # Django — Engineering Hygiene
 
 Accessed via [`README.md`](README.md). If you arrived here directly, read that first.

@@ -50,8 +50,14 @@ Load: [eng-review/PYTHON.md](eng-review/PYTHON.md)
 Topic: Django engineering hygiene — framework-specific code-quality rules
 Load: [eng-review/DJANGO.md](eng-review/DJANGO.md)
 
+Topic: Reconciliation scaffolds — replacing model-named golden tests with a few generic manifolds (tie / identity / integrity) over a private, gitignored catalog; when to choose this over golden tests, and the confidentiality/perimeter payoff.
+Load: [eng-review/RECONCILIATION.md](eng-review/RECONCILIATION.md)
+
 Topic: Documentation coherence — update protocol + review lens
 Load: [doc-coherence/PROTOCOL.md](doc-coherence/PROTOCOL.md)
+
+Topic: Documentation node graph — the `pnode` frontmatter taxonomy (each doc declares its parent once; children and peers are derived, never stored; the doc graph is held to a DAG by `check_doc_graph.py`) plus the reader-first layering convention
+Load: [doc-coherence/DOC_GRAPH.md](doc-coherence/DOC_GRAPH.md)
 
 Topic: LLM summary — produce a shareable single-file knowledge package for a downstream LLM working without the repo
 Load: [llm-summary/SPEC.md](llm-summary/SPEC.md)

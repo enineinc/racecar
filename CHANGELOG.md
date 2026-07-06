@@ -1,8 +1,21 @@
+---
+pnode: [README.md]
+---
+
 # Changelog
 
 All notable changes to racecar are recorded here, in the style of
 [Keep a Changelog](https://keepachangelog.com). racecar is pre-1.0, so a minor
 bump may carry breaking changes for adopters; those are marked **Breaking**.
+
+## 0.18.3 - 2026-07-05
+
+### Fixed
+- **`pytest-xdist` added to the packaging checker's canon dev-tool set (`CANON_DEV_TOOLS`).**
+  PACKAGING.md §6 already ships `pytest-xdist` in the dev-group template and documents it, but the
+  checker's canon list omitted it, so `check_packaging` flagged an otherwise-conformant `pyproject.toml`
+  as carrying an unexpected extra dev tool. The list is brought into agreement with the standard.
+  (Backfilled: shipped in the 0.18.3 bump but not recorded here at the time.)
 
 ## 0.18.2 - 2026-07-03
 

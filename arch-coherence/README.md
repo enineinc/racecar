@@ -1,3 +1,7 @@
+---
+pnode: [SKILL.md]
+---
+
 # Architectural Coherence
 
 The lens that keeps a system's import graph honest: acyclic, flowing one direction, layers that don't leak, one library exposed through thin surfaces. It catches the architectural rot tests never see: import cycles, a module reaching up into its own root, a library smeared across a dozen entry points.

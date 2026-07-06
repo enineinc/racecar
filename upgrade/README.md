@@ -1,3 +1,7 @@
+---
+pnode: [../README.md]
+---
+
 # Upgrade: bring a repo in line with racecar, with nuance
 
 Accessed via [`../README.md`](../README.md) / [`../CLAUDE.md`](../CLAUDE.md). If you arrived here directly, read that first.

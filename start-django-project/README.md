@@ -1,3 +1,7 @@
+---
+pnode: [SKILL.md]
+---
+
 # racecar-start-django-project: the procedure
 
 Accessed via [`SKILL.md`](SKILL.md). Doctrine home: [`../arch-coherence/PACKAGING.md`](../arch-coherence/PACKAGING.md)

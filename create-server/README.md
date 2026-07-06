@@ -1,3 +1,7 @@
+---
+pnode: [SKILL.md]
+---
+
 # racecar-create-server: the procedure
 
 Accessed via [`SKILL.md`](SKILL.md). Doctrine homes this skill executes against:

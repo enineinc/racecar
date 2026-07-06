@@ -1,3 +1,7 @@
+---
+pnode: [README.md]
+---
+
 # AUTH.md — the auth rail (canon)
 
 A racecar surface exposes `api` to the outside. The outside is untrusted. So **every generated

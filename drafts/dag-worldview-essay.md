@@ -1,3 +1,7 @@
+---
+pnode: [../README.md]
+---
+
 <!-- Title alternatives for the author to pick: "Make it a DAG" / "Acyclicity is coherence" -->
 
 # Everything you can trust is a DAG

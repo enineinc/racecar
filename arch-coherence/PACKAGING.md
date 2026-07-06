@@ -1,3 +1,7 @@
+---
+pnode: [README.md]
+---
+
 # Packaging & Tooling — racecar standard
 
 Accessed via [`README.md`](README.md). If you arrived here directly, read that first.

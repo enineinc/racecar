@@ -1,3 +1,7 @@
+---
+pnode: [README.md]
+---
+
 # Engineering Review — wrapper around gstack `plan-eng-review`
 
 Accessed via [`README.md`](README.md). If you arrived here directly, read that first.
@@ -58,6 +62,8 @@ Scan for these. One line each.
 ## Post-pass: Python / Django idiosyncrasies
 
 After gstack has run, load [PYTHON.md](PYTHON.md) and [DJANGO.md](DJANGO.md) and apply them to the artifact. These files carry the opinions gstack does not hold: naming rules beyond "scope honesty," formatter-as-canonical, no-inline-suppression, Django service-layer patterns, N+1 prevention, access-control mixins. Surfaces here tagged `[post]`.
+
+When the artifact under review is reconciliation tests or fixtures, load [RECONCILIATION.md](RECONCILIATION.md): a pile of near-duplicate model-named golden tests, or committed reference data that names real models, should be a scaffold of generic manifolds over a private catalog instead.
 
 ## Mental models
 

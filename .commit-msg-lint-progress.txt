@@ -1,0 +1,11 @@
+build(lint): print a progress line before each lint pass
+
+`make lint` ran for tens of seconds in silence before printing its
+message-code summary. Add a standalone printf before each of the three
+passes (src pylint, server pylint, no-upward-imports) so the terminal
+shows which pass is running.
+
+Each printf is its own statement outside the captured command
+substitution, so the lines reach the terminal without polluting the
+message-code summary. The capture, summary, and exit-code logic are
+unchanged.

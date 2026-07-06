@@ -1,3 +1,7 @@
+---
+pnode: [README.md]
+---
+
 # Python — Architectural Coherence
 
 Accessed via [`README.md`](README.md). If you arrived here directly, read that first.
@@ -10,11 +14,11 @@ Sections are ordered as a DAG — most independent first, most dependent last.
 
 How code is organized into files and packages. Every package has two specialty files — `__init__.py` and `__main__.py` — with opposite roles on the dependency graph. This section owns the Python-specific shape of the direction axiom in [check 2 Direction](AXIOMS.md#2-direction).
 
-**`__init__.py` — the package's surface to the outside.** It declares what the package IS when imported. It is for orchestration and re-exports only; business logic lives in named modules. If `__init__.py` has more than a few re-export lines, move the logic to a named module and re-export. `__init__.py` may import upward — only to the environment layer (see [the environment-layer exception](AXIOMS.md#environment-layer-exception)). When a child package needs inherited state, its `__init__.py` imports from the environment layer and re-exports into its own namespace.
+**`__init__.py` — the package's namespace.** It declares what the package IS when imported and holds no logic: empty or a docstring, never code, never re-exports. Re-exporting a symbol up into `__init__` makes a second home for it ([P-02](../shared/PRINCIPLES.md#p-02-one-home-per-artifact)) and, when the symbol is named after a submodule, shadows it — a real import breakage. A package's public symbols live in its named modules (`api.py` where the surfaces shape applies); inherited environment-layer state is read through a `config` module, not re-exported through `__init__`. The full rule and its proving-ground rationale are in [SURFACES.md §6](SURFACES.md#6-supporting-rules) (one home).
 
 **`__main__.py` — the execution entry point.** It imports outward, reaching down into the package's own subtree to dispatch work. Its dependencies go inward-subtree only; never upward to a parent package (env-layer carve-out excepted). For the full `__main__.py` + `commands()` / `subcommands()` / `parser()` pattern that makes this structural, see [CLI.md](CLI.md).
 
-**Other `.py` modules never import upward directly.** Business-logic modules stay within their own subtree, import from peers in the allowed direction (see [check 2 Direction](AXIOMS.md#2-direction)), or read inherited state through their own package's `__init__.py` — not from the root directly. This is the rule `check_upward_imports.py` enforces; see §4.
+**Other `.py` modules never import upward directly.** Business-logic modules stay within their own subtree, import from peers in the allowed direction (see [check 2 Direction](AXIOMS.md#2-direction)), or read inherited state through their own package's `config` module — not from the root directly. This is the rule `check_upward_imports.py` enforces; see §4.
 
 **When a library is exposed through more than one surface**, these module roles map onto the `lib → api → {cli, mcp, web/django}` tiers: the worker is `lib`, the orchestration policy is `api`, and each surface is a wrapper on `api` (the cli surface being `__main__`). Where orchestration lives, the per-vertical co-location, the canonical file names (an autodiscovery contract: `lib.py` / `api.py` / `mcp.py` / `__main__.py`), and the single gated `layers` contract plus the advisory detector are in [SURFACES.md](SURFACES.md) (one home; not restated here).
 
@@ -80,6 +84,8 @@ Any architectural change in the source tree requires a matching edit to `[tool.i
    type = "forbidden"
    source_modules = ["<root>.<B>"]
    forbidden_modules = ["<root>.<A>"]
+
+   The `forbidden` form is the general `import-linter` fallback for a peer constraint. The surfaces shape does not use one: its direction wall is the single gated `layers` contract plus the advisory detector, and it carries no `forbidden` contract ([SURFACES.md](SURFACES.md) §4, §7). Reach for `forbidden` only for a peer constraint outside that shape.
 
 4. Peer direction reversed or removed → update the layers contract.
 5. Package changes role (leaf → consumer, etc.) → move to the appropriate layer row.

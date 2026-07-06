@@ -159,6 +159,7 @@ dev = [
     "mypy",
     "pytest",
     "pytest-cov",
+    "pytest-xdist",
     "pip-audit",
     "import-linter",
     "pre-commit",

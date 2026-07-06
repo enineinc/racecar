@@ -1,3 +1,7 @@
+---
+pnode: [README.md]
+---
+
 # Output Discipline for High-Bandwidth Expert Collaboration
 
 Three layers, priority order: **epistemic standards** (§1, universal), **output craft**

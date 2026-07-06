@@ -17,4 +17,7 @@ Per-language content (loaded on demand in the post-pass):
 - [`PYTHON.md`](PYTHON.md) — language-specific code-quality rules.
 - [`DJANGO.md`](DJANGO.md) — framework-specific code-quality rules.
 
+Topic companion (loaded on demand when reviewing tests/fixtures):
+- [`RECONCILIATION.md`](RECONCILIATION.md) — when reconciliation tests should be a scaffold of generic manifolds over a private catalog instead of model-named golden tests.
+
 Output format: numbered entries tagged `[pre]` / `[gstack]` / `[post]` with severity (Blocker / Major / Minor / Nit), verdict line at the end (Ship / Revise / Rework). No preamble.

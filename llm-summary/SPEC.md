@@ -1,3 +1,7 @@
+---
+pnode: [README.md]
+---
+
 # LLM Summary — Shareable Knowledge Package
 
 Accessed via [`README.md`](README.md). If you arrived here directly, read that first.

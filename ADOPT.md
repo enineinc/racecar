@@ -1,3 +1,7 @@
+---
+pnode: [README.md]
+---
+
 # Adopting racecar in a project
 
 Three paths: **new project** (scaffold from scratch), **existing project with a local racecar clone** (sync scripts locally), and **existing project without a local clone** (sync scripts remotely via curl).

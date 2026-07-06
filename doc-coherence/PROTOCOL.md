@@ -1,3 +1,7 @@
+---
+pnode: [README.md]
+---
+
 # Documentation Coherence — Update Protocol & Review Lens
 
 Accessed via [`README.md`](README.md). If you arrived here directly, read that first.

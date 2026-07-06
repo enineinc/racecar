@@ -1,3 +1,7 @@
+---
+pnode: [README.md]
+---
+
 # Plan: rebuild the walls
 
 The three construction flaws (heavyweight detectors, emergent seams, self-exemption) are one problem at the middle elevation: the bricks are well-laid and the house is well-designed, but the walls were assembled by improvisation. This plan rebuilds them with the rigor already present in the parts.

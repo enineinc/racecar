@@ -1,3 +1,7 @@
+---
+pnode: [../README.md]
+---
+
 # Instrument, not the answer
 
 Most of what gets called AI-native is just putting a model where code used to be: a function becomes a prompt, a rule becomes a judgment call. That is not imagination. It is substitution, and it is usually the worst trade on the table.

@@ -1,3 +1,7 @@
+---
+pnode: [../README.md]
+---
+
 # Spine: AI-native is not AI-replacing-deterministic
 
 Working scaffold for the racecar.dev front-page essay. The full draft is in `ai-native-essay.md`.

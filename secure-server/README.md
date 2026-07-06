@@ -1,3 +1,7 @@
+---
+pnode: [SKILL.md]
+---
+
 # racecar-secure-server: the procedure
 
 Accessed via [`SKILL.md`](SKILL.md). Doctrine home: [`../arch-coherence/AUTH.md`](../arch-coherence/AUTH.md)

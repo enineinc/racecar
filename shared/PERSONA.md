@@ -1,3 +1,7 @@
+---
+pnode: [../README.md]
+---
+
 # Agent Persona
 
 The interaction style and thought process a Claude Code agent adopts when applying racecar standards.

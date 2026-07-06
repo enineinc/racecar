@@ -1,3 +1,7 @@
+---
+pnode: [README.md]
+---
+
 # Architectural Coherence — Axioms & Review Lens
 
 Accessed via [`README.md`](README.md). If you arrived here directly, read that first.
@@ -98,6 +102,8 @@ Entry points            ← top layer; imports orchestrators and domain
 Nothing in a lower layer imports from a higher one. A utility that needs orchestration logic is misplaced; move it up, don't reach down.
 
 An *orchestrator* is a module that coordinates domain modules to produce a feature-level outcome — for example, a build script that calls compute, database, and export in sequence; a request handler that composes several services; or a CLI entry point that routes to sub-commands. Orchestrators are stateful in the sense that they know which pieces to run in which order; domain modules and utilities are not.
+
+These four generic tiers are named concretely in the racecar surfaces shape as `surfaces → api → lib → shared` ([SURFACES.md](SURFACES.md)): an *orchestrator* is `api`, *domain modules* are `lib`, *pure utilities* are `shared`, and *entry points* are the surfaces. Same stack, one language-agnostic and one racecar-specific.
 
 #### Domain boundaries
 

@@ -1,8 +1,33 @@
+---
+pnode: []
+---
+
 # racecar
 
-racecar is for one builder shipping real software with AI agents across more than one codebase, who refuses to let the architecture rot at AI speed. It is a set of code standards plus deterministic checks that an AI coding agent loads and applies to its own work, so you can trust the *structure* of what the agent writes without re-reading every line.
+racecar is for a builder shipping real software with AI agents across more than one codebase, who refuses to let the architecture rot at AI speed. It is a set of code standards plus deterministic checks that an AI coding agent loads and applies to its own work, so you can trust the *structure* of what the agent writes without re-reading every line.
 
 **Why it is built the way it is**, the trust thesis (mechanical over heuristic), the data-plane-dominant architecture (the library is the center, the ORM confined to the control plane), and the portfolio-OS frame, is argued in [`MANIFESTO.md`](MANIFESTO.md).
+
+## The principles
+
+racecar is eleven principles held in force by mechanical checks. The contribution is not the ideas, which are old, but the binding: enforcing them together, on your machine, without drift. Each has one home in [`shared/PRINCIPLES.md`](shared/PRINCIPLES.md), where it is stated as the axiom, what it rests on, the failure it prevents, the check that enforces it, and its origin. There are two kinds, both held with the same force: **known principles** (P), the established canon racecar adopts, and **racecar principles** (R), the stances racecar takes. Each group runs in dependency order, foundational first.
+
+**Known principles** — established, and resting on a theorem, a tautology, or long-settled practice.
+
+- **P-01. Dependencies form a directed acyclic graph.** Imports flow outward and downward, never up into a module's own root; no cycles. *The Acyclic Dependencies Principle (Martin), information hiding (Parnas), levelization (Lakos).*
+- **P-02. One home per artifact.** Every fact, rule, or value lives in exactly one place; everything else points to it, and does not restate it. *DRY and single source of truth (Hunt and Thomas).*
+- **P-03. Reconcile to source; do not re-derive from memory.** Verify a claim against the source's own mechanic, not a summary, an agent's report, or a green dashboard. *Dijkstra: testing shows the presence, not the absence, of bugs.*
+- **P-04. The enforced contract is truth; fix drift at the largest frame.** When prose and the running check disagree, the check wins and the prose is the bug. Resolve a drift at the largest frame that explains it, not the local symptom. *Root-cause over symptom (Ohno's five whys).*
+- **P-05. Idempotent by default; re-running changes nothing.** A scaffolder, installer, sync, or gate is safe to run again; re-execution is the ordinary case, not the error path. *Long-standing in mathematics and distributed systems.*
+
+**Racecar principles** — the stances racecar takes: chosen, some contrarian, defended by results.
+
+- **R-01. Enforced, not professed.** A rule that matters is a check that fails by naming a file and a line. Prose is not enforcement. *The lint and policy-as-code tradition; no single owner.*
+- **R-02. Determinism; the model is last, never the gate.** Every gate is a script and an exit code. The AI is used last, to mechanize judgment or for the residue no rule can decide, never as the arbiter. *racecar's trust thesis; the reproducibility instinct is old, but the stance is not claimed as original.*
+- **R-03. Scope honesty.** A name means exactly its contents; a file's location means exactly its role. A generic that carries specifics is a lie the reader cannot see. *Naming as a promise, and least astonishment; folk wisdom, no single owner.*
+- **R-04. Ownership is not delegable.** Tooling enables and confirms; it does not authorize. A green check is confirmation, not a merge verdict, and enforcement runs on the owner's machine, never as a CI gate that decides. *"You build it, you run it" (Vogels), and Deming's refusal to inspect quality in after the fact.*
+- **R-05. Make the right thing easy; help, not law.** The good shape is the default you receive, not a wall you are forced into. Gate genuine defects; surface choices. A rule that reads as a wall is a defect in the rule. *The paved road and the pit of success.*
+- **R-06. Agent-grade software is data-plane-dominant.** The library is the center, holding the data plane; the ORM is confined to a control-plane server that never touches it. *racecar's architecture bet; the data-plane / control-plane split is standard systems vocabulary.*
 
 ## What it does for you
 

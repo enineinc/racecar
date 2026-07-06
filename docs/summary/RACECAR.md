@@ -1,10 +1,10 @@
 ---
 generator:
   name: racecar-llm-summary
-  version: "0.15.1"
+  version: "0.18.3"
 target:
   repo: racecar
-  date: 2026-07-02
+  date: 2026-07-05
 bundle:
   - RACECAR.md
 
@@ -16,7 +16,7 @@ entities:
   - name: Skill
     case: on_disk_managed
     purpose: A SKILL.md + README.md pointer pair the Claude Code harness invokes as /racecar-<name>.
-    notes: 16 skill directories, each with a SKILL.md (router) and README.md (procedure). `./install` symlinks them into ~/.claude/skills/.
+    notes: 16 skill directories plus a top-level `racecar` router skill (root SKILL.md), each with a SKILL.md (router) and README.md (procedure). `./install` symlinks them into ~/.claude/skills/.
   - name: ProjectShape
     case: none
     purpose: The packaging shape a repo presents, governed by what is on disk.
@@ -55,7 +55,15 @@ entities:
   - name: Baseline
     case: on_disk_managed
     purpose: The always-on standards force-loaded into every agent session.
-    notes: shared/*.md (PERSONA, DRIFT, OPERATIONAL, OWNERSHIP, COMMITS, VOICE, GLOSSARY, VOCABULARY, TODO_FORMAT) plus the CLAUDE.md router; loaded by the session_load_standards hook.
+    notes: shared/*.md (PRINCIPLES, PERSONA, DRIFT, OPERATIONAL, OWNERSHIP, COMMITS, VOICE, GLOSSARY, VOCABULARY, TODO_FORMAT) plus the CLAUDE.md router; loaded by the session_load_standards hook.
+  - name: Axiom
+    case: none
+    purpose: One of the ten irreducible first principles (I-1..I-10) every racecar rule, lens, and check derives from.
+    notes: Homed in shared/PRINCIPLES.md, each stated as axiom + why + enforced-by so it is testable, not aspirational. E.g. one-home-per-artifact (I-1, with the bounded-test-surface corollary), enforced-not-professed (I-2), determinism-over-heuristic (I-3), acyclic dependencies (I-4), scope honesty (I-5), ownership-not-delegable (I-8), idempotent-by-default (I-10). MANIFESTO.md argues the why at length and credits the prior art the axioms borrow from.
+  - name: Reconciliation
+    case: none
+    purpose: A scaffold that ties an engine's output to reference data as a fixed set of generic manifolds over a private catalog, replacing one golden test per model.
+    notes: Homed in eng-review/RECONCILIATION.md. Three manifolds — tie (engine vs an authoritative oracle within tolerance), identity (an accounting/algebraic law inside the engine's own output), integrity (a reference surface's structural soundness). A tie's oracle is either a handcrafted synthetic checksum (crafted per transform for edges/corners, tracked, always-on) or a real reference surface (confidential, in the private gitignored catalog). The tracked tree names no model; the catalog instance and reference data stay outside version control (the security partition). This is I-1 applied to test artifacts, so hand-written test code stays O(1) in models while instances become catalog rows bounded by configs x transforms.
   - name: Hook
     case: none
     purpose: A Claude Code SessionStart / PreCompact hook that force-loads the baseline and checks sync.
@@ -190,21 +198,21 @@ The audience is the author (Vishal Apte) and the repos that adopt racecar: a por
 | Module | Purpose |
 | --- | --- |
 | `arch-coherence/` | The architecture lens: import-DAG axioms, the lib→api→surfaces shape, packaging shapes, surface generation, auth doctrine, and the scaffold/check scripts. |
-| `eng-review/` | The engineering-hygiene lens (Python/Django), wrapping gstack `plan-eng-review` when installed. |
+| `eng-review/` | The engineering-hygiene lens (Python/Django), wrapping gstack `plan-eng-review` when installed; carries the `RECONCILIATION.md` companion (manifolds-over-a-private-catalog testing) loaded on demand for reconciliation tests/fixtures. |
 | `doc-coherence/` | The documentation lens: link/citation/vocabulary checks + prose-vs-code review. |
 | `llm-summary/` | The brief generator (this file) + `check_brief.py`. |
 | `create-package/`, `create-server/`, `secure-server/`, `deploy-server/` | The scaffolding cascade (§2.7 flow 1). |
 | `start-django-project/` | The generic, racecar-agnostic Django scaffold `create-server` delegates to. |
 | `commit/`, `commit-preflight/`, `commit-decompose/` | Commit authoring, pre-commit dry-run, working-tree decomposition. |
 | `normalize/`, `upgrade/`, `doctor/`, `expert/` | Adoption audit, non-clobbering upgrade, install verification, expert output overlay. |
-| `shared/` | The always-on baseline (persona, drift, operational, ownership, commits, voice, glossary, vocabulary, TODO format). |
+| `shared/` | The always-on baseline: the ten first-principle axioms (`PRINCIPLES.md`) plus persona, drift, operational, ownership, commits, voice, glossary, vocabulary, TODO format. |
 | `scripts/` | Cross-cutting scripts: init, sync, doctor, changelog/config-drift checks, claude.md wiring. |
 | `templates/` | `classic/` (the project scaffold copied into adopters); `arch-coherence/templates/` holds the generation mirror trees. |
 | `hooks/` | SessionStart / PreCompact hooks that force-load the baseline and check sync. |
 
 ### §1.3 Vendors
 
-No paid SaaS, no cloud platform, no sibling local packages. The dev toolset is community/PSF/PyPA OSS only (pylint, black, isort, import-linter, pytest, mypy, pip-audit, pre-commit, validate-pyproject) — a deliberate governance rule (no VC-backed tooling, which excludes ruff) in `arch-coherence/PACKAGING.md`. The *generated* server pulls django + uvicorn at runtime, and the generated Authorization Server adds django-oauth-toolkit, py_webauthn, and django-oauth-toolkit-dcr; those are dependencies of racecar's output, not of racecar itself. gstack (the author's separate skill bundle) is an optional peer that eng-review wraps when present.
+No paid SaaS, no cloud platform, no sibling local packages. The canonical dev toolset (thirteen tools, `arch-coherence/PACKAGING.md` §6) is community/PSF/PyPA OSS only: black, isort, pylint, mypy, pytest, pytest-cov, pytest-xdist, pip-audit, pre-commit (the nine mainstream de-facto-canon tools), plus import-linter, validate-pyproject, djhtml, and the gitleaks secret-scan binary. `pytest-xdist` ships in the dev group but parallelism is never canon-default (0.18.0): the owning repo opts in via `PYTEST_ARGS := -n auto`. This is a deliberate governance rule — no VC-backed tooling, which excludes ruff. The *generated* server pulls django + uvicorn at runtime, and the generated Authorization Server adds django-oauth-toolkit, py_webauthn, and django-oauth-toolkit-dcr; those are dependencies of racecar's output, not of racecar itself. gstack (the author's separate skill bundle) is an optional peer that eng-review wraps when present.
 
 ## §2. Implementation
 
@@ -222,7 +230,7 @@ The baseline is force-loaded every SessionStart by `hooks/session_load_standards
 
 ### §2.2 Entities
 
-racecar's entities are mostly **conceptual primitives** (frontmatter `case: none`): a Lens, a Surface, a ProjectShape, a MechanicalCheck, the Cascade, the AuthorizationServer. The on-disk ones are the Skill pair (`SKILL.md` + `README.md`), the Baseline (`shared/*.md`), and the InterfaceManifest (`server/docs/api/manifest.json`). The one content tree is the **MirrorTree**: three template directories under `arch-coherence/templates/` whose layout matches the generated output 1:1. See frontmatter `entities` for the full set; there are no ORM models — racecar persists nothing of its own.
+racecar's entities are mostly **conceptual primitives** (frontmatter `case: none`): a Lens, a Surface, a ProjectShape, a MechanicalCheck, the Cascade, the AuthorizationServer, an **Axiom** (one of the ten first principles the whole framework derives from, `shared/PRINCIPLES.md`), and **Reconciliation** (the manifolds-over-a-private-catalog testing scaffold, `eng-review/RECONCILIATION.md`). The on-disk ones are the Skill pair (`SKILL.md` + `README.md`), the Baseline (`shared/*.md`), and the InterfaceManifest (`server/docs/api/manifest.json`). The one content tree is the **MirrorTree**: three template directories under `arch-coherence/templates/` whose layout matches the generated output 1:1. See frontmatter `entities` for the full set; there are no ORM models — racecar persists nothing of its own.
 
 ### §2.3 Relationships
 
@@ -249,6 +257,7 @@ The surface is the **slash commands** (frontmatter `cli_verbs`, 16 skills) plus 
 - **import-linter `layers` contract** — the one gated architectural contract (`[tool.importlinter]`); `check_surface_orchestration.py` is the advisory detector (exit 0 by default, `--strict` to fail) for surfaces reaching past `api`. Since 0.14.0 it is **surface-rooted**: it anchors only on the surfaces it can name or is told to map (`__main__.py` = cli, `mcp.py`/`mcp/` = mcp), with no structural guessing, so an ingestion-shaped package or a `sources/<protocol>` adapter is deliberately not a vertical and is not flagged (`arch-coherence/SURFACES.md §7`, `CLI.md`).
 - **Commit-time gate** (0.15.0, adopter-facing via `templates/classic/pre-commit-config.yaml`) — `check_version_bump.py` (commit-msg stage) fails a feat/fix/perf/breaking commit when the version home is unchanged between index and HEAD, asserting a bump happened, not its magnitude (`shared/COMMITS.md`). `install-dev` installs both `pre-commit` and `commit-msg` hook types so the commit-msg gate fires. (A prose-punctuation dash gate shipped alongside it in 0.15.0 and was retired in 0.18.2: its false-positive rate exceeded its value; the em-dash rule is now a `shared/VOICE.md` voice convention, not a checker.)
 - **Shape markers** — `pyproject.toml` (root) + `src/` + `server/manage.py` on disk; `detect_shape` (Python) and `racecar.mk` (Make) read them in lockstep, held by `test_sync_scripts.py`.
+- **gitleaks secret scan** (0.16.0, adopter-facing via `templates/classic/pre-commit-config.yaml`) — a `gitleaks` hook runs first in the pre-commit set, reading the index directly (`--staged`) and redacting hits (`--redact`), so a leaked credential fails the commit before any other hook runs. A local `language: system` hook (network-free at hook time), kept out of `check_packaging`'s required-hooks set like `djhtml` because it depends on a non-pip binary; its absence surfaces as advisory config drift, not a blocker.
 - **Resource-server auth rail** — `project/auth.py` validates a bearer token by RFC 7662 introspection against the AS; `check_surface_auth.py` fails a surface that ships anonymous or a command with no scope.
 
 ### §2.6 Configuration
@@ -275,8 +284,12 @@ The surface is the **slash commands** (frontmatter `cli_verbs`, 16 skills) plus 
 
 ### §2.9 Design decisions
 
-- **Mechanical over heuristic; LLM-last.** Every gate is a deterministic script; the model never decides pass/fail. (`shared/DRIFT.md`, `shared/OWNERSHIP.md`.)
-- **One home per rule.** Each rule lives in exactly one canonical doc; other docs link, never restate. Drift is fought by eliminating the surface first.
+- **The ten axioms are the derivation root.** `shared/PRINCIPLES.md` names the irreducible first principles (I-1..I-10) every rule, lens, and check descends from, each stated as axiom + why + enforced-by so it is testable. `MANIFESTO.md` argues the why and, in a "prior art" section, states plainly that racecar invents none of the axioms (DRY, the Acyclic Dependencies Principle, Parnas information hiding, Lakos levelization, Deming, Lehman, Cunningham): the wager is enforcing borrowed wisdom together without drift, unproven at fleet scale, not originality. (commit `4fd53e4`.)
+- **Reconciliation as a scaffold, not golden-per-model.** `eng-review/RECONCILIATION.md` encodes engine-to-reference testing as three generic manifolds (tie / identity / integrity) over a private, gitignored catalog. The tie's oracle is a handcrafted synthetic checksum (tracked, always-on, correctness-bearing because its output is independently derived) or a real reference surface (confidential, catalog-only). The security partition (tracked code names no model; reference data stays out of version control) and the bounded-test-surface corollary of I-1 (test code O(1) in models; instances = configs x transforms as catalog rows) both fall out of it.
+- **Identity and token model recorded as an ADR.** `arch-coherence/adr/adr-identity-and-token-model.md` fixes the opaque-bearer + introspection identity decision as a durable architectural record. (commit `86739b1`.)
+- **Mechanical over heuristic; LLM-last.** Every gate is a deterministic script; the model never decides pass/fail. (`shared/DRIFT.md`, `shared/OWNERSHIP.md`, I-3.)
+- **One home per rule.** Each rule lives in exactly one canonical doc; other docs link, never restate. Drift is fought by eliminating the surface first. (I-1.)
+- **gitleaks secret scan and opt-in parallel tests.** A `gitleaks` pre-commit hook fails a leaked credential before any other hook (0.16.0); `pytest-xdist` ships in the dev group but racecar never sets `-n` in canon, leaving parallelism as the owning repo's opt-in (0.18.0). `check-full` runs its targets serially for attributable output on GNU Make 3.81 (0.18.1). The CLI audit infers its root from a `src/` layout instead of a required dotted name (0.17.0).
 - **"surface" is canon; "face" retired.** `lib → api → surfaces {cli, rest, mcp}`; binding key `[tool.racecar.surface]`. (0.13.0, commit `d032a59`; superseded the `faces`/`FACES.md` vocabulary.)
 - **Shape is the PYTHON_LIBRARY × DJANGO_PROJECT presence product.** `has_library × has_django` is the primitive; the enum (src / src+server / server / unknown) is the derived label, and `(neither)` is a no-shape finding, not a silent `src`. Governed by on-disk markers, no config flag; the `pypkg/` wrapper was removed in 0.13.0 (the library is canon root `src/<pkg>`). `server`-only (Django, no library) is in scope: a control-plane-only app or a raw scaffold. (commits `323fa77`, `d032a59`.)
 - **The library is the architectural center; the ORM is confined to the control plane.** Agent-grade software is data-plane-dominant: the more useful the package, the smaller the ORM-governed fraction. So the library (`src/<pkg>`, Django-free) holds the high-volume data path, and the ORM is confined to the `server/` control plane (auth/config/audit, the AS's state), touching the data plane never. The `src/` vs `server/` split is that confinement made physical, which is what *forces* the layout rather than choosing it. Full argument in `MANIFESTO.md`; the forcing constraints in `arch-coherence/PACKAGING.md`.
@@ -288,7 +301,7 @@ The surface is the **slash commands** (frontmatter `cli_verbs`, 16 skills) plus 
 ### §2.10 Operational
 
 - **Install:** `./install` (in the racecar checkout) symlinks the skills into `~/.claude/skills/` and wires the SessionStart/PreCompact hooks; idempotent, refuses to clobber present-but-wrong files. `make doctor` (or `/racecar-doctor`) verifies the install with evidence (a load token reproduced from context).
-- **Self-gate:** `make check` enforces pylint 10/10, 324 tests, and the doc + changelog + brief checks. `make arch` is not a racecar target — the arch *checks* are vendored into adopters, not run against racecar's own tooling. (As of 0.15.1 the lint stage is red: `check_surface_orchestration.py` rates 9.99/10 — `W0621` redefined `main`, `R0911` too-many-returns — a regression from the 0.14.0 rewrite; every other stage is green.)
+- **Self-gate:** `make check` enforces pylint 10.00/10, 313 tests (pytest), and the doc + changelog + brief checks, in sequence. `make check-full` runs the same targets serially (0.18.1) for attributable output on stock macOS GNU Make 3.81. `make arch` is not a racecar target — the arch *checks* are vendored into adopters, not run against racecar's own tooling. (The 0.15.1 lint regression in `check_surface_orchestration.py` was cleaned to 10.00/10 in commit `4dfa87f`.)
 - **Adopter gate:** `make check` + pre-commit in the consuming repo, using the synced scripts. Enforcement is local (pre-commit, make), never CI-as-gate; the owner authorizes, the tooling confirms.
 - **No deploy, no schedule, no healthcheck** — racecar ships files, not a running service.
 

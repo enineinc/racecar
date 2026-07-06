@@ -1,3 +1,7 @@
+---
+pnode: [../README.md]
+---
+
 # ADR: Identity, credentials, and tokens for a secured racecar server
 
 Status: Accepted (2026-07-04). Owner: Vishal.

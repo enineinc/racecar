@@ -1,3 +1,7 @@
+---
+pnode: [SKILL.md]
+---
+
 # LLM Summary
 
 The generator (not a review lens): it packages a repo into one shareable Markdown file another person can drag into their own LLM and interview (what the system is, how it works, what entities and endpoints exist) without source access.

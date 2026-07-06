@@ -1,3 +1,7 @@
+---
+pnode: [README.md]
+---
+
 # CLI — the §3 contract
 
 Accessed via [`README.md`](README.md). For module structure and import rules see [`PYTHON.md`](PYTHON.md) §1–§2.

@@ -1,3 +1,7 @@
+---
+pnode: [README.md]
+---
+
 # Generation: cli-tree + api → REST + MCP surface
 
 Accessed via [`README.md`](README.md). If you arrived here directly, read that

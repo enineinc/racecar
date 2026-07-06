@@ -1,3 +1,7 @@
+---
+pnode: [../README.md]
+---
+
 # Instrument, not the answer
 
 *What AI-native actually means.*

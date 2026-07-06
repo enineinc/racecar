@@ -1,3 +1,7 @@
+---
+pnode: [README.md]
+---
+
 # Django — Architectural Coherence
 
 Accessed via [`README.md`](README.md). If you arrived here directly, read that first.

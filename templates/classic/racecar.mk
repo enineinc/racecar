@@ -157,8 +157,10 @@ fmt-check: ## Check formatting only — no writes
 	$(if $(SERVER),$(BIN)/djhtml --check $(SERVER))
 
 lint: ## pylint (summary view: count by message code) + no-upward-imports
+	@printf 'lint: running pylint on %s ...\n' '$(SRC)'
 	@out=$$($(PYTHON) -m pylint --rcfile $(LIB_PYPROJECT) $(SRC) 2>&1); status=$$?; \
 	  if [ -n "$(SERVER)" ]; then \
+	    printf 'lint: running pylint on %s (django plugin) ...\n' '$(SERVER)'; \
 	    djout=$$($(PYTHON) -m pylint --rcfile $(LIB_PYPROJECT) --load-plugins=pylint_django $(SERVER) 2>&1); \
 	    if [ $$? -ne 0 ]; then status=1; fi; \
 	    out=$$(printf '%s\n%s' "$$out" "$$djout"); \
@@ -166,6 +168,7 @@ lint: ## pylint (summary view: count by message code) + no-upward-imports
 	  printf '%s\n' "$$out" | grep -oE '\([a-z-]+\)$$' | sort | uniq -c | sort -rn || true; \
 	  if [ $$status -ne 0 ]; then printf '%s\n' "$$out" | tail -1; fi; \
 	  exit $$status
+	@printf 'lint: checking no-upward-imports in business modules ...\n'
 	@$(BIN)/pre-commit run no-upward-imports-in-business-modules --all-files
 
 test: ## pytest; scope via PYTEST_ARGS=... (exit 5 = no tests = ok)

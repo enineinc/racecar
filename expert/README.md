@@ -1,3 +1,7 @@
+---
+pnode: [SKILL.md]
+---
+
 # Expert Output Mode: Resolver
 
 A routing table. One topic for now; more may be added later.

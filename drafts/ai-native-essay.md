@@ -1,3 +1,7 @@
+---
+pnode: [../README.md]
+---
+
 # AI-native is not AI-replacing-deterministic
 
 *Match the tool to the entropy of the problem.*

@@ -34,6 +34,9 @@ doctor:
 check-docs:
 	$(PYTHON) doc-coherence/scripts/check_docs.py
 
+check-doc-graph:
+	$(PYTHON) doc-coherence/scripts/check_doc_graph.py
+
 check-subsystem-docs:
 	$(PYTHON) doc-coherence/scripts/check_subsystem_docs.py
 
@@ -57,7 +60,7 @@ lint:
 test:
 	$(PYTHON) -m pytest arch-coherence/tests doc-coherence/tests llm-summary/tests scripts/tests
 
-check: check-docs check-subsystem-docs check-changelog lint test check-brief
+check: check-docs check-doc-graph check-subsystem-docs check-changelog lint test check-brief
 
 # One-command "see the value" demo. Runs the arch-coherence upward-import check
 # against examples/ — a deliberately-broken sample project (see examples/README.md)

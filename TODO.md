@@ -1,3 +1,7 @@
+---
+pnode: [README.md]
+---
+
 # TODO
 
 The index. Open work lives with its concern; this resolver routes to each (TODO_FORMAT.md source schema). It does not restate the items.

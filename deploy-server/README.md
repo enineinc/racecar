@@ -1,3 +1,7 @@
+---
+pnode: [SKILL.md]
+---
+
 # racecar-deploy-server: the procedure (TODO)
 
 Accessed via [`SKILL.md`](SKILL.md). **This skill is not yet built**: it is named so the cascade is
