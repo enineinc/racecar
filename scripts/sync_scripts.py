@@ -77,6 +77,7 @@ CHECK_SCRIPTS = (
     "arch-coherence/scripts/check_surface_orchestration.py",
     "arch-coherence/scripts/check_surface_auth.py",
     "doc-coherence/scripts/check_docs.py",
+    "doc-coherence/scripts/check_doc_graph.py",
     "doc-coherence/scripts/check_subsystem_docs.py",
     "doc-coherence/scripts/check_todo_format.py",
     "doc-coherence/scripts/check_file_placement.py",

@@ -24,6 +24,7 @@ import sys
 from pathlib import Path
 
 import yaml
+from check_docs import ignore_patterns
 
 # Directories whose Markdown is not part of the doc graph: vendored templates,
 # generated mirror trees, the deliberately-broken demo, the llm-summary briefs
@@ -39,6 +40,12 @@ EXCLUDED_PATHS = {
     Path("docs/summary"),
     Path("arch-coherence/templates"),
 }
+# The project's own out-of-scope declarations ([tool.pylint.MASTER].ignore-paths),
+# shared with check_docs / check_file_placement. An adopter's content trees
+# (a `data/` payload, `server/curricula/` fixtures) are markdown CONTENT, not
+# project docs, and are exempted here exactly as they are for the other
+# doc-coherence checkers -- so the doc graph polices docs, not payload.
+IGNORE_PATTERNS = ignore_patterns()
 ACCESSED_VIA = re.compile(r"Accessed via \[[^\]]*\]\(([^)]+)\)")
 FRONTMATTER = re.compile(r"\A---\n(.*?)\n---\n", re.DOTALL)
 _UNVISITED, _ACTIVE, _DONE = 0, 1, 2
@@ -54,7 +61,11 @@ def in_scope(path: Path, root: Path) -> bool:
     if path.name in ("CLAUDE.md", "SKILL.md"):
         return False
     rel = path.relative_to(root)
+    if any(part.startswith(".") for part in rel.parts):
+        return False  # hidden trees: .git, .venv, .pytest_cache, .mypy_cache, ...
     if any(part in EXCLUDED_DIR_PARTS for part in rel.parts):
+        return False
+    if any(p.search(rel.as_posix()) for p in IGNORE_PATTERNS):
         return False
     return not any(exc in rel.parents for exc in EXCLUDED_PATHS)
 

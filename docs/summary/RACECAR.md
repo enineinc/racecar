@@ -1,10 +1,10 @@
 ---
 generator:
   name: racecar-llm-summary
-  version: "0.18.3"
+  version: "0.20.1"
 target:
   repo: racecar
-  date: 2026-07-06
+  date: 2026-07-07
 bundle:
   - RACECAR.md
 
@@ -145,7 +145,7 @@ external_surface:
     - verb: /racecar-commit
       module: commit/SKILL.md
       args: none
-      behavior: Author a conventional commit message + semver version bump.
+      behavior: Author conventional commit(s) + semver bump; decomposes the working tree into a dependency-ordered series by default (0.20.0), emitting a runbook the owner runs via scripts/rc-commit.sh.
     - verb: /racecar-commit-preflight
       module: commit-preflight/SKILL.md
       args: none
@@ -153,7 +153,7 @@ external_surface:
     - verb: /racecar-commit-decompose
       module: commit-decompose/SKILL.md
       args: none
-      behavior: Split a working tree into a clean ordered commit series.
+      behavior: Alias of /racecar-commit (0.20.0) — decomposition is now that skill's default; the alias resolves for old muscle memory and adds no behavior.
     - verb: /racecar-doctor
       module: doctor/SKILL.md
       args: none
@@ -179,6 +179,10 @@ external_surface:
       module: scripts/sync_remote.py
       signature: curl ... sync_remote.py | python3 - --dest . --ref <tag>
       behavior: One-liner remote adoption — pull the check scripts + scaffolding from a racecar ref.
+    - name: rc-commit.sh
+      module: scripts/rc-commit.sh
+      signature: scripts/rc-commit.sh <message-file> [path ...]
+      behavior: The owner's commit tool (0.20.0) — stage the named paths, then `git commit -eF` opens the editor seeded from a drafted message so nothing lands unreviewed; the runbook racecar-commit emits calls it.
 ---
 
 # Racecar — Knowledge Package
@@ -298,11 +302,12 @@ The surface is the **slash commands** (frontmatter `cli_verbs`, 16 skills) plus 
 - **Mirror-tree generation.** Static bodies are real files under `arch-coherence/templates/` mirroring the output; `render_tree` copies + substitutes, generators overlay the interpolated files. (0.13.0; replaced inline string constants and the loader modules.)
 - **Auth: OAuth 2.1 opaque bearer, never JWT; WebAuthn FIDO2 hardware keys; closed by default.** `DEFAULT_SCOPES=[]` overrides DOT's wide-open default; the resource rail fails closed when unconfigured. (`arch-coherence/AUTH.md`; 0.13.0.)
 - **Filesystem-governed Makefile.** A thin owned `Makefile` includes a canonical `racecar.mk` that re-derives shape variables. (commit `fe654bf`.)
+- **Commit decomposes by default; the owner still commits.** `racecar-commit` inventories the whole tree and commits it as one when it tells one story or as a dependency-ordered series when it tells several; `commit-decompose` folds into it as an alias (0.20.0, commit `ba565b5`). The emitted runbook runs through `scripts/rc-commit.sh`, which forces `git commit -e` so nothing lands unreviewed — the agent drafts, the owner authorizes (R-05; `shared/OWNERSHIP.md`). racecar never runs `git commit` itself.
 
 ### §2.10 Operational
 
 - **Install:** `./install` (in the racecar checkout) symlinks the skills into `~/.claude/skills/` and wires the SessionStart/PreCompact hooks; idempotent, refuses to clobber present-but-wrong files. `make doctor` (or `/racecar-doctor`) verifies the install with evidence (a load token reproduced from context).
-- **Self-gate:** `make check` enforces pylint 10.00/10, 313 tests (pytest), and the doc + changelog + brief checks, in sequence. `make check-full` runs the same targets serially (0.18.1) for attributable output on stock macOS GNU Make 3.81. `make arch` is not a racecar target — the arch *checks* are vendored into adopters, not run against racecar's own tooling. (The 0.15.1 lint regression in `check_surface_orchestration.py` was cleaned to 10.00/10 in commit `4dfa87f`.)
+- **Self-gate:** `make check` enforces pylint 10.00/10, 318 tests (pytest), and the doc + changelog + brief checks, in sequence. `make check-full` runs the same targets serially (0.18.1) for attributable output on stock macOS GNU Make 3.81. `make arch` is not a racecar target — the arch *checks* are vendored into adopters, not run against racecar's own tooling. (The 0.15.1 lint regression in `check_surface_orchestration.py` was cleaned to 10.00/10 in commit `4dfa87f`.)
 - **Adopter gate:** `make check` + pre-commit in the consuming repo, using the synced scripts. Enforcement is local (pre-commit, make), never CI-as-gate; the owner authorizes, the tooling confirms.
 - **No deploy, no schedule, no healthcheck** — racecar ships files, not a running service.
 

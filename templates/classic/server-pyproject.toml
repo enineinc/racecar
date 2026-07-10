@@ -13,26 +13,18 @@
 #   [project]         -- server is not a publishable package; no version, no name
 #   [build-system]    -- server is not pip-installable as a wheel; it runs via manage.py
 #
-# Tool config ([tool.black], [tool.isort]) IS declared here even though the
-# library pyproject (src/pyproject.toml) also carries it. pre-commit
-# discovers config by walking up from each file — for files under server/ it
-# finds this file first. Without matching tool sections here, pre-commit's
-# isort/black would fall back to defaults and fight with `make fmt`.
+# NO [tool.*] here: tool config is single-homed in the library pyproject. Both
+# `make fmt` and the pre-commit isort/black hooks invoke the formatters with an
+# explicit `--settings-file` / `--config` pointing at the library pyproject, so
+# they never walk up to this file -- a [tool.black]/[tool.isort] block here would
+# be dead config that only risks drifting from the one home. check_packaging
+# flags any [tool.*] in the server pyproject for this reason.
 #
 # The import-linter contract in the library pyproject prevents the library
 # from importing django even though django is installed in the shared venv.
 #
 # Requires pip >= 25.1 for `pip install --group runtime`. A lockfile is optional
 # and not part of canon (PACKAGING.md §5); generate it with your own tool if wanted.
-
-[tool.black]
-target-version = ["py312"]
-# line-length = 88  # match src/pyproject.toml if overridden there
-
-[tool.isort]
-profile = "black"
-# line_length = 88        # match black if overridden
-# known_first_party = []  # add server-specific package names here
 
 [dependency-groups]
 runtime = [

@@ -8,6 +8,18 @@ All notable changes to racecar are recorded here, in the style of
 [Keep a Changelog](https://keepachangelog.com). racecar is pre-1.0, so a minor
 bump may carry breaking changes for adopters; those are marked **Breaking**.
 
+## 0.20.1 - 2026-07-10
+
+### Fixed
+- **`install` linked two retired skill names.** The symlink map still pointed `racecar-create-python-library` → `create-python-library/` and `racecar-create-django-project` → `create-django-project/`, directories renamed to `create-package/` and `start-django-project/` back in 0.13.0. Because `ln -s` creates a link even when its target is absent, `./install` planted two dangling symlinks under the old names and never linked the real `create-package` / `start-django-project` skills, so `/racecar-create-package` and `/racecar-start-django-project` did not resolve after a fresh install. The map is brought in line with the on-disk directories. Re-run `./install` to create the correct links; the two dead links under the retired names are orphaned and can be removed by hand. (Latent since 0.13.0.)
+- **`check_doc_graph` was referenced by `racecar.mk` but never delivered, and over-reached into content.** The canonical `docs` target calls `scripts/check_doc_graph.py`, yet `sync_scripts.py` never shipped it, so an adopter's `make docs` invoked a missing script. It also ignored `[tool.pylint.MASTER].ignore-paths`, demanding `pnode` frontmatter on payload markdown (a `data/` tree, `curricula` fixtures) instead of project docs, and scanned hidden caches (`.pytest_cache`, `.mypy_cache`). It is added to the sync manifest and now honors `ignore-paths` and skips hidden trees, matching its sibling doc-coherence checkers — so `make docs` no longer flips red after `make check` regenerates a cache. (Surfaced by a `src+server` adopter upgrade.)
+- **`check_subsystem_docs` demanded README/CLAUDE on non-code directories.** Its "a directory with subdirectories is a major subsystem" rule fired on pure asset and content trees (`templates/`, `static/…`, a curriculum `subjects/` tree). A directory now qualifies as a subsystem only when its subtree contains a source file.
+- **The `server` pyproject template shipped `[tool.*]` that `check_packaging` forbids.** `templates/classic/server-pyproject.toml` carried `[tool.black]`/`[tool.isort]` on a stale "pre-commit walks up to find it" rationale, but both `make fmt` and the isort/black hooks pass an explicit `--settings-file`/`--config` and never walk up, so the blocks were dead config the checker (correctly) flags. The template drops them; the checker was right.
+
+### Changed
+- The shareable brief (`docs/summary/RACECAR.md`) is refreshed through 0.20.0: the commit-decompose-by-default flow, the `rc-commit.sh` owner helper, the current self-gate test count, and the version stamp.
+- The README cascade section is redrawn as four rungs (`create-package → create-server → secure-server → deploy-server`) with a flow diagram, and `start-django-project` is pulled out as `create-server`'s generic delegate rather than listed as a rung — the flat five-bullet list read as if the shell scaffold were a step you run in sequence.
+
 ## 0.20.0 - 2026-07-06
 
 ### Added

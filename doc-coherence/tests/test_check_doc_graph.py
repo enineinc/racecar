@@ -82,3 +82,17 @@ def test_accessed_via_mismatch(tmp_path: Path) -> None:
     result = _run(repo)
     assert result.returncode == 1
     assert "Accessed via" in result.stdout
+
+
+def test_hidden_dirs_are_out_of_scope(tmp_path: Path) -> None:
+    """Markdown inside a dot-prefixed tree (.pytest_cache, .mypy_cache, .venv) is a
+    generated/vendored artifact, not a project doc: it must not be pulled into the
+    graph and must not fire a 'missing pnode' finding. Matches check_docs /
+    check_file_placement, which both skip hidden paths."""
+    repo = _clean_repo(tmp_path)
+    cache_readme = repo / ".pytest_cache" / "README.md"
+    cache_readme.parent.mkdir(parents=True)
+    cache_readme.write_text("# pytest cache\n\nGenerated. No frontmatter.\n", encoding="utf-8")
+    result = _run(repo)
+    assert result.returncode == 0, result.stdout
+    assert ".pytest_cache" not in result.stdout

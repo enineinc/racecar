@@ -171,8 +171,37 @@ def has_nonexcluded_subdirs(directory: Path, exclude: frozenset[str]) -> bool:
     return False
 
 
+def contains_source(directory: Path, exclude: frozenset[str]) -> bool:
+    """True if `directory`'s subtree holds at least one non-excluded source file.
+
+    A subsystem is a unit of *code*: a directory whose subtree carries no source
+    file (a `templates/` tree of HTML, a `static/` tree of assets, a content tree
+    of markdown) is not a subsystem and owes no README/CLAUDE, however many
+    subdirectories it has. This gates the `has subdirs -> major` rule so the check
+    polices packages, not the asset and content directories that live beside them.
+    """
+    stack = [directory]
+    while stack:
+        d = stack.pop()
+        try:
+            entries = list(d.iterdir())
+        except OSError:
+            continue
+        for entry in entries:
+            if entry.is_dir():
+                if entry.name not in exclude and not entry.name.startswith("."):
+                    stack.append(entry)
+            elif entry.suffix in SOURCE_EXTS:
+                return True
+    return False
+
+
 def is_major(directory: Path, loc_threshold: int, exclude: frozenset[str]) -> bool:
-    """True if `directory` is a major subsystem: has subdirs or meets the LOC bar."""
+    """True if `directory` is a major subsystem: a code directory that either has
+    subdirs or meets the LOC bar. A directory with no source anywhere in its
+    subtree is never major -- it is content, not a subsystem."""
+    if not contains_source(directory, exclude):
+        return False
     if has_nonexcluded_subdirs(directory, exclude):
         return True
     return count_direct_loc(directory) >= loc_threshold

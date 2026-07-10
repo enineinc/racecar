@@ -165,6 +165,24 @@ def test_small_leaf_dir_is_skipped(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stdout
 
 
+def test_sourceless_asset_dir_is_skipped(tmp_path: Path) -> None:
+    """A subdir-bearing directory with no source in its subtree (a templates/ or
+    static/ tree) is not a subsystem and must not require docs, even though it has
+    subdirs (the `has subdirs -> major` rule is gated on source presence)."""
+    repo = _seed_layered_repo(tmp_path)
+    for sub in ("fake", "fake/cli", "fake/core", "fake/core/inner"):
+        _write_doc(repo / sub / "README.md")
+        _write_doc(repo / sub / "CLAUDE.md")
+    # A templates/ tree under a real layer: subdirs, but only non-source files.
+    (repo / "fake" / "core" / "templates" / "core").mkdir(parents=True)
+    (repo / "fake" / "core" / "templates" / "core" / "page.html").write_text(
+        "<div>{% block x %}{% endblock %}</div>\n", encoding="utf-8"
+    )
+    result = _run(repo)
+    assert result.returncode == 0, result.stdout
+    assert "templates" not in result.stdout
+
+
 def test_contracts_in_root_pyproject_are_found(tmp_path: Path) -> None:
     """The library pyproject is at the repo root in every shape; the package sits
     under src/<pkg>. The probe must find its [tool.importlinter] contracts so

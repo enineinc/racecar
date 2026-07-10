@@ -63,13 +63,25 @@ That is the whole setup. `./install` is idempotent: it symlinks the skills, writ
 
 Keeping orchestration in `api` means it lives in one place instead of being copied into every entry point, where it drifts. The full doctrine and the checks that keep surfaces thin are in [`arch-coherence/SURFACES.md`](arch-coherence/SURFACES.md).
 
-**Generate a deployable service from the library (the cascade).** Each step is idempotent and writes only its own layer (the library is written once, then never touched again):
+**Generate a deployable service from the library (the cascade).** Four rungs you invoke, each idempotent and writing only its own layer (the library is written once, then never touched again). The rungs chain downward — a later rung invokes the earlier one to satisfy its precondition — so you drive the whole flow from a single command:
 
-- `/racecar-create-package`: scaffold the canon `src/<pkg>` library (lib/api/cli, its own pyproject).
-- `/racecar-start-django-project`: scaffold a vanilla Django project (the `server/` shell); generic, no racecar knowledge.
-- `/racecar-create-server`: generate the REST + MCP surfaces in `server/` over `src/<pkg>/api` (delegates the shell to start-django-project).
-- `/racecar-secure-server`: close the surfaces with an OAuth 2.1 Authorization Server (WebAuthn hardware-key login, opaque tokens, per-tool scopes).
+```
+create-package  ──►  create-server  ──►  secure-server  ──►  deploy-server
+  src/<pkg>            server/              + Authorization     ship to a host:
+  lib · api · cli      REST + MCP over      Server (OAuth 2.1   Apache vhosts,
+  (the library)        src/<pkg>/api        + WebAuthn keys)    processes, TLS
+                          │                                     (TODO, not built)
+                          └─ delegates to start-django-project
+                             (lays the vanilla server/ shell first;
+                              generic, knows nothing about racecar)
+```
+
+- `/racecar-create-package`: scaffold the canon `src/<pkg>` library (lib/api/cli, its own pyproject). The library is yours; the generation rungs read it but never write `src/`.
+- `/racecar-create-server`: generate the REST + MCP surfaces in `server/` over `src/<pkg>/api`. It invokes `/racecar-start-django-project` for the vanilla shell, then composes the surfaces on top; it refuses if `src/<pkg>/api` is absent.
+- `/racecar-secure-server`: close the surfaces with an OAuth 2.1 Authorization Server (WebAuthn hardware-key login, opaque tokens, per-tool scopes). Invokes `/racecar-create-server` if no surface exists yet.
 - `/racecar-deploy-server`: ship `server/` to a host: Apache vhosts, the per-surface processes, TLS *(planned; this skill is a TODO, not yet built)*.
+
+`/racecar-start-django-project` is the generic delegate `create-server` calls, not a rung you run in sequence. Invoke it directly only for a bare Django project with no library and no surfaces (the standalone `server` shape).
 
 **Adopt it in your own project.** Scaffold a new one with the shape already wired:
 
