@@ -17,6 +17,10 @@ Plus a generator (not a lens, but installed by `./install` alongside the lenses)
 
 - **racecar-llm-summary** → [`llm-summary/README.md`](llm-summary/README.md). Produce a single-file Markdown knowledge package for a downstream LLM; shareable, not reconstruction-grade. Use when capturing a system snapshot for an agent that will work *without* the repo.
 
+And a hardware-sizing lens (also installed by `./install`):
+
+- **racecar-sysadmin-hardware** → [`sysadmin-hardware/README.md`](sysadmin-hardware/README.md). Propose an EC2 instance type for a governed repo from evidence: the `_telemetry` probe's per-command resource profile plus a structural review of the four surfaces. Use when sizing a box, picking an instance, or deciding burstable vs sustained.
+
 Do not load lens content speculatively. If the task is ambiguous, ask which concern applies before loading.
 
 Optional overlay (not a lens): **racecar-expert-mode** → [`expert/README.md`](expert/README.md). Output discipline — terse, high-density delivery; lead with the result, no preamble/recap/hedging. Installed separately via `make expert` (skill symlink + managed `~/.claude/CLAUDE.md` pointer block); `make expert-uninstall` reverses it. Not part of `./install`.

@@ -108,6 +108,7 @@ def render_block(racecar_root: Path) -> str:
         f"- code quality / Python-Django hygiene              -> /racecar-eng-review\n"
         f"- docs / drift / link integrity                     -> /racecar-doc-coherence\n"
         f"- repo brief for another LLM                        -> /racecar-llm-summary\n"
+        f"- size a box / pick an EC2 instance (telemetry)     -> /racecar-sysadmin-hardware\n"
         f"- audit this project against racecar                -> /racecar-normalize\n"
         f"- upgrade a repo to current racecar (no clobber)    -> /racecar-upgrade\n"
         f"- commit + version bump                             -> /racecar-commit\n"

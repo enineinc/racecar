@@ -62,6 +62,9 @@ Load: [doc-coherence/DOC_GRAPH.md](doc-coherence/DOC_GRAPH.md)
 Topic: LLM summary — produce a shareable single-file knowledge package for a downstream LLM working without the repo
 Load: [llm-summary/SPEC.md](llm-summary/SPEC.md)
 
+Topic: Sysadmin hardware sizing — propose an EC2 instance type for a governed repo from evidence: the `_telemetry` probe's per-command resource profile plus a structural review of the four surfaces (concurrency, compute engine, memory pattern, data footprint, bound class). Covers the telemetry mechanism (record schema, hook point, enable switch, one-line adoption) and the sizing method (RAM floor, burstable-vs-sustained, EBS, de-risking measurement)
+Load: [sysadmin-hardware/HARDWARE.md](sysadmin-hardware/HARDWARE.md)
+
 Topic: Ownership — tooling enables design and confirms correctness; responsibility stays with the owner
 Load: [shared/OWNERSHIP.md](shared/OWNERSHIP.md)
 

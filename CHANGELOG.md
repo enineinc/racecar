@@ -8,6 +8,15 @@ All notable changes to racecar are recorded here, in the style of
 [Keep a Changelog](https://keepachangelog.com). racecar is pre-1.0, so a minor
 bump may carry breaking changes for adopters; those are marked **Breaking**.
 
+## 0.21.0 - 2026-07-17
+
+### Added
+- **`racecar-sysadmin-hardware`, a hardware-sizing lens.** A new on-demand lens (`sysadmin-hardware/`, invoked as `/racecar-sysadmin-hardware`) that proposes an EC2 instance type for a governed repo from evidence, not assertion. It combines a measured per-command resource profile with a structural review of the four surfaces (concurrency model, compute engine, memory pattern, data footprint, bound class) and emits a reasoned proposal: a primary pick, priced alternatives, an explicit "size for the peak command," a burstable-vs-sustained call, EBS sizing, and the single measurement that would de-risk stepping down a tier. The method and the worked gfem reference are in `sysadmin-hardware/HARDWARE.md`. Registered alongside the other skills in `install`, the `CLAUDE.md` resolver, the root `SKILL.md` router, and the README toolkit list; re-run `./install` to link it.
+- **CLI telemetry, the empirical half of the lens.** `sysadmin-hardware/lib/_telemetry.py` is an optional, stdlib-only runtime probe copied into a governed repo as `<pkg>/_telemetry.py` (the same offered-template shape as `arch-coherence/lib/_cli.py`). It attaches at the one `main()` dispatch seam per `__main__.py` with a one-line wrap (`run(main)`), covering every subcommand uniformly, and appends one JSON resource record per invocation: command, argv, wall-clock, CPU time, cores actually used (`cpu_total/wall`), peak RSS, exit status, worker count, and CPU count. Off by default (opt in via `RACECAR_TELEMETRY=1`, consistent with dotenv-at-entrypoints); never changes command behavior or output; failures are swallowed. Storage is append-only JSONL at `./.telemetry/usage.jsonl`. The reader `sysadmin-hardware/scripts/telemetry_profile.py` reduces the log to a per-command p50/p95/max profile sorted by peak RSS. The schema, hook point, enable switch, and adoption are documented in `sysadmin-hardware/TELEMETRY.md`.
+
+### Changed
+- `make lint` and `make test` now cover `sysadmin-hardware/scripts` and `sysadmin-hardware/tests`, so the new lens's delivered script and its suite are gated by `make check` like every other lens.
+
 ## 0.20.1 - 2026-07-10
 
 ### Fixed

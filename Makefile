@@ -53,12 +53,12 @@ check-brief:
 # are inherent to test scaffolding, not defects. Caps that are genuinely too
 # tight are raised (with rationale) in [tool.pylint] in pyproject.toml, never
 # disabled. The rcfile carries the cap and message-control config.
-LINT_SCRIPTS := $(shell find scripts doc-coherence/scripts llm-summary/scripts arch-coherence/scripts -name '*.py' -not -path '*/tests/*')
+LINT_SCRIPTS := $(shell find scripts doc-coherence/scripts llm-summary/scripts arch-coherence/scripts sysadmin-hardware/scripts -name '*.py' -not -path '*/tests/*')
 lint:
 	$(PYTHON) -m pylint --rcfile pyproject.toml $(LINT_SCRIPTS)
 
 test:
-	$(PYTHON) -m pytest arch-coherence/tests doc-coherence/tests llm-summary/tests scripts/tests
+	$(PYTHON) -m pytest arch-coherence/tests doc-coherence/tests llm-summary/tests sysadmin-hardware/tests scripts/tests
 
 check: check-docs check-doc-graph check-subsystem-docs check-changelog lint test check-brief
 
