@@ -8,7 +8,7 @@ ifdef VENV
 endif
 PYTHON := $(if $(VENV),$(VENV)/bin/python3,python3)
 
-.PHONY: install install-deps install-dev expert expert-uninstall doctor check-docs check-subsystem-docs check-changelog check-brief lint test check demo init sync-scripts sync-remote-test clean distclean obsidian obsidian-data obsidian-docs help
+.PHONY: install install-deps install-dev expert expert-uninstall doctor check-docs check-subsystem-docs check-changelog check-brief check-required-docs check-content-blind docs lint test check demo init sync-scripts sync-remote-test clean distclean obsidian obsidian-data obsidian-docs help
 
 install: install-deps
 	./install
@@ -46,6 +46,18 @@ check-changelog:
 check-brief:
 	$(PYTHON) llm-summary/scripts/check_brief.py
 
+check-required-docs:
+	$(PYTHON) docs-orchestrator/scripts/check_required_docs.py
+
+check-content-blind:
+	$(PYTHON) docs-orchestrator/scripts/check_content_blind.py
+
+# The docs orchestrator: run the deterministic doc pipeline (compose the
+# required-docs, content-blind, coherence, and brief checkers in dependency
+# order). Generation of narrative is the agent's per ORCHESTRATION.md.
+docs:
+	$(PYTHON) docs-orchestrator/scripts/docs_orchestrate.py
+
 # Lint racecar's own delivered scripts to zero pylint findings. Scope: the
 # production check + sync/install scripts under scripts/ and each lens's
 # scripts/ dir — the code racecar ships and runs. Test files are excluded:
@@ -53,14 +65,14 @@ check-brief:
 # are inherent to test scaffolding, not defects. Caps that are genuinely too
 # tight are raised (with rationale) in [tool.pylint] in pyproject.toml, never
 # disabled. The rcfile carries the cap and message-control config.
-LINT_SCRIPTS := $(shell find scripts doc-coherence/scripts llm-summary/scripts arch-coherence/scripts sysadmin-hardware/scripts -name '*.py' -not -path '*/tests/*')
+LINT_SCRIPTS := $(shell find scripts doc-coherence/scripts llm-summary/scripts arch-coherence/scripts sysadmin-hardware/scripts docs-orchestrator/scripts -name '*.py' -not -path '*/tests/*')
 lint:
 	$(PYTHON) -m pylint --rcfile pyproject.toml $(LINT_SCRIPTS)
 
 test:
-	$(PYTHON) -m pytest arch-coherence/tests doc-coherence/tests llm-summary/tests sysadmin-hardware/tests scripts/tests
+	$(PYTHON) -m pytest arch-coherence/tests doc-coherence/tests llm-summary/tests sysadmin-hardware/tests docs-orchestrator/tests scripts/tests
 
-check: check-docs check-doc-graph check-subsystem-docs check-changelog lint test check-brief
+check: check-docs check-doc-graph check-subsystem-docs check-changelog check-required-docs check-content-blind lint test check-brief
 
 # One-command "see the value" demo. Runs the arch-coherence upward-import check
 # against examples/ — a deliberately-broken sample project (see examples/README.md)
@@ -181,6 +193,9 @@ help:
 	@echo "make check-docs       - run the mechanical pre-pass on this repo's own docs"
 	@echo "make check-subsystem-docs - verify every major subsystem in an import-linter layer owns README + CLAUDE"
 	@echo "make check-brief      - validate the racecar-llm-summary brief bundle at docs/summary/<REPO>.md"
+	@echo "make check-required-docs  - verify the repo root owns README + CLAUDE + the llm-summary brief"
+	@echo "make check-content-blind  - assert no tracked file's prose embeds a real figure (opt-in via README frontmatter)"
+	@echo "make docs             - run the docs orchestrator: the composed doc pipeline in dependency order"
 	@echo "make lint          - pylint racecar's own delivered scripts to zero findings (tests excluded)"
 	@echo "make test         - run the test suites under each skill"
 	@echo "make check        - run check-docs, check-subsystem-docs, lint, test, and check-brief"

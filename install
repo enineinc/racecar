@@ -3,7 +3,7 @@
 #
 # Pure bash entrypoint. Checks for python3 upfront, then:
 #
-# 1. Symlinks ~/.claude/skills/racecar{,-arch-coherence,-doc-coherence,-eng-review,-llm-summary,-normalize,-upgrade,-create-package,-start-django-project,-create-server,-secure-server,-deploy-server,-doctor,-sysadmin-hardware,-commit,-commit-decompose,-commit-preflight}
+# 1. Symlinks ~/.claude/skills/racecar{,-arch-coherence,-doc-coherence,-eng-review,-llm-summary,-normalize,-upgrade,-create-package,-start-django-project,-create-server,-secure-server,-deploy-server,-doctor,-sysadmin-hardware,-docs,-commit,-commit-decompose,-commit-preflight}
 #    into this checkout, so the /racecar* slash commands resolve.
 # 2. Runs scripts/sync_claude_md.py to manage the pointer block in
 #    ~/.claude/CLAUDE.md and racecar's hooks in ~/.claude/settings.json:
@@ -95,6 +95,7 @@ for entry in \
     "racecar-deploy-server:$RACECAR_ROOT/deploy-server" \
     "racecar-doctor:$RACECAR_ROOT/doctor" \
     "racecar-sysadmin-hardware:$RACECAR_ROOT/sysadmin-hardware" \
+    "racecar-docs:$RACECAR_ROOT/docs-orchestrator" \
     "racecar-commit:$RACECAR_ROOT/commit" \
     "racecar-commit-decompose:$RACECAR_ROOT/commit-decompose" \
     "racecar-commit-preflight:$RACECAR_ROOT/commit-preflight"; do

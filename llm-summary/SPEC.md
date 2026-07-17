@@ -115,6 +115,11 @@ external_surface:
       handler: <string>        # required: the receiver function or class name
       module: <string>         # where the receiver lives (dotted path)
       behavior: <string>
+  scripts:                     # operational / dev scripts under scripts/ (not a user surface, but part of the repo)
+    - name: <string>           # required: the script filename (e.g. 'sync_scripts.py')
+      path: <string>           # required: repo-relative path (e.g. 'scripts/sync_scripts.py')
+      purpose: <string>        # required: one-line what-it-does
+      invocation: <string>     # optional: how it is run (make target, cron, manual)
 ---
 ```
 
@@ -136,7 +141,7 @@ Where the repo already ships per-module design docs (`DESIGN.md`, `ARCHITECTURE.
 | §2.1 Runtime | Every root config file + every entry point in full. Read **every** settings module (dev, production, test). Name each runtime separately when a system ships more than one. |
 | §2.2 Entities | Find every persistent shape: ORM model classes, on-disk artifact types, structured content tree dimensions. Each entry needs a one-sentence purpose; no field tables. Mark `lifecycle: deprecated` for entities still in source but no longer authoritative; `lifecycle: planned` for documented-but-not-realized dimensions. |
 | §2.3 Relationships | FKs, M2M, polymorphic, JSON references at the class level. Cardinality (quoted), direction, owner side. `on_delete` only where applicable. |
-| §2.4 External surface | Every user-callable: HTTP route, CLI verb, MCP tool, library export, gRPC, webhook, signal. Split by kind in the frontmatter; one sub-key per kind. **If the repo has a racecar-create-server surface, source `http_routes` + `mcp_tools` from the generated `server/docs/api/openapi.json` (REST) and `server/docs/api/ENDPOINTS.md` (the consolidated REST + MCP list) — that is the single source, do not re-derive from the views; cite `openapi.json` for §3.** |
+| §2.4 External surface | Every user-callable: HTTP route, CLI verb, MCP tool, library export, gRPC, webhook, signal. Also enumerate the operational scripts under `scripts/` (`scripts` sub-key) — not a user-facing surface, but part of the repo a reader must see. Split by kind in the frontmatter; one sub-key per kind. Enumerate the CLI surface (`cli_verbs`, via `python -m <pkg> --help` or `check_cli_commands.py`), the MCP surface (`mcp_tools`), the REST endpoints (`http_routes`), and the `scripts/` scripts in every brief where they exist. **If the repo has a racecar-create-server surface, source `http_routes` + `mcp_tools` from the generated `server/docs/api/openapi.json` (REST) and `server/docs/api/ENDPOINTS.md` (the consolidated REST + MCP list) — that is the single source, do not re-derive from the views; cite `openapi.json` for §3.** |
 | §2.5 Internal contracts | Cross-module wire shapes: queue/event schemas, IPC formats, plugin/hook contracts. One bullet per contract — name, producer, consumer(s), one-line purpose. |
 | §2.6 Configuration | Env vars, feature flags, settings keys, secrets. One bullet or table row per — name + one-line effect. Mark `(prod-only)` / `(dev-only)` when dev and production diverge. |
 | §2.7 Flows | Each meaningful operation input→output as numbered prose. Idempotency and failure modes inline. |
@@ -156,7 +161,7 @@ Where the repo already ships per-module design docs (`DESIGN.md`, `ARCHITECTURE.
 | §2.1 Runtime | prose + entry-point table | CLI / library / service / daemon (one **or more**); entry points; state location |
 | §2.2 Entities | **frontmatter `entities`**; body §2.2 has narrative gloss (per-case overview, anything not capturable in YAML) | See [Frontmatter schema](#frontmatter-yaml). Class-level only — no fields. |
 | §2.3 Relationships | **frontmatter `relationships`**; body §2.3 has the ERD (ASCII or Mermaid) | See [Frontmatter schema](#frontmatter-yaml). |
-| §2.4 External surface | **frontmatter `external_surface.{http_routes, cli_verbs, mcp_tools, library_exports, webhooks, signals}`**; body §2.4 has per-call detail for load-bearing routes only | See [Frontmatter schema](#frontmatter-yaml). One sub-key per surface kind. |
+| §2.4 External surface | **frontmatter `external_surface.{http_routes, cli_verbs, mcp_tools, library_exports, webhooks, signals, scripts}`**; body §2.4 has per-call detail for load-bearing routes only | See [Frontmatter schema](#frontmatter-yaml). One sub-key per surface kind. |
 | §2.5 Internal contracts | markdown bullets in body | name → producer → consumer(s), one-line purpose |
 | §2.6 Configuration | markdown bullets or table in body | name + one-line effect; mark `(prod-only)` / `(dev-only)` if diverges |
 | §2.7 Flows | numbered prose | sequence input→output; idempotency and failure modes inline |

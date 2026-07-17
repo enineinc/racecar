@@ -23,7 +23,7 @@ Checks performed:
        and ``owner_side`` are optional.
      - ``external_surface`` (optional). Sub-keys ``http_routes`` /
        ``cli_verbs`` / ``mcp_tools`` / ``library_exports`` / ``webhooks`` /
-       ``signals``; enum members for HTTP ``method``.
+       ``signals`` / ``scripts``; enum members for HTTP ``method``.
 
   2. Structural body checks:
      - Every §N.M with a body component appears as a heading at the depth
@@ -174,6 +174,7 @@ SURFACE_KINDS = {
     "library_exports",
     "webhooks",
     "signals",
+    "scripts",
 }
 
 
@@ -332,6 +333,58 @@ def validate_relationships(relationships: object, f: Findings) -> None:
             )
 
 
+# Required non-empty string keys per surface kind. `mcp_tools` is a recognized
+# kind whose entries are accepted without per-key validation (kept from the
+# original schema). `http_routes` additionally validates its `method` enum below.
+_SURFACE_REQUIRED_KEYS: dict[str, tuple[str, ...]] = {
+    "http_routes": ("path", "view"),
+    "cli_verbs": ("verb", "module", "behavior"),
+    "library_exports": ("name", "module", "signature", "behavior"),
+    "signals": ("name", "sender", "handler", "behavior"),
+    "webhooks": ("source", "path", "behavior"),
+    "scripts": ("name", "path", "purpose"),
+}
+
+
+def _validate_surface_kind(kind: str, entries: list, f: Findings) -> None:
+    """Validate each entry of one surface kind against its required-key table."""
+    required = _SURFACE_REQUIRED_KEYS.get(kind, ())
+    for i, entry in enumerate(entries):
+        where = f"external_surface.{kind}[{i}]"
+        if not require_mapping(entry, where, f):
+            continue
+        assert isinstance(entry, dict)
+        if kind == "http_routes" and entry.get("method") not in HTTP_METHODS:
+            f.error(
+                f"frontmatter: {where}.method must be one of {sorted(HTTP_METHODS)}; "
+                f"got {entry.get('method')!r}"
+            )
+        for required_key in required:
+            if not isinstance(entry.get(required_key), str) or not entry.get(
+                required_key
+            ):
+                f.error(
+                    f"frontmatter: {where}.{required_key} must be a non-empty string"
+                )
+
+
+def _report_unknown_kind(key: str, entries: object, f: Findings) -> None:
+    """Flag a sub-key that is not a recognized surface kind (error if >5 entries)."""
+    # §2.4 rule: any kind with >5 entries must be a recognized first-class key.
+    # Free-form sub-keys are allowed only at small size.
+    count = len(entries) if isinstance(entries, list) else 0
+    if count > 5:
+        f.error(
+            f"frontmatter: external_surface.{key} has {count} entries but is not a "
+            f"recognized surface kind ({sorted(SURFACE_KINDS)})"
+        )
+    else:
+        f.warning(
+            f"frontmatter: external_surface.{key} is not a recognized kind "
+            f"({sorted(SURFACE_KINDS)})"
+        )
+
+
 def validate_external_surface(surface: object, f: Findings) -> None:
     """Validate the `external_surface` block grouping endpoints by surface kind."""
     if not require_mapping(surface, "external_surface", f):
@@ -339,93 +392,12 @@ def validate_external_surface(surface: object, f: Findings) -> None:
     assert isinstance(surface, dict)
     for key, entries in surface.items():
         if key not in SURFACE_KINDS:
-            # §2.4 rule: any kind with >5 entries must be a recognized
-            # first-class key. Free-form sub-keys are allowed only at small size.
-            count = len(entries) if isinstance(entries, list) else 0
-            if count > 5:
-                f.error(
-                    f"frontmatter: external_surface.{key} has {count} entries but is not a "
-                    f"recognized surface kind ({sorted(SURFACE_KINDS)})"
-                )
-            else:
-                f.warning(
-                    f"frontmatter: external_surface.{key} is not a recognized kind "
-                    f"({sorted(SURFACE_KINDS)})"
-                )
+            _report_unknown_kind(key, entries, f)
             continue
         if not require_list(entries, f"external_surface.{key}", f):
             continue
         assert isinstance(entries, list)
-        if key == "http_routes":
-            for i, entry in enumerate(entries):
-                where = f"external_surface.http_routes[{i}]"
-                if not require_mapping(entry, where, f):
-                    continue
-                assert isinstance(entry, dict)
-                if entry.get("method") not in HTTP_METHODS:
-                    f.error(
-                        f"frontmatter: {where}.method must be one of {sorted(HTTP_METHODS)}; "
-                        f"got {entry.get('method')!r}"
-                    )
-                for required_key in ("path", "view"):
-                    if not isinstance(entry.get(required_key), str) or not entry.get(
-                        required_key
-                    ):
-                        f.error(
-                            f"frontmatter: {where}.{required_key} must be a non-empty string"
-                        )
-        elif key == "cli_verbs":
-            for i, entry in enumerate(entries):
-                where = f"external_surface.cli_verbs[{i}]"
-                if not require_mapping(entry, where, f):
-                    continue
-                assert isinstance(entry, dict)
-                for required_key in ("verb", "module", "behavior"):
-                    if not isinstance(entry.get(required_key), str) or not entry.get(
-                        required_key
-                    ):
-                        f.error(
-                            f"frontmatter: {where}.{required_key} must be a non-empty string"
-                        )
-        elif key == "library_exports":
-            for i, entry in enumerate(entries):
-                where = f"external_surface.library_exports[{i}]"
-                if not require_mapping(entry, where, f):
-                    continue
-                assert isinstance(entry, dict)
-                for required_key in ("name", "module", "signature", "behavior"):
-                    if not isinstance(entry.get(required_key), str) or not entry.get(
-                        required_key
-                    ):
-                        f.error(
-                            f"frontmatter: {where}.{required_key} must be a non-empty string"
-                        )
-        elif key == "signals":
-            for i, entry in enumerate(entries):
-                where = f"external_surface.signals[{i}]"
-                if not require_mapping(entry, where, f):
-                    continue
-                assert isinstance(entry, dict)
-                for required_key in ("name", "sender", "handler", "behavior"):
-                    if not isinstance(entry.get(required_key), str) or not entry.get(
-                        required_key
-                    ):
-                        f.error(
-                            f"frontmatter: {where}.{required_key} must be a non-empty string"
-                        )
-        elif key == "webhooks":
-            for i, entry in enumerate(entries):
-                where = f"external_surface.webhooks[{i}]"
-                if not require_mapping(entry, where, f):
-                    continue
-                assert isinstance(entry, dict)
-                for required_key in ("source", "path", "behavior"):
-                    if not isinstance(entry.get(required_key), str) or not entry.get(
-                        required_key
-                    ):
-                        f.error(
-                            f"frontmatter: {where}.{required_key} must be a non-empty string"
-                        )
+        _validate_surface_kind(key, entries, f)
 
 
 def validate_frontmatter(frontmatter_text: str, f: Findings) -> dict | None:
