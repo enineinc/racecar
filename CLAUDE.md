@@ -65,6 +65,9 @@ Load: [llm-summary/SPEC.md](llm-summary/SPEC.md)
 Topic: Docs orchestration — compose the doc generators and checkers into one re-runnable pipeline (generate missing required docs, regenerate the machine spine no-clobber-but-repair, content-blindness gate, coherence gate); owns the required-docs manifest and the content-blindness contract, re-implements nothing
 Load: [docs-orchestrator/ORCHESTRATION.md](docs-orchestrator/ORCHESTRATION.md)
 
+Topic: CLI docs generation — project the `python -m <pkg>…` command tree into per-command `docs/cli/**` pages plus the README `## CLI` block, generated from `check_cli_commands.py`'s audit (a projection, never a second home); the `--write` / `--check` verbs, delivered to adopters alongside the checkers
+Load: [cli-docs/SKILL.md](cli-docs/SKILL.md)
+
 Topic: Sysadmin hardware sizing — propose an EC2 instance type for a governed repo from evidence: the `_telemetry` probe's per-command resource profile plus a structural review of the four surfaces (concurrency, compute engine, memory pattern, data footprint, bound class). Covers the telemetry mechanism (record schema, hook point, enable switch, one-line adoption) and the sizing method (RAM floor, burstable-vs-sustained, EBS, de-risking measurement)
 Load: [sysadmin-hardware/HARDWARE.md](sysadmin-hardware/HARDWARE.md)
 

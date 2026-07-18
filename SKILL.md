@@ -21,6 +21,10 @@ And a docs orchestrator (also installed by `./install`):
 
 - **racecar-docs** → [`docs-orchestrator/README.md`](docs-orchestrator/README.md). Compose the doc generators and checkers into one re-runnable pipeline (generate missing required docs, regenerate the machine spine no-clobber-but-repair, content-blindness gate, coherence gate). Re-implements nothing; owns only the required-docs manifest and the content-blindness contract. Use to stand up, refresh, or verify a repo's whole documentation set.
 
+And a CLI-docs generator it drives (also installed by `./install`):
+
+- **racecar-cli-docs** → [`cli-docs/SKILL.md`](cli-docs/SKILL.md). Project a repo's `python -m <pkg>…` CLI tree into per-command `docs/cli/**` pages plus the README `## CLI` block, generated from `check_cli_commands.py`'s audit (a projection, never a second home). Use to build or refresh a package's command reference.
+
 And a hardware-sizing lens (also installed by `./install`):
 
 - **racecar-sysadmin-hardware** → [`sysadmin-hardware/README.md`](sysadmin-hardware/README.md). Propose an EC2 instance type for a governed repo from evidence: the `_telemetry` probe's per-command resource profile plus a structural review of the four surfaces. Use when sizing a box, picking an instance, or deciding burstable vs sustained.

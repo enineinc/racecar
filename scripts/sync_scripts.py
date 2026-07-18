@@ -73,6 +73,7 @@ def canon_ref() -> str:
 CHECK_SCRIPTS = (
     "arch-coherence/scripts/check_upward_imports.py",
     "arch-coherence/scripts/check_cli_commands.py",
+    "arch-coherence/scripts/gen_cli_docs.py",
     "arch-coherence/scripts/check_packaging.py",
     "arch-coherence/scripts/check_surface_orchestration.py",
     "arch-coherence/scripts/check_surface_auth.py",

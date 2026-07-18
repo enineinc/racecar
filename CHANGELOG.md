@@ -8,6 +8,14 @@ All notable changes to racecar are recorded here, in the style of
 [Keep a Changelog](https://keepachangelog.com). racecar is pre-1.0, so a minor
 bump may carry breaking changes for adopters; those are marked **Breaking**.
 
+## 0.24.0 - 2026-07-18
+
+### Added
+- **`racecar-cli-docs`, the CLI-tree doc generator, promoted into canon.** A new on-demand skill (`cli-docs/`, invoked as `/racecar-cli-docs`) plus its generator `arch-coherence/scripts/gen_cli_docs.py`, which projects a repo's `python -m <pkg>…` command tree into a mirror of per-command `docs/cli/**/README.md` pages plus the repo README's `## CLI` block. It is a projection, never a second home: it reuses `check_cli_commands.py`'s audit (inventing no structure of its own) and offers `--write` / `--check`. The generator previously existed only in an adopter, written in racecar's idiom as a promotion candidate; this lands it as canon — made generic (the root package is discovered off the audited tree, never hard-coded; the root page's `pnode` resolves to the nearest existing parent) and delivered to adopters via `sync_scripts.CHECK_SCRIPTS` alongside the checkers. Registered in `install`, the `CLAUDE.md` resolver, the root `SKILL.md` router, and the README toolkit list; re-run `./install` to link it.
+
+### Changed
+- `docs-orchestrator/ORCHESTRATION.md` stage 2 is corrected: the CLI surface docs are `gen_cli_docs.py`'s to regenerate, while the REST/MCP docs stay `scaffold_surfaces_docs.py`'s. The spec no longer promises a CLI-doc capability that canon had not shipped.
+
 ## 0.23.0 - 2026-07-18
 
 ### Added
