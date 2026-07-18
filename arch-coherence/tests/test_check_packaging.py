@@ -150,6 +150,53 @@ def test_detect_shape_locates_manage_py_per_shape(tmp_path: Path) -> None:
     assert check_packaging.detect_shape(src)[0].manage_py is None
 
 
+def test_django_shape_exempt_from_package_canon(tmp_path: Path) -> None:
+    """SG3: the flat `django` config-home shape is exempt from package-only canon.
+
+    A standalone `.pylintrc` is allowed (pylint's own idiomatic Django config home),
+    and the package-only pre-commit hooks (import-linter / validate-pyproject /
+    no-upward-imports) are dropped from the required set — the same reasoning that
+    skips its library-pyproject audit. The exemption is shape-scoped: a non-django
+    repo still gets both findings."""
+    from check_packaging_rules import (  # noqa: E402
+        check_forbidden_pylintrc,
+        check_precommit,
+    )
+
+    repo = _layout(tmp_path / "site", "pyproject.toml", "manage.py", ".pylintrc")
+    shape = check_packaging.detect_shape(repo)[0]
+    assert shape.name == "django"
+
+    # .pylintrc: allowed for django, flagged otherwise.
+    assert check_forbidden_pylintrc(repo, shape) == []
+    assert any(
+        f.rule == "standalone-pylintrc" for f in check_forbidden_pylintrc(repo)
+    )
+
+    # pre-commit carrying only the shape-independent hooks passes for django.
+    (repo / ".pre-commit-config.yaml").write_text(
+        "repos:\n  - repo: local\n    hooks:\n"
+        + "".join(
+            f"      - id: {h}\n"
+            for h in (
+                "black",
+                "isort",
+                "doc-coherence-mechanical-pre-pass",
+                "todo-format",
+                "file-placement",
+            )
+        ),
+        encoding="utf-8",
+    )
+    assert check_precommit(repo, shape) == []
+    # ...but the same file is missing the package hooks for a non-django shape.
+    assert {f.rule for f in check_precommit(repo)} >= {
+        "missing-hook:import-linter",
+        "missing-hook:validate-pyproject",
+        "missing-hook:no-upward-imports-in-business-modules",
+    }
+
+
 # ---------------------------------------------------------------------------
 # Canon fixtures
 # ---------------------------------------------------------------------------

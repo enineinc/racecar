@@ -8,6 +8,11 @@ All notable changes to racecar are recorded here, in the style of
 [Keep a Changelog](https://keepachangelog.com). racecar is pre-1.0, so a minor
 bump may carry breaking changes for adopters; those are marked **Breaking**.
 
+## 0.25.0 - 2026-07-18
+
+### Changed
+- **The flat `django` config-home is exempt from the package-only canon (SG3).** Completing SG2's config-home reasoning, the packaging audit now treats the flat `django` shape (root `manage.py`, no library) as a config-home site rather than a package. `check_forbidden_pylintrc` allows a standalone `.pylintrc` (pylint-django is the idiomatic Django config home; pyproject consolidation is a package *preference*, not a rule to force onto Django's own layout), and `check_precommit` drops the package-only hooks (`import-linter`, `validate-pyproject`, `no-upward-imports-in-business-modules`) from the required set — a config-home has no import-linter contracts, no `[project]` to validate, and no src-package upward-imports. Both checkers now take the resolved shape; the shape-independent hooks (format, doc-coherence, TODO, placement) stay required. `PACKAGING.md` §"Scope" documents the exemptions and `test_check_packaging.py` covers them.
+
 ## 0.24.0 - 2026-07-18
 
 ### Added

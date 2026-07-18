@@ -116,10 +116,10 @@ def run_all(root: Path) -> list[Finding]:
     )
     findings += check_requirements(root, shape)
     findings += check_forbidden_lockfiles(root)
-    findings += check_forbidden_pylintrc(root)
+    findings += check_forbidden_pylintrc(root, shape)
     findings += check_gitignore(root)
     findings += check_makefile(root)
-    findings += check_precommit(root)
+    findings += check_precommit(root, shape)
     findings += check_changelog(root)
     findings += check_optin(root)
     return findings

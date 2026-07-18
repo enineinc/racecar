@@ -77,6 +77,18 @@ REQUIRED_PRECOMMIT_HOOKS = {
     "file-placement",
 }
 
+# Package-only hooks: they audit library-package structure and have nothing to act on
+# in the flat `django` shape (a config-home site, not a package) — no import-linter
+# contracts, no [project] to validate, no src-package upward-imports. Exempted from the
+# required set for that shape (SG3), the same reasoning that skips its library-pyproject
+# audit. The rest of REQUIRED_PRECOMMIT_HOOKS (format, doc-coherence, todo, placement)
+# is shape-independent and stays required.
+PACKAGE_ONLY_PRECOMMIT_HOOKS = {
+    "import-linter",
+    "validate-pyproject",
+    "no-upward-imports-in-business-modules",
+}
+
 # Make variables retired by a canon rename. A repo-owned scaffold file is not content-synced,
 # so a stale reference survives a racecar upgrade: the import-linter hook body calls
 # `make -s print-<VAR>`, and a retired <VAR> resolves to empty, silently dropping the server
