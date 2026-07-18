@@ -182,6 +182,18 @@ lint: ## pylint (summary view: count by message code) + no-upward-imports
 	@printf 'lint: checking no-upward-imports in business modules ...\n'
 	@$(BIN)/pre-commit run no-upward-imports-in-business-modules --all-files
 
+# The flat `django` shape has no library to pytest — its tests are Django's, run by the
+# framework's own runner (django > racecar). It defaults test/coverage to `manage.py test`;
+# every other shape keeps pytest. An owned Makefile can still override either recipe.
+ifeq ($(SHAPE),django)
+test: ## Django test runner (manage.py test); scope via TEST_ARGS=...
+	$(PYTHON) manage.py test $(TEST_ARGS)
+
+coverage: ## Django tests under branch coverage; HTML report at htmlcov/index.html
+	$(PYTHON) -m coverage run --branch manage.py test $(TEST_ARGS)
+	$(PYTHON) -m coverage report -m
+	$(PYTHON) -m coverage html
+else
 test: ## pytest; scope via PYTEST_ARGS=... (exit 5 = no tests = ok)
 	@$(PYTHON) -m pytest -c $(LIB_PYPROJECT) $(PYTEST_ARGS); status=$$?; \
 	  if [ $$status -eq 5 ]; then echo "(no tests collected)"; exit 0; fi; \
@@ -191,6 +203,7 @@ coverage: ## pytest with branch coverage; HTML report at htmlcov/index.html
 	$(PYTHON) -m pytest -c $(LIB_PYPROJECT) \
 	  --cov=$(PKG) --cov-branch \
 	  --cov-report=term-missing --cov-report=html
+endif
 
 typecheck: ## mypy
 	$(PYTHON) -m mypy --config-file $(LIB_PYPROJECT) $(SRC)
@@ -198,10 +211,14 @@ typecheck: ## mypy
 arch: ## lint-imports + §1 upward + §3 CLI tree + packaging canon + surface orchestration (+ Django string-relations)
 	$(if $(SERVER),PYTHONPATH=$(SERVER) )$(BIN)/lint-imports --config $(LIB_PYPROJECT)
 	$(PYTHON) scripts/check_upward_imports.py $$(find $(PKG) $(SERVER) -name '*.py')
-	@if [ -n "$$(find $(PKG) -name '__main__.py' -print -quit 2>/dev/null)" ]; then \
-	  $(PYTHON) scripts/check_cli_commands.py $(PKG); \
-	else \
+	@main=$$(find $(PKG) -name '__main__.py' -not -path '*/.*' -not -path '*/venv/*' -print -quit 2>/dev/null); \
+	if [ -z "$$main" ]; then \
 	  echo "arch: skipping check_cli_commands ($(PKG) has no __main__.py — no CLI surface)"; \
+	elif [ "$(PKG)" = "." ]; then \
+	  echo "arch: flat shape — auditing the CLI package $$(dirname "$$main")"; \
+	  $(PYTHON) scripts/check_cli_commands.py "$$(dirname "$$main")"; \
+	else \
+	  $(PYTHON) scripts/check_cli_commands.py $(PKG); \
 	fi
 	$(PYTHON) scripts/check_packaging.py
 	$(PYTHON) scripts/check_surface_orchestration.py

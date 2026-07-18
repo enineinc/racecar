@@ -8,6 +8,14 @@ All notable changes to racecar are recorded here, in the style of
 [Keep a Changelog](https://keepachangelog.com). racecar is pre-1.0, so a minor
 bump may carry breaking changes for adopters; those are marked **Breaking**.
 
+## 0.27.0 - 2026-07-18
+
+### Fixed
+- **The flat `django` shape's `arch` recipe audits the CLI package, not the namespace root.** `templates/classic/racecar.mk` passed `PKG=.` to `check_cli_commands`, which refuses a multi-package root ("name one explicitly") — so `make arch` failed for a compliant flat-Django repo. The recipe now finds the `__main__.py`-bearing package (excluding hidden/venv dirs) and audits that, only in the `PKG=.` case; the `src` / `src+server` / `server` shapes are unchanged.
+
+### Changed
+- **The flat `django` shape defaults its test runner to `manage.py test`.** With no library to pytest, the `django` shape runs `test` / `coverage` through Django's own runner (django > racecar); every other shape keeps pytest. An owned Makefile can still override either recipe.
+
 ## 0.26.0 - 2026-07-18
 
 ### Changed
