@@ -13,11 +13,14 @@
 
 # --- shape: governed by what is on disk. The same decision check_packaging.detect_shape
 # makes, expressed in Make so racecar.mk stays self-contained (no script call to know the
-# shape). Shape = PYTHON_LIBRARY (src/) x DJANGO_PROJECT (server/): src (library only),
-# src+server (library x Django), server (standalone Django, no library). Django is marked
-# by server/manage.py, never a bare server/. TODO: the {packages,pypkg}/<pkg>/src/<pkg>
-# library-axis workspace form is a downstream addition. ---
+# shape). Shape = PYTHON_LIBRARY (src/) x DJANGO_PROJECT (manage.py): src (library only),
+# src+server (library x server/manage.py), server (standalone server/manage.py, no library),
+# django (a flat root manage.py site — the django-admin startproject canon, no library).
+# Django is marked by a manage.py, never a bare server/; a root manage.py beside src/ is not
+# the flat shape (a library's Django belongs under server/), so it degrades to src. TODO: the
+# {packages,pypkg}/<pkg>/src/<pkg> library-axis workspace form is a downstream addition. ---
 _SERVER_MNG := $(wildcard server/manage.py)
+_ROOT_MNG   := $(wildcard manage.py)
 _SRC_DIR    := $(wildcard src)
 _ROOT_PY    := $(wildcard pyproject.toml)
 
@@ -31,6 +34,8 @@ else ifneq ($(_SERVER_MNG),)
   endif
 else ifneq ($(_SRC_DIR),)
   SHAPE := src
+else ifneq ($(_ROOT_MNG),)
+  SHAPE := django
 else
   SHAPE := stock
 endif
@@ -48,6 +53,12 @@ else ifeq ($(SHAPE),src+server)
 else ifeq ($(SHAPE),server)
   SRC ?= server
   SERVER ?= server
+  LIB_PYPROJECT ?= pyproject.toml
+else ifeq ($(SHAPE),django)
+  # Flat Django site (root manage.py, no library): the whole repo root is the tree.
+  # The owned Makefile SHOULD narrow SRC to the real first-party app dirs (e.g.
+  # `SRC := apps mysite`) before the include; `.` is the honest, broad default.
+  SRC ?= .
   LIB_PYPROJECT ?= pyproject.toml
 else
   SRC ?= src

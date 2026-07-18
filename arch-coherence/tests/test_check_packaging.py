@@ -7,6 +7,7 @@ Covers the shapes from PACKAGING.md §"Scope" (PYTHON_LIBRARY x DJANGO_PROJECT):
   src           — root pyproject.toml + src/ (no server/)
   src+server   — root pyproject.toml + src/ + server/manage.py
   server         — root pyproject.toml + server/manage.py (standalone Django, no library)
+  django         — root pyproject.toml + root manage.py (flat startproject site, no library)
 
 Run with:
     pytest arch-coherence/tests/test_check_packaging.py
@@ -105,6 +106,20 @@ def test_detect_shape_governed_by_what_is_on_disk(tmp_path: Path) -> None:
     )[0]
     assert (srv.has_library, srv.has_django) == (False, True)
     assert srv.name == "server"
+    # django: flat Django (root manage.py, no library, no server/) — the
+    # django-admin startproject canon. A recognized shape, not "no-shape" (SG2).
+    flat, flat_findings = check_packaging.detect_shape(
+        _layout(tmp_path / "d", "pyproject.toml", "manage.py")
+    )
+    assert (flat.has_library, flat.has_django, flat.django_root) == (False, True, True)
+    assert flat.name == "django"
+    assert not flat_findings  # a real shape, not flagged
+    # A root manage.py BESIDE a src/ library is NOT the flat shape — a library's Django
+    # belongs under server/, so this degrades to the library reading, not "django".
+    lib_and_manage = check_packaging.detect_shape(
+        _layout(tmp_path / "e", "pyproject.toml", "src/pkg/__init__.py", "manage.py")
+    )[0]
+    assert lib_and_manage.name == "src"
     # A root pyproject but NEITHER a src/ library nor a server/ Django project is the
     # (False, False) cell -> "unknown" with a finding, not silently "src".
     bare, bare_findings = check_packaging.detect_shape(
@@ -127,6 +142,10 @@ def test_detect_shape_locates_manage_py_per_shape(tmp_path: Path) -> None:
     assert check_packaging.detect_shape(sp)[0].manage_py == sp / "server" / "manage.py"
     dj = _layout(tmp_path / "dj", "pyproject.toml", "server/manage.py")
     assert check_packaging.detect_shape(dj)[0].manage_py == dj / "server" / "manage.py"
+    # flat django: manage_py is the ROOT manage.py, so Django-aware checkers
+    # (check_dj_model_ref_as_string) can run `manage.py shell` at the repo root.
+    flat = _layout(tmp_path / "flat", "pyproject.toml", "manage.py")
+    assert check_packaging.detect_shape(flat)[0].manage_py == flat / "manage.py"
     src = _layout(tmp_path / "src", "pyproject.toml")
     assert check_packaging.detect_shape(src)[0].manage_py is None
 

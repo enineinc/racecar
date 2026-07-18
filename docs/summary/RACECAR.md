@@ -1,7 +1,7 @@
 ---
 generator:
   name: racecar-llm-summary
-  version: "0.22.0"
+  version: "0.23.0"
 target:
   repo: racecar
   date: 2026-07-18
@@ -20,7 +20,13 @@ entities:
   - name: ProjectShape
     case: none
     purpose: The packaging shape a repo presents, governed by what is on disk.
-    notes: The product of two independent presences (has_library, has_django) -- PYTHON_LIBRARY (src/<pkg>, pyproject at repo root) x DJANGO_PROJECT (server/manage.py). The 2x2 cells derive the labels src (lib only), src+server (lib x Django), server (Django only), and unknown (neither -- a no-shape finding, never silently "src"). The booleans are the primitive; the enum is a derived label. Detected in lockstep by check_packaging_rules/_shape.py and templates/classic/racecar.mk.
+    notes: >-
+      The product of a PYTHON_LIBRARY presence (src/<pkg>, pyproject at repo root) and a DJANGO_PROJECT presence (a manage.py), over the shared root pyproject. The
+      Django axis is split by WHERE manage.py lives -> four derived labels: src (lib, no Django), src+server (lib x server/manage.py), server (server/manage.py, no lib),
+      and django (a ROOT manage.py flat site, no lib -- the django-admin startproject canon, recognized in 0.23.0/SG2 because it is Django's own default output;
+      django > racecar). A root manage.py BESIDE src/ is not the flat shape -- a library's Django belongs under server/, so it degrades to src. (neither axis) -> unknown,
+      a no-shape finding, never silently "src". The django shape's root pyproject is a config-home, so its library-pyproject audit is skipped. The booleans+location are the
+      primitive; the enum is a derived label. Detected in lockstep by check_packaging_rules/_shape.py and templates/classic/racecar.mk (held identical by a coherence test).
   - name: Surface
     case: none
     purpose: A thin adapter exposing the library's api over one transport.
@@ -142,7 +148,7 @@ relationships:
   - from: ProjectShape
     to: Surface
     cardinality: "1:N"
-    notes: A surface exists only in the src+server / server shapes (a Django deployable); the src shape is library-only.
+    notes: A racecar surface (cli/rest/mcp over src/<pkg>/api) exists only in the src+server / server shapes; the src shape is library-only and the django shape is a standalone Django site with no library to wrap, so neither carries racecar surfaces.
 
 external_surface:
   cli_verbs:
@@ -357,7 +363,7 @@ DocsPipeline ─stage 3 gate─> ContentBlindness
 HardwareProposal ─reads─> Telemetry (profile) + the four surfaces (structural review)
 InterfaceManifest ─projects─> Surface <─validates token─ AuthorizationServer
 MirrorTree ─render_tree─> Surface
-ProjectShape ─determines─> Surface (src has none; src+server / server do)
+ProjectShape ─determines─> Surface (src / django have none; src+server / server do)
 
 Cascade (each invokes the one below; each idempotent):
   create-package ─> start-django-project ─> create-server ─> secure-server ─> deploy-server
@@ -424,7 +430,7 @@ The surface is the **slash commands** (frontmatter `cli_verbs`, 18 skills) plus 
 - **One home per rule.** Each rule lives in exactly one canonical doc; other docs link, never restate. Drift is fought by eliminating the surface first. (P-02.) The 0.22.0 required-docs split — repo-root tier in `check_required_docs.py`, subsystem tier in `check_subsystem_docs.py`, non-overlapping — is P-02 applied to the doc manifest.
 - **gitleaks secret scan and opt-in parallel tests.** A `gitleaks` pre-commit hook fails a leaked credential before any other hook (0.16.0); `pytest-xdist` ships in the dev group but racecar never sets `-n` in canon, leaving parallelism as the owning repo's opt-in (0.18.0). `check-full` runs its targets serially for attributable output on GNU Make 3.81 (0.18.1). The CLI audit infers its root from a `src/` layout instead of a required dotted name (0.17.0).
 - **"surface" is canon; "face" retired.** `lib → api → surfaces {cli, rest, mcp}`; binding key `[tool.racecar.surface]`. (0.13.0, commit `d032a59`.)
-- **Shape is the PYTHON_LIBRARY × DJANGO_PROJECT presence product.** `has_library × has_django` is the primitive; the enum (src / src+server / server / unknown) is the derived label, and `(neither)` is a no-shape finding, not a silent `src`. Governed by on-disk markers, no config flag. (commits `323fa77`, `d032a59`.)
+- **Shape is the PYTHON_LIBRARY × DJANGO_PROJECT presence product; the Django axis splits by manage.py location.** `has_library` × the presence-and-location of a `manage.py` is the primitive; the enum (src / src+server / server / django / unknown) is the derived label, and `(neither)` is a no-shape finding, not a silent `src`. The `django` cell (0.23.0, SG2) is a flat root-`manage.py` site with no library — Django's own `startproject` canon, recognized rather than rejected (django > racecar: a layout preference must not un-recognize the framework's default). Its root `pyproject.toml` is a config-home, so the library-pyproject audit is skipped; a root `manage.py` beside `src/` degrades to `src`. Governed by on-disk markers, no config flag. (commits `323fa77`, `d032a59`, plus 0.23.0.)
 - **The library is the architectural center; the ORM is confined to the control plane.** Agent-grade software is data-plane-dominant (R-07): the library (`src/<pkg>`, Django-free) holds the high-volume data path, and the ORM is confined to the `server/` control plane (auth/config/audit). The `src/` vs `server/` split is that confinement made physical, which is what *forces* the layout rather than choosing it. Full argument in `MANIFESTO.md`; forcing constraints in `arch-coherence/PACKAGING.md`.
 - **The generation skills write zero bytes to `src/`.** `create-server` / `secure-server` / `deploy-server` read `src/<pkg>/api` and write only `server/`; the `api` seam is the author's arch-coherent code, verified and refused if absent, never synthesized by a skill (`arch-coherence/GENERATION.md`).
 - **Auth: OAuth 2.1 opaque bearer, never JWT; WebAuthn FIDO2 hardware keys; closed by default.** `DEFAULT_SCOPES=[]` overrides DOT's wide-open default; the resource rail fails closed when unconfigured. (`arch-coherence/AUTH.md`; 0.13.0.)

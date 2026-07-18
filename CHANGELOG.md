@@ -8,6 +8,16 @@ All notable changes to racecar are recorded here, in the style of
 [Keep a Changelog](https://keepachangelog.com). racecar is pre-1.0, so a minor
 bump may carry breaking changes for adopters; those are marked **Breaking**.
 
+## 0.23.0 - 2026-07-18
+
+### Added
+- **The flat `django` shape — Django's `startproject` canon, recognized (SG2).** `detect_shape` (`check_packaging_rules/_shape.py`) and `templates/classic/racecar.mk` now classify a repo with a **root `manage.py`, no library, and no `server/manage.py`** as a first-class `django` shape, not a `no-shape`/`stock` finding. The Django axis (`DJANGO_PROJECT`) is marked by a `manage.py` and split by *where* it lives: under `server/` (racecar's server shell — the existing `src+server` / `server` shapes) or at the repo root (the flat, standalone `django-admin startproject` site). Recognizing it is deliberate: it is Django's own default output, so racecar classifies it rather than rejecting it (django > racecar — racecar may *prefer* `server/` for a library-backed service, but a preference over layouts must not un-recognize the framework's canon). Escalated by a real adopter.
+- The `django` shape differs from the library shapes in two audit-respecting ways: (1) its root `pyproject.toml` is a **config-home** (tool config, `ignore-paths`), not a publishable library manifest, so the library-pyproject audit (`[project]` / `[build-system]` / dev-group) is **skipped** for it (`check_packaging_rules/__init__.py`) — the same reasoning as a repo with no `[project]` not being a package; its version home is a root `VERSION`. (2) `racecar.mk` defaults `SRC` to `.` (the whole repo root) with no `SERVER`; the owned `Makefile` narrows `SRC` to the real first-party app dirs with a `:=` override. A root `manage.py` still triggers the Django-specific audit (`check_dj_model_ref_as_string`) and pre-commit hook, so `django` gets the same ORM-relation checks as the `server` shapes.
+- A root `manage.py` **beside** a `src/` library is **not** the flat shape — a library's Django belongs under `server/` (the `src+server` convention), so that case degrades to the `src` reading rather than minting a new cell. Covered by tests in both detection homes (`test_check_packaging.py`, `test_sync_scripts.py`), which the lockstep coherence test holds identical.
+
+### Changed
+- `arch-coherence/PACKAGING.md` §"Scope" is rewritten from three shapes to four (`src` / `src+server` / `server` / `django`), with the `DJANGO_PROJECT` atom restated as "a `manage.py`" split by location and the variable table extended with the `django` row (`SRC=.`, config-home pyproject).
+
 ## 0.22.0 - 2026-07-17
 
 ### Added

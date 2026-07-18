@@ -72,9 +72,16 @@ def run_all(root: Path) -> list[Finding]:
 
     # The library pyproject, parsed once; its data and version flag feed the
     # server-coverage and legacy-VERSION audits below. A pure server shape has none.
+    #
+    # The flat `django` shape is skipped here: its root pyproject is a config-home
+    # (tool config, ignore-paths), not a publishable library manifest, the same way a
+    # repo with no [project] is not a package (PACKAGING.md "Scope" / VERSION). Auditing
+    # it for PEP 621 [project]/[build-system]/dev-group would Blocker a legitimate
+    # django-admin startproject site. racecar may prefer server/ but must not force
+    # package canon onto Django's own default layout (SG2).
     lib_data: dict | None = None
     has_canonical_version = False
-    if shape.library_pyproject is not None:
+    if shape.library_pyproject is not None and shape.name != "django":
         lib_findings, lib_data = check_library_pyproject(root, shape.library_pyproject)
         findings += lib_findings
         project = lib_data.get("project") if isinstance(lib_data, dict) else None

@@ -41,6 +41,15 @@ LAYOUTS = {
         "src+server",
     ),
     "server": (["pyproject.toml", "server/manage.py"], "server"),
+    # Flat Django (django-admin startproject canon): a root manage.py, no library, no
+    # server/. Recognized as its own shape, not "stock"/"unknown" (SG2).
+    "django": (["pyproject.toml", "manage.py"], "django"),
+    # A root manage.py BESIDE a src/ library is NOT the flat shape — a library's Django
+    # belongs under server/, so it degrades to the library reading.
+    "django-beside-lib": (
+        ["pyproject.toml", "src/mypkg/__init__.py", "manage.py"],
+        "src",
+    ),
     # The gap: a server/ holding only a pyproject (no manage.py) is NOT Django. manage.py
     # is the marker; a bare server/ tree does not make a server, so this falls back to the
     # library shape.
@@ -189,6 +198,16 @@ def test_racecar_mk_server_variables(tmp_path: Path) -> None:
         "server",
         "pyproject.toml",
     )
+
+
+def test_racecar_mk_django_variables(tmp_path: Path) -> None:
+    """Flat Django (root manage.py, no library): SRC defaults to '.', no SERVER.
+
+    The owned Makefile is expected to narrow SRC to the real first-party app dirs;
+    '.' is the broad default racecar.mk resolves with no override."""
+    _seed(tmp_path, "django")
+    v = _make_shape(tmp_path)
+    assert (v["SRC"], v["SERVER"], v["LIB_PYPROJECT"]) == (".", "", "pyproject.toml")
 
 
 # ---------------------------------------------------------------------------
