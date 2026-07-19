@@ -8,6 +8,11 @@ All notable changes to racecar are recorded here, in the style of
 [Keep a Changelog](https://keepachangelog.com). racecar is pre-1.0, so a minor
 bump may carry breaking changes for adopters; those are marked **Breaking**.
 
+## 0.29.1 - 2026-07-19
+
+### Fixed
+- **The usage probe is now `mypy --strict` and black clean.** `sysadmin-hardware/lib/_telemetry.py` returned `Any` from stdlib boundaries (tomllib / subprocess / rusage), so every adopter running `mypy --strict` (`warn_return_any`) failed `check-full` on racecar's *own* delivered probe — surfaced independently by 5 repos in the 0.29.0 fleet rollout (arkheion, xenocrates, meridian, gfem, delphi). Added explicit `cast()`s at the 8 return sites plus an `int()` on the RSS scale (all runtime no-ops) and reflowed to black; verified against `mypy --strict`, black 26.5.1, black 26.3.1, and the 23 telemetry tests. Adopters can drop their per-repo `warn_return_any` overrides on the next probe re-sync. Root cause: racecar never lints or type-checks its own `sysadmin-hardware/lib/` — a hygiene gap to close separately.
+
 ## 0.29.0 - 2026-07-19
 
 ### Added

@@ -52,7 +52,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from importlib import metadata
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, Iterator, cast
 
 try:
     import resource
@@ -101,18 +101,21 @@ def _config() -> dict[str, Any]:
     """
     global _config_cache  # pylint: disable=global-statement
     if _config_cache is not _CONFIG_SENTINEL:
-        return _config_cache
+        return cast(dict[str, Any], _config_cache)
     _config_cache = {}
     for base in (Path.cwd(), *Path.cwd().parents):
         pyproject = base / "pyproject.toml"
         if pyproject.is_file():
-            section = _read_toml(pyproject).get("tool", {}).get("racecar", {}).get(
-                "telemetry", {}
+            section = (
+                _read_toml(pyproject)
+                .get("tool", {})
+                .get("racecar", {})
+                .get("telemetry", {})
             )
             if isinstance(section, dict):
                 _config_cache = section
             break
-    return _config_cache
+    return cast(dict[str, Any], _config_cache)
 
 
 def _settings() -> dict[str, Any]:
@@ -125,7 +128,7 @@ def _settings() -> dict[str, Any]:
     """
     global _settings_cache  # pylint: disable=global-statement
     if _settings_cache is not _CONFIG_SENTINEL:
-        return _settings_cache
+        return cast(dict[str, Any], _settings_cache)
     _settings_cache = {}
     for base in (Path.cwd(), *Path.cwd().parents):
         settings = base / ".telemetry" / "settings.toml"
@@ -136,7 +139,7 @@ def _settings() -> dict[str, Any]:
             break
         if (base / ".git").exists():
             break
-    return _settings_cache
+    return cast(dict[str, Any], _settings_cache)
 
 
 def _switch(env_name: str, cfg_key: str) -> bool:
@@ -210,7 +213,7 @@ def _env_fingerprint() -> str | None:
     """
     global _env_cache  # pylint: disable=global-statement
     if _env_cache is not _ENV_SENTINEL:
-        return _env_cache
+        return cast("str | None", _env_cache)
     try:
         dists = sorted(
             f"{dist.metadata['Name']}=={dist.version}"
@@ -221,7 +224,7 @@ def _env_fingerprint() -> str | None:
     except Exception as exc:  # pylint: disable=broad-exception-caught
         _warn(exc)
         _env_cache = None
-    return _env_cache
+    return cast("str | None", _env_cache)
 
 
 def _git(args: list[str]) -> str | None:
@@ -259,7 +262,7 @@ def _main_package() -> str | None:
     main_mod = sys.modules.get("__main__")
     pkg = getattr(main_mod, "__package__", None)
     if pkg:
-        return pkg
+        return cast(str, pkg)
     spec = getattr(main_mod, "__spec__", None)
     parent = getattr(spec, "parent", None)
     return parent or None
@@ -357,7 +360,7 @@ def _peak_rss_bytes(usage_self: Any, usage_children: Any) -> int:
     and a process-pool workload reports its heaviest child.
     """
     scale = 1 if sys.platform == "darwin" else 1024
-    return max(usage_self.ru_maxrss, usage_children.ru_maxrss) * scale
+    return int(max(usage_self.ru_maxrss, usage_children.ru_maxrss) * scale)
 
 
 def _exit_code(code: object) -> int:
