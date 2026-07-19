@@ -245,6 +245,28 @@ def _sync_templates(dest: Path, dry_run: bool) -> int:
     return created
 
 
+def _write_delivered_manifest(scripts_dir: Path, all_scripts: list[str]) -> None:
+    """Write `scripts/racecar-manifest.txt`: the repo-relative POSIX paths racecar delivered.
+
+    check_content_blind.py reads it to exempt racecar's own delivered files from the prose
+    scan, so a figure-shaped comment in a canon script never turns a downstream repo's gate
+    red. Rewritten on every sync, so the set stays current with what was delivered.
+    """
+    delivered = ["racecar.mk"]
+    for rel_source in all_scripts:
+        delivered += [
+            (Path("scripts") / dest_rel).as_posix()
+            for _src, dest_rel in delivered_files(rel_source)
+        ]
+    (scripts_dir / "racecar-manifest.txt").write_text(
+        "# racecar-delivered files in this repo — managed by sync_scripts.py; do not edit.\n"
+        "# check_content_blind.py exempts these paths from the content-blind prose scan.\n"
+        + "\n".join(sorted(delivered))
+        + "\n",
+        encoding="utf-8",
+    )
+
+
 def sync(dest: Path, dry_run: bool, templates: bool = False) -> None:
     """Copy canonical scripts into dest/scripts/, reporting each outcome."""
     if not dest.is_dir():
@@ -291,6 +313,12 @@ def sync(dest: Path, dry_run: bool, templates: bool = False) -> None:
         )
 
     racecar_mk = _materialize_racecar_mk(dest, dry_run)
+
+    # Record what racecar delivered here so check_content_blind.py can exempt racecar's own
+    # files from the prose scan (tooling the repo owns no prose in and cannot edit without the
+    # next sync clobbering it). Owned files (README, Makefile) are never touched to record this.
+    if not dry_run:
+        _write_delivered_manifest(scripts_dir, all_scripts)
 
     templates_created = _sync_templates(dest, dry_run) if templates else 0
 

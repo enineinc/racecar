@@ -21,14 +21,16 @@ can run identically, so it lives once in racecar.
 Policy is read from the repo-root ``README.md`` YAML frontmatter, never
 hardcoded here (CONTENT_BLINDNESS.md, "Declaration"):
 
-    content_blind: true                    # opt in; absent/false => no-op
+    content_blind: true                    # opt IN; absent/false => no-op
     content_blind_exempt:                  # paths exempt from the prose rule
       - tests/guards/test_content_blind.py
     content_blind_placeholders: [orion, draco]   # synthetic tokens (advisory)
     content_blind_structural: [7.0]        # extra structural constants (opt)
 
-When ``content_blind`` is absent or false the check is a no-op (one info line,
-exit 0): a repo that has not opted in has nothing to enforce.
+Off by default: absent or ``content_blind: false`` is a no-op (one info line,
+exit 0). Only an explicit ``content_blind: true`` turns on the prose scan — a
+deliberate per-repo opt-in, because the discipline over-fires on the legitimate
+figures many domains carry (dates, ports, versions, documented constants).
 
 Prose scanned:
   - Python: every comment and docstring line (never code — a test asserting
@@ -71,10 +73,10 @@ TEXT_SUFFIXES = frozenset(
 # `content_blind_structural` in frontmatter.
 STRUCTURAL = frozenset({0.0, 1.0, 2.0, 12.0, 100.0, 360.0, 365.0, 1000.0})
 
-COMMA_GROUPED = re.compile(r"\d{1,3}(?:,\d{3})+(?:\.\d+)?")  # 22,000  12,345.67
-UNDERSCORE_GROUPED = re.compile(r"\b\d+_\d{3}(?:_\d{3})*\b")  # 22_000
-PRECISE_DECIMAL = re.compile(r"(?<![\d.])\d*\.\d{4,}(?![\d])")  # 0.0625  0.9394
-LARGE_INTEGER = re.compile(r"(?<![\d.\w$§])\d{4,}(?:\.\d+)?(?![\d\w])")  # 22000
+COMMA_GROUPED = re.compile(r"\d{1,3}(?:,\d{3})+(?:\.\d+)?")  # comma-grouped thousands
+UNDERSCORE_GROUPED = re.compile(r"\b\d+_\d{3}(?:_\d{3})*\b")  # underscore-grouped thousands
+PRECISE_DECIMAL = re.compile(r"(?<![\d.])\d*\.\d{4,}(?![\d])")  # a many-place decimal
+LARGE_INTEGER = re.compile(r"(?<![\d.\w$§])\d{4,}(?:\.\d+)?(?![\d\w])")  # a bare long integer
 
 
 # ---------------------------------------------------------------------------
@@ -245,6 +247,20 @@ def deal_figures_in(line: str, structural: frozenset[float]) -> list[str]:
             # A year or an ISO month key: 1899 (Excel's serial epoch) to 2100.
             if value.is_integer() and 1899 <= value <= 2100:
                 continue
+            # A compact date key — YYYYMM (paper ids, ISO month keys) or YYYYMMDD —
+            # is a calendar value, not a deal term, by the same reasoning as the year
+            # exemption above. Domain magic constants (ports, byte sizes, TTLs) are
+            # not guessable here; a repo lists those in `content_blind_structural`.
+            if value.is_integer():
+                iv = int(value)
+                is_yyyymm = 189901 <= iv <= 210012 and 1 <= iv % 100 <= 12
+                is_yyyymmdd = (
+                    18990101 <= iv <= 21001231
+                    and 1 <= (iv // 100) % 100 <= 12
+                    and 1 <= iv % 100 <= 31
+                )
+                if is_yyyymm or is_yyyymmdd:
+                    continue
             # A residual or a tolerance (1e-3 and below) is a measure of error.
             if abs(value) <= 1e-3:
                 continue
@@ -280,6 +296,27 @@ class Findings:
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+
+
+def delivered_exempt(root: Path) -> frozenset[str]:
+    """Repo-relative paths racecar delivered here, read from `scripts/racecar-manifest.txt`.
+
+    racecar-delivered files (the synced check scripts, `racecar.mk`) are tooling the
+    repo owns no prose in and cannot edit without the next sync clobbering it, so the
+    guard never scans them — a stray figure-shaped comment in canon must never turn a
+    downstream repo's gate red. racecar does not edit the repo's owned README to record
+    this (that would break the no-clobber contract); instead `sync_scripts.py` writes
+    the manifest of what it delivered, and the guard exempts exactly that set. The
+    manifest is rewritten on every sync, so the exemption is always current.
+    """
+    manifest = root / "scripts" / "racecar-manifest.txt"
+    if not manifest.is_file():
+        return frozenset()
+    return frozenset(
+        line.strip()
+        for line in manifest.read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    )
 
 
 def load_policy(root: Path) -> dict[str, object]:
@@ -353,13 +390,14 @@ def main(argv: list[str] | None = None) -> int:
     policy = load_policy(root)
     if not policy.get("content_blind"):
         f.info(
-            "content_blind not declared true in README.md frontmatter; "
+            "content_blind not enabled in README.md frontmatter; "
             "nothing to enforce (see CONTENT_BLINDNESS.md)"
         )
         return emit(f)
 
     exempt_raw = policy.get("content_blind_exempt", [])
     exempt = frozenset(exempt_raw if isinstance(exempt_raw, list) else [])
+    exempt = exempt | delivered_exempt(root)
     offenders = scan(root, exempt, structural_set(policy))
     for offender in offenders:
         f.error(f"deal-shaped figure in prose — {offender}")

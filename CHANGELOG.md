@@ -8,6 +8,12 @@ All notable changes to racecar are recorded here, in the style of
 [Keep a Changelog](https://keepachangelog.com). racecar is pre-1.0, so a minor
 bump may carry breaking changes for adopters; those are marked **Breaking**.
 
+## 0.26.0 - 2026-07-18
+
+### Changed
+- **Content-blindness ships as a one-flag, zero-config opt-in.** `docs-orchestrator/scripts/check_content_blind.py` stays OFF by default (absent or `content_blind: false` is a no-op); a repo turns the prose-figure guard on by setting `content_blind: true` in README frontmatter alone — no `pyproject.toml` or `Makefile` edit, because the checker is already run by `make check` and the `content-blind` hook ships in `templates/classic/pre-commit-config.yaml`. The discipline was generalized from a confidential-financial repo; defaulting it on across every domain over-fires on legitimate figures, so enabling it is a deliberate per-repo choice. racecar itself declares `content_blind: false` — its own docs must quote the forbidden figure shapes to define the rule.
+- **Guard precision and self-exemption.** The structural exemptions now cover compact date keys (`YYYYMM` paper ids, `YYYYMMDD`) alongside years and tolerances; domain magic constants (ports, TTLs, byte sizes) go in `content_blind_structural`. And racecar's own delivered files are never scanned: `sync_scripts.py` records them in `scripts/racecar-manifest.txt` and the guard exempts exactly that set, so a figure-shaped comment in canon can never turn a downstream repo's gate red — without racecar editing the repo's owned README (the manifest is a delivered artifact).
+
 ## 0.25.0 - 2026-07-18
 
 ### Changed

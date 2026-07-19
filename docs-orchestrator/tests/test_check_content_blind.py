@@ -46,12 +46,24 @@ def _readme(content_blind: bool, extra: str = "") -> str:
     return f"---\npnode: []\ncontent_blind: {flag}\n{extra}---\n\n# repo\n"
 
 
-def test_noop_when_not_opted_in(tmp_path: Path) -> None:
-    """content_blind false => no-op, exit 0, even with a figure in prose."""
+def test_noop_when_opted_out(tmp_path: Path) -> None:
+    """content_blind: false => no-op, exit 0, even with a figure in prose."""
     repo = _init_repo(tmp_path)
     (repo / "README.md").write_text(_readme(False), encoding="utf-8")
     (repo / "doc.md").write_text(
         "# d\n\nThe fee is 0.0625 of 22,000.\n", encoding="utf-8"
+    )
+    result = _run(repo)
+    assert result.returncode == 0
+    assert "nothing to enforce" in result.stdout
+
+
+def test_noop_when_absent(tmp_path: Path) -> None:
+    """No content_blind key => off by default; a prose figure does not fail."""
+    repo = _init_repo(tmp_path)
+    (repo / "README.md").write_text("---\npnode: []\n---\n\n# repo\n", encoding="utf-8")
+    (repo / "doc.md").write_text(
+        "# d\n\nThe fee is 0.0625 of the 22,000 notional.\n", encoding="utf-8"
     )
     result = _run(repo)
     assert result.returncode == 0
@@ -77,6 +89,18 @@ def test_structural_constants_pass(tmp_path: Path) -> None:
     (repo / "README.md").write_text(_readme(True), encoding="utf-8")
     (repo / "doc.md").write_text(
         "# d\n\nThere are 365 days and 12 months; a year like 2028 is fine.\n",
+        encoding="utf-8",
+    )
+    result = _run(repo)
+    assert result.returncode == 0, result.stdout
+
+
+def test_date_keys_pass(tmp_path: Path) -> None:
+    """Compact date keys — YYYYMM paper ids and YYYYMMDD — are calendar values, not figures."""
+    repo = _init_repo(tmp_path)
+    (repo / "README.md").write_text(_readme(True), encoding="utf-8")
+    (repo / "doc.md").write_text(
+        "# d\n\nPaper 202511 was revised on 20251103; see the 2025-11 cohort.\n",
         encoding="utf-8",
     )
     result = _run(repo)
@@ -154,3 +178,25 @@ def test_guard_does_not_flag_itself(tmp_path: Path) -> None:
         check=False,
     )
     assert result.returncode == 0, result.stdout
+
+
+def test_delivered_files_are_exempt(tmp_path: Path) -> None:
+    """A racecar-delivered file (listed in scripts/racecar-manifest.txt) is not scanned,
+    but a repo-owned file with the same figure still fires (Q3)."""
+    repo = _init_repo(tmp_path)
+    (repo / "README.md").write_text(_readme(True), encoding="utf-8")
+    scripts = repo / "scripts"
+    scripts.mkdir()
+    (scripts / "racecar-manifest.txt").write_text(
+        "# racecar-delivered files\nscripts/check_x.py\n", encoding="utf-8"
+    )
+    # A delivered script whose comment quotes a figure-shape must NOT fire...
+    (scripts / "check_x.py").write_text(
+        '"""Example threshold 22,000 in a delivered tool."""\nX = 1\n', encoding="utf-8"
+    )
+    # ...while a repo-owned doc carrying the same figure still does.
+    (repo / "doc.md").write_text("# d\n\nThe fee is 22,000.\n", encoding="utf-8")
+    result = _run(repo)
+    assert result.returncode == 1, result.stdout
+    assert "scripts/check_x.py" not in result.stdout
+    assert "doc.md" in result.stdout

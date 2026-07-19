@@ -1,5 +1,6 @@
 ---
 pnode: []
+content_blind: false  # racecar defines the content-blindness rule, so its docs must quote the forbidden figure shapes (rates, notionals) to explain them
 ---
 
 # racecar

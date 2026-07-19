@@ -92,6 +92,16 @@ repos:
         pass_filenames: false
         always_run: true
 
+      # Content-blindness: no tracked file's prose may embed a real figure (a
+      # count, rate, notional). Off by default; opt in with
+      # `content_blind: true` in README frontmatter (no other config needed).
+      - id: content-blind
+        name: docs-orchestrator/CONTENT_BLINDNESS.md — no real figures in prose
+        entry: python scripts/check_content_blind.py
+        language: python
+        pass_filenames: false
+        always_run: true
+
       - id: no-cross-module-string-relations
         name: arch-coherence/DJANGO.md §2 — no cross-module string ORM relations (skipped if no manage.py)
         entry: bash -c 'VENV=; for d in .venv venv ../venv; do [ -d "$d" ] && VENV=$d && break; done; export PATH="${VENV:+$VENV/bin:}$PATH"; if find . -maxdepth 3 -name "manage.py" -not -path "*/.venv/*" -not -path "*/venv/*" | grep -q .; then python scripts/check_dj_model_ref_as_string.py; fi'
