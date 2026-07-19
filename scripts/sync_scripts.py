@@ -88,6 +88,14 @@ CHECK_SCRIPTS = (
     "docs-orchestrator/scripts/docs_orchestrate.py",
     "scripts/check_version_bump.py",
     "scripts/clean_files.sh",
+    # The build-telemetry producer: the adopter's racecar.mk routes check/arch through it
+    # (guarded) so each governed repo emits .telemetry/build.jsonl for the fleet harvest.
+    # The harvest + reducer (harvest_build_telemetry.py / fleet_profile.py) stay racecar-side
+    # and are deliberately NOT delivered — an adopter produces; racecar collects.
+    "scripts/record_gate.py",
+    # The /racecar-telemetry-build|share toggles' deterministic backend, so an adopter's
+    # developer can opt their checkout in or out (writes .telemetry/settings.toml).
+    "scripts/telemetry_toggle.py",
 )
 
 # Scripts synced only when the dest repo contains a manage.py (Django project).

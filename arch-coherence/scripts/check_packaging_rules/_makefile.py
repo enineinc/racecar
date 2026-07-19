@@ -21,6 +21,23 @@ def _target_body(text: str, target: str) -> str:
     return m.group(1) if m else ""
 
 
+def _unwrap_target(text: str, target: str) -> str:
+    """Resolve the gate body through the optional build-telemetry wrapper.
+
+    The canonical `check` / `arch` may route through `record_gate.py <label> -- $(MAKE)
+    _<target>` so the run is recorded to the build ledger (DRIFT.md), moving the real
+    prerequisites and recipe to a private `_<target>`. When they do, validate that private
+    target; otherwise the public one. So the checker follows the canonical shape whether the
+    gate is wrapped or direct — the wrapper is transparent to §7, not a way to hide the body.
+    """
+    body = _target_body(text, target)
+    if re.search(
+        rf"record_gate\.py\s+\S+\s+--\s+\$\(MAKE\)[^\n]*\b(_{re.escape(target)})\b", body
+    ):
+        return "_" + target
+    return target
+
+
 def _resolve_makefile_text(
     root: Path, mk_text: str
 ) -> tuple[str | None, list[Finding]]:
@@ -114,8 +131,12 @@ def check_makefile(root: Path) -> list[Finding]:
                 )
             )
 
-    # Fast `check` = fmt-check + lint + test (pre-commit cadence).
-    check_line = re.search(r"^check\s*:\s*(.*?)(?:##|$)", text, re.MULTILINE)
+    # Fast `check` = fmt-check + lint + test (pre-commit cadence). Follow the record_gate
+    # wrapper to the private `_check` when the gate is recorded to the build ledger.
+    check_target = _unwrap_target(text, "check")
+    check_line = re.search(
+        rf"^{check_target}\s*:\s*(.*?)(?:##|$)", text, re.MULTILINE
+    )
     if check_line is not None:
         deps = set(check_line.group(1).split())
         for required in ("fmt-check", "lint", "test"):
@@ -176,8 +197,8 @@ def check_makefile(root: Path) -> list[Finding]:
                 )
             )
 
-    # arch must invoke the canonical check scripts.
-    body = _target_body(text, "arch")
+    # arch must invoke the canonical check scripts (follow the record_gate wrapper to _arch).
+    body = _target_body(text, _unwrap_target(text, "arch"))
     for script in ("check_upward_imports.py", "check_packaging.py"):
         if body and script not in body:
             findings.append(

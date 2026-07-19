@@ -99,6 +99,22 @@ def test_exit_code_propagates_through_record(telem: Path) -> None:
     assert _last_record(telem)["exit_status"] == 3
 
 
+def test_run_propagates_main_return_as_exit_code(telem: Path) -> None:
+    """run(main) exits with main()'s return code and records it — not always 0."""
+    with pytest.raises(SystemExit) as excinfo:
+        tel.run(lambda: 2, argv=["build"])
+    assert excinfo.value.code == 2
+    assert _last_record(telem)["exit_status"] == 2
+
+
+def test_run_clean_return_is_exit_zero(telem: Path) -> None:
+    """A main() that returns None exits 0 (SystemExit(None)), status recorded 0."""
+    with pytest.raises(SystemExit) as excinfo:
+        tel.run(lambda: None, argv=["build"])
+    assert excinfo.value.code in (None, 0)
+    assert _last_record(telem)["exit_status"] == 0
+
+
 def test_argv_secrets_are_redacted(telem: Path) -> None:
     """Secret-shaped argv tokens are masked before the record is written."""
     argv = [

@@ -421,6 +421,8 @@ Every project's `make help` lists the same targets:
 | `install-dev` | `install` + PEP 735 dev group (requires pip ≥ 25.1) |
 | `check` | **Fast gate** (pre-commit cadence, ~30s): `fmt-check lint test` |
 | `check-full` | **Full gate** (pre-push / CI cadence, parallel): adds `typecheck arch docs` |
+
+`check` and `arch` route their body through `scripts/record_gate.py <label> -- $(MAKE) _<target>` when that script is present (guarded, so a missing wrapper never breaks the gate), recording one gate-outcome line to the build ledger `.telemetry/build.jsonl` — build telemetry, on by default and opt-out (see [`../shared/DRIFT.md`](../shared/DRIFT.md) and `/racecar-telemetry-build`). The canonical prerequisites and recipe move to a private `_check` / `_arch`; the §7 checker follows the wrapper to that private body, so the contract is unchanged whether the gate is recorded or direct.
 | `audit` | `pip-audit` for dependency vulnerability scanning (standalone; run weekly / on-demand) |
 | `fix` | Auto-fix what can be auto-fixed (currently `fmt`) |
 | `fmt` | Apply `isort` then `black` to `$(SRC)` (and `$(SERVER)` if set) |

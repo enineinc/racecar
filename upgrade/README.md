@@ -32,11 +32,21 @@ Detect-first, judge-second, owner-authorized, idempotent.
 
 1. **Detect mechanically (no judgment yet).** Three sub-steps; do them in order and do not skip the verify.
 
-   **1a. Copy the canonical checks into the repo, then VERIFY they landed.** Run the exact command (this is what `racecar-normalize` and `make sync-scripts DEST=<repo>` wrap):
+   **1a. Harvest telemetry, then copy the canonical checks into the repo and VERIFY they landed.** First, harvest the repo's build telemetry *before* the sync — the harvest reads only the gitignored `.telemetry/` (which the sync never touches), so order is not strictly required, but doing it here makes the upgrade the moment the proving-ground loop turns (the upgrade both corrects the repo and teaches racecar which checkers earn their keep):
+
+       python3 <racecar>/scripts/harvest_build_telemetry.py <repo>
+
+   It no-ops silently when the repo has no `<repo>/.telemetry/build.jsonl` or has opted out; it anonymizes at source (opaque, machine-independent `repo_id`; no SHA/branch/command/writer/timestamp crosses) and is idempotent, so re-running never double-counts. Read the accumulation any time with `python3 <racecar>/scripts/fleet_profile.py` (or `make fleet`). Then run the sync (this is what `racecar-normalize` and `make sync-scripts DEST=<repo>` wrap):
 
        python3 <racecar>/scripts/sync_scripts.py --dest <repo> --templates
 
    Then confirm before going on: `ls <repo>/scripts/check_*.py` must list the synced checks (`check_packaging`, `check_upward_imports`, `check_cli_commands`, `check_surface_orchestration`, `check_docs`, `check_subsystem_docs`, `check_todo_format`, `check_file_placement`, `check_brief`), and `<repo>/racecar.mk` must exist (the canonical file, identical in every repo). **A skipped or misdirected copy is the silent failure that breaks every later step**: the scripts the Makefile invokes would not exist. If they are not present, the copy did not run; fix the `--dest` path and re-run before proceeding.
+
+   Finally, instrument the repo's CLIs for **usage** telemetry. The sync above delivers the *build* producer (record_gate + the wrapped gate); this delivers the *usage* producer, which lives in the package tree, not `scripts/`. It is fully mechanical (`ast`-based) — it delivers the probe to each top package and wraps each compliant `__main__.py` run-guard, editing only guards it can prove are the `main()` / `sys.exit(main())` / `raise SystemExit(main())` form and **surfacing anything else for you to wrap by hand**; idempotent:
+
+       python3 <racecar>/scripts/instrument_telemetry.py --dest <repo>
+
+   Note any `SURFACED (manual)` entrypoints it reports and wrap those by hand per [`../sysadmin-hardware/TELEMETRY.md`](../sysadmin-hardware/TELEMETRY.md). After this, the repo's next `make check` records build telemetry and its next `python -m <pkg> …` run records usage telemetry — both on by default, opt-out, local, gitignored.
 
    **1b. Run the checkers** from `<repo>` (`--root <repo>` or from inside it) for the gap list: `check_packaging`, `check_docs`, `check_subsystem_docs`, `check_cli_commands`, `check_surface_orchestration`. Watch `check_packaging`'s Makefile findings specifically: `no-racecar-mk` (a pre-fold monolith), `racecar-mk-not-included` (the half-migrated state: `racecar.mk` was dropped but the monolithic `Makefile` never `include`s it, so the canonical build is inert), or `racecar.mk` `missing-file`. Each names a *fold-adoption* divergence, which 1c does not cover.
 

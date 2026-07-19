@@ -74,6 +74,7 @@ SESSIONSTART_HOOK_BASENAME = "session_compact_history.py"
 SESSION_LOAD_HOOK_BASENAME = "session_load_standards.py"
 SESSION_DISCOVER_HOOK_BASENAME = "session_discover_cli.py"
 SESSION_CHECK_SYNC_HOOK_BASENAME = "session_check_sync.py"
+SESSION_TELEMETRY_HOOK_BASENAME = "session_telemetry_notice.py"
 SESSION_LOAD_MATCHERS = ("startup", "resume", "clear", "compact")
 
 
@@ -203,6 +204,22 @@ def upsert_hook(
     return True
 
 
+def _upsert_session_load_hook(
+    settings: dict, racecar_root: Path, basename: str
+) -> bool:
+    """Upsert one hook across every SessionStart load matcher; True if anything changed.
+
+    The standards loader, CLI-discovery, sync-staleness, and telemetry-disclosure hooks all
+    attach to the same startup/resume/clear/compact set, so they share this one loop.
+    """
+    command = str(racecar_root / "hooks" / basename)
+    changed = False
+    for matcher in SESSION_LOAD_MATCHERS:
+        if upsert_hook(settings, "SessionStart", matcher, command, basename):
+            changed = True
+    return changed
+
+
 def sync_settings(
     racecar_root: Path,
     settings_path: Path,
@@ -255,59 +272,33 @@ def sync_settings(
         SESSIONSTART_HOOK_BASENAME,
     )
 
-    # SessionStart standards-loader. The pointer block above is only an
-    # instruction; the agent may skip it. This hook inlines racecar's machine
-    # baseline (CLAUDE.md + shared/*.md) as additionalContext on every relevant
-    # session boundary so the standards are present whether or not the agent
-    # followed the pointer.
-    session_load_command = str(racecar_root / "hooks" / SESSION_LOAD_HOOK_BASENAME)
-    session_load_changed = False
-    for matcher in SESSION_LOAD_MATCHERS:
-        if upsert_hook(
-            settings,
-            "SessionStart",
-            matcher,
-            session_load_command,
-            SESSION_LOAD_HOOK_BASENAME,
-        ):
-            session_load_changed = True
-
-    # SessionStart CLI-discovery hook. Runs check_cli_commands.py --json
-    # against the consuming repo and injects the audit tree as
-    # additionalContext, so agents land in a repo already knowing its
-    # `python -m <pkg>` surface. Same four matchers as the standards
-    # loader — startup, resume, clear, compact — so the snapshot is
-    # re-injected after /clear and auto-compaction.
-    session_discover_command = str(
-        racecar_root / "hooks" / SESSION_DISCOVER_HOOK_BASENAME
+    # SessionStart standards-loader. The pointer block above is only an instruction; the
+    # agent may skip it. This hook inlines racecar's machine baseline (CLAUDE.md + shared/*.md)
+    # as additionalContext on every relevant session boundary so the standards are present
+    # whether or not the agent followed the pointer.
+    session_load_changed = _upsert_session_load_hook(
+        settings, racecar_root, SESSION_LOAD_HOOK_BASENAME
     )
-    session_discover_changed = False
-    for matcher in SESSION_LOAD_MATCHERS:
-        if upsert_hook(
-            settings,
-            "SessionStart",
-            matcher,
-            session_discover_command,
-            SESSION_DISCOVER_HOOK_BASENAME,
-        ):
-            session_discover_changed = True
 
-    # SessionStart sync-staleness hook. Warns when this repo's synced racecar
-    # check scripts have fallen behind canon (session_check_sync.py byte-compares
-    # them against the checkout). No-ops in a non-adopter repo or one in sync.
-    session_check_command = str(
-        racecar_root / "hooks" / SESSION_CHECK_SYNC_HOOK_BASENAME
+    # SessionStart CLI-discovery hook. Runs check_cli_commands.py --json against the consuming
+    # repo and injects the audit tree, so agents land already knowing its `python -m <pkg>`
+    # surface. Re-injected after /clear and auto-compaction (same four matchers).
+    session_discover_changed = _upsert_session_load_hook(
+        settings, racecar_root, SESSION_DISCOVER_HOOK_BASENAME
     )
-    session_check_changed = False
-    for matcher in SESSION_LOAD_MATCHERS:
-        if upsert_hook(
-            settings,
-            "SessionStart",
-            matcher,
-            session_check_command,
-            SESSION_CHECK_SYNC_HOOK_BASENAME,
-        ):
-            session_check_changed = True
+
+    # SessionStart sync-staleness hook. Warns when this repo's synced racecar check scripts
+    # have fallen behind canon (byte-compare). No-ops in a non-adopter repo or one in sync.
+    session_check_changed = _upsert_session_load_hook(
+        settings, racecar_root, SESSION_CHECK_SYNC_HOOK_BASENAME
+    )
+
+    # SessionStart telemetry-disclosure hook. Prints the build/share/usage telemetry state
+    # every session entry in a racecar repo, so on-by-default is never silent (the consent
+    # mechanism). No-ops outside a racecar repo; skips clear/compact.
+    session_telemetry_changed = _upsert_session_load_hook(
+        settings, racecar_root, SESSION_TELEMETRY_HOOK_BASENAME
+    )
 
     rendered = json.dumps(settings, indent=2) + "\n"
     changed = (
@@ -318,6 +309,7 @@ def sync_settings(
         or session_load_changed
         or session_discover_changed
         or session_check_changed
+        or session_telemetry_changed
         or (rendered != raw)
     )
 

@@ -30,4 +30,6 @@ docs-orchestrator/scripts/check_content_blind.py
 docs-orchestrator/scripts/docs_orchestrate.py
 scripts/check_version_bump.py
 scripts/clean_files.sh
+scripts/record_gate.py
+scripts/telemetry_toggle.py
 arch-coherence/scripts/check_dj_model_ref_as_string.py django

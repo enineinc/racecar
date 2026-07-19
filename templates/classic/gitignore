@@ -29,6 +29,11 @@ dist/
 coverage.xml
 htmlcov/
 
+# racecar telemetry — local-only usage/build ledgers + per-developer settings. The
+# telemetry writers also drop a self-ignoring `.telemetry/.gitignore` (`*`), so this is
+# belt-and-suspenders; the ledger is never committable either way.
+.telemetry/
+
 # OS / editor noise
 .DS_Store
 Thumbs.db

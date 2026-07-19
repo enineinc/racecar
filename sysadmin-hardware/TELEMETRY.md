@@ -55,6 +55,13 @@ and hide the instrumentation from the code that carries it.
 
 ## The one-line adoption
 
+`racecar-upgrade` does this for you, mechanically: [`scripts/instrument_telemetry.py`](../scripts/instrument_telemetry.py)
+delivers the probe to each top package and `ast`-wraps every compliant `__main__.py` run-guard,
+editing only guards it can prove are the plain `main()` / `sys.exit(main())` /
+`raise SystemExit(main())` form and surfacing anything else for you to wrap by hand. It is
+idempotent, so it is safe on every upgrade. The manual form, for a surfaced entrypoint or a
+repo not yet on racecar:
+
 Copy [`lib/_telemetry.py`](lib/_telemetry.py) into the package source root as
 `<pkg>/_telemetry.py` (it is runtime code the CLI imports, so it lives in the
 tree, not in `~/.claude`). Then wrap each `__main__.py` run guard:
@@ -95,12 +102,23 @@ switch is resolved in this order:
 
 1. **Env override** — `RACECAR_USAGE_TELEMETRY` (truthy = on, any other value = off).
    The per-run / per-shell control; wins when set.
-2. **pyproject** — `[tool.racecar.telemetry].usage` (`true`/`false`) in the nearest
-   `pyproject.toml`. The per-repo config home, so the choice lives in one declarative
+2. **Repo-local settings** — `[telemetry].usage` in `.telemetry/settings.toml`, the
+   per-developer, gitignored override the `/racecar-telemetry-build` and
+   `/racecar-telemetry-share` toggles write (backed by `scripts/telemetry_toggle.py`). It
+   sits below the env var and above pyproject, so a developer opts a checkout in or out
+   without touching the shared default.
+3. **pyproject** — `[tool.racecar.telemetry].usage` (`true`/`false`) in the nearest
+   `pyproject.toml`. The shared per-repo config home, so the choice lives in one declarative
    place and a project inherits the default unless it sets it (see `pyproject.toml` in
    racecar itself). The log dir resolves the same way: env `RACECAR_TELEMETRY_DIR` >
    `[tool.racecar.telemetry].dir` > `.telemetry`.
-3. **Default on.** Absent both, telemetry records.
+4. **Default on.** Absent all, telemetry records.
+
+The state is never silent: a SessionStart hook (`hooks/session_telemetry_notice.py`) prints
+`racecar telemetry: build=… share=… usage=…` and the toggles every session entry in a racecar
+repo — consent by disclosure. The `share` switch (`RACECAR_SHARE_TELEMETRY`) is the
+build-telemetry counterpart that gates whether the anonymized aggregate leaves the machine; see
+[`../shared/DRIFT.md`](../shared/DRIFT.md).
 
 On-by-default is the deliberate choice: opt-in telemetry mostly never gets turned on, so
 the data the sizing lens needs never accumulates. It is safe *because measurement cannot
@@ -116,9 +134,12 @@ or exports `RACECAR_USAGE_TELEMETRY=0`. (The developer-telemetry counterpart,
 
 Append-only JSONL at `$RACECAR_TELEMETRY_DIR/usage.jsonl`, default
 `./.telemetry/usage.jsonl` relative to the process CWD, which for a
-`python -m <pkg>` run is the repo root. Add `.telemetry/` to `.gitignore`: the
-log is local machine-and-workload data, never committed. Each line is a single
-sub-`PIPE_BUF` write under `O_APPEND`, so concurrent processes never interleave.
+`python -m <pkg>` run is the repo root. The log is local machine-and-workload data,
+never committed: the first write drops a self-ignoring `.telemetry/.gitignore` (`*`, the
+pytest-`.pytest_cache` pattern), so the directory stays out of every commit regardless of
+the repo's root `.gitignore` — no root-gitignore edit is required for safety, though the
+canonical template lists `.telemetry/` there too. Each line is a single sub-`PIPE_BUF`
+write under `O_APPEND`, so concurrent processes never interleave.
 
 Privacy boundary: argv is stored, but **secret-shaped tokens are masked** before it
 is written — the value after a secret-named flag (`--token X`, `--password=X`), a

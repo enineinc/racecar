@@ -128,11 +128,14 @@ def test_probe_failure_never_breaks_the_command(monkeypatch, tmp_path):
 
 
 def test_run_wrapper_invokes_main(monkeypatch, tmp_path):
-    """run(main) executes main() and records once."""
+    """run(main) executes main(), records once, and exits with main()'s return code."""
     monkeypatch.setenv("RACECAR_USAGE_TELEMETRY", "1")
     monkeypatch.setenv("RACECAR_TELEMETRY_DIR", str(tmp_path))
     called = []
-    telemetry.run(lambda: called.append(True), argv=["status"])
+    # run() is sys.exit(main()) with measurement, so it raises SystemExit with the code.
+    with pytest.raises(SystemExit) as excinfo:
+        telemetry.run(lambda: called.append(True) or 0, argv=["status"])
+    assert excinfo.value.code == 0
     assert called == [True]
     assert (tmp_path / "usage.jsonl").exists()
 

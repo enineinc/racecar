@@ -107,8 +107,8 @@ PYTEST_ARGS ?=
 RACECAR_ROOT ?= $(shell readlink "$(HOME)/.claude/skills/racecar" 2>/dev/null)
 
 .DEFAULT_GOAL := help
-.PHONY: help venv install install-dev check check-full fix fmt fmt-check lint \
-        test coverage typecheck arch audit docs clean distclean sync system-deps \
+.PHONY: help venv install install-dev check _check check-full fix fmt fmt-check lint \
+        test coverage typecheck arch _arch audit docs clean distclean sync system-deps \
         check-overrides
 
 help: ## Show this help
@@ -147,7 +147,15 @@ install-dev: install ## install + PEP 735 dev group + pre-commit hooks (requires
 	@if grep -qi '"django' $(LIB_PYPROJECT); then $(PIP) install -q --group $(LIB_PYPROJECT):django; fi
 
 
-check: fmt-check lint test ## Fast gate (~30s; pre-commit cadence)
+check: ## Fast gate (~30s; pre-commit cadence)
+	@if [ -f scripts/record_gate.py ]; then \
+	  $(PYTHON) scripts/record_gate.py check -- $(MAKE) --no-print-directory _check; \
+	else $(MAKE) --no-print-directory _check; fi
+
+# Private gate body. `check` wraps it in the build-telemetry ledger (record_gate.py) when
+# that script is present, and runs it directly otherwise — so a missing wrapper never breaks
+# the gate. Build telemetry is on by default, opt-out (see /racecar-telemetry-build).
+_check: fmt-check lint test
 
 check-full: ## Full gate (pre-push / CI cadence) — adds typecheck + arch + docs
 	@$(MAKE) fmt-check lint test typecheck arch docs
@@ -209,6 +217,13 @@ typecheck: ## mypy
 	$(PYTHON) -m mypy --config-file $(LIB_PYPROJECT) $(SRC)
 
 arch: ## lint-imports + §1 upward + §3 CLI tree + packaging canon + surface orchestration (+ Django string-relations)
+	@if [ -f scripts/record_gate.py ]; then \
+	  $(PYTHON) scripts/record_gate.py arch -- $(MAKE) --no-print-directory _arch; \
+	else $(MAKE) --no-print-directory _arch; fi
+
+# Private gate body; `arch` wraps it in the build-telemetry ledger when record_gate.py is
+# present, direct otherwise (a missing wrapper never breaks the gate).
+_arch:
 	$(if $(SERVER),PYTHONPATH=$(SERVER) )$(BIN)/lint-imports --config $(LIB_PYPROJECT)
 	$(PYTHON) scripts/check_upward_imports.py $$(find $(PKG) $(SERVER) -name '*.py')
 	@main=$$(find $(PKG) -name '__main__.py' -not -path '*/.*' -not -path '*/venv/*' -print -quit 2>/dev/null); \

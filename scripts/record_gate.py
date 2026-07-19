@@ -21,13 +21,25 @@ time this ledger is exactly that — the DRIFT trajectory ([`shared/DRIFT.md`](.
 which checkers fire, how finding counts move commit-to-commit, whether the gate trends
 green. It is the backward-only signal the static checks structurally cannot show.
 
-On by default, opt-out: it records unless ``RACECAR_BUILD_TELEMETRY`` is set falsy, or
-``[tool.racecar.telemetry].build = false`` in pyproject.toml (env wins) — disabled, it is
-a pure passthrough. One JSON object per run, appended to
-``$RACECAR_TELEMETRY_DIR/build.jsonl`` (default ``.telemetry/build.jsonl``, gitignored):
+On by default, opt-out: it records unless the ``build`` switch is off — resolved
+``RACECAR_BUILD_TELEMETRY`` (env) > ``.telemetry/settings.toml`` (the repo-local, gitignored
+per-developer override the ``/racecar-telemetry-build`` toggle writes) > ``[tool.racecar
+.telemetry].build`` in pyproject.toml > on. Disabled, it is a pure passthrough. One JSON
+object per run, appended to ``$RACECAR_TELEMETRY_DIR/build.jsonl`` (default
+``.telemetry/build.jsonl``, gitignored):
 
-    {schema, ts, git_sha, git_dirty, branch, label, command, ok, exit_code, wall_s,
-     total_findings, checkers: {<name>: {ok, findings}}}
+    {schema, id, ts, git_sha, git_dirty, branch, racecar_version, label, command, ok,
+     exit_code, wall_s, total_findings, checkers: {<name>: {ok, findings}}, pushed}
+
+``racecar_version`` is the canon stamp (``scripts/.racecar-version``) in force when the gate
+ran, so a later harvest can attribute a findings shift to the exact racecar version.
+
+``pushed`` is ``false`` at write time and ``id`` is a stable per-record key. The transport
+(a shared telemetry sink; the sink is a deferred decision) is not built yet — collection runs
+now, sending later. When it lands, the push sends only ``pushed == false`` records
+(anonymized at source via the harvest's ``anonymize()``), then flips them to ``true`` keyed on
+``id`` — so the local log always shows, git-style, which records have gone to the fleet and
+which have not.
 
 ``ok`` / ``exit_code`` are authoritative. ``checkers`` / ``total_findings`` are
 best-effort, parsed from racecar's checker summary convention (``<name>: OK`` /
@@ -49,55 +61,86 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-SCHEMA = 1
+SCHEMA = 2
 _TRUTHY = frozenset({"1", "true", "yes", "on"})
 # A racecar checker summary line: `<name>: OK` (pass) or `<name>: N errors` / a message.
 _SUMMARY_RE = re.compile(r"^(?P<name>[a-z][a-z0-9_]*): (?P<rest>\S.*)$")
 _ERRORS_RE = re.compile(r"\b(\d+)\s+errors?\b")
 
 
+def _load_toml(path: Path) -> dict[str, object]:
+    """Parse a TOML file to a dict, or `{}` on any failure (missing tomllib, bad TOML)."""
+    try:
+        import tomllib  # pylint: disable=import-outside-toplevel  # stdlib 3.11+
+    except ImportError:
+        return {}
+    try:
+        return tomllib.loads(path.read_text(encoding="utf-8"))
+    except Exception:  # pylint: disable=broad-exception-caught
+        return {}
+
+
 _config_cache: dict[str, object] | None = None  # pylint: disable=invalid-name
+_settings_cache: dict[str, object] | None = None  # pylint: disable=invalid-name
 
 
 def _config() -> dict[str, object]:
     """`[tool.racecar.telemetry]` from the nearest pyproject.toml (memoized), or `{}`.
 
-    The config home for the switch and the log dir; read once, walking up from the CWD.
-    Any failure (no pyproject, no `tomllib`, malformed TOML) degrades to `{}` — the
-    on-by-default, `.telemetry` defaults. Config must never break the gate.
+    The shared per-repo config home for the switches and the log dir; read once, walking up
+    from the CWD. Any failure degrades to `{}` — the on-by-default, `.telemetry` defaults.
+    Config must never break the gate.
     """
     global _config_cache  # pylint: disable=global-statement
     if _config_cache is not None:
         return _config_cache
     resolved: dict[str, object] = {}
-    try:
-        import tomllib  # pylint: disable=import-outside-toplevel  # stdlib 3.11+
-    except ImportError:
-        _config_cache = resolved
-        return resolved
     for base in (Path.cwd(), *Path.cwd().parents):
         pyproject = base / "pyproject.toml"
         if pyproject.is_file():
-            try:
-                data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
-                section = data.get("tool", {}).get("racecar", {}).get("telemetry", {})
-                if isinstance(section, dict):
-                    resolved = section
-            except Exception:  # pylint: disable=broad-exception-caught
-                pass
+            section = _load_toml(pyproject).get("tool", {}).get("racecar", {}).get(
+                "telemetry", {}
+            )
+            if isinstance(section, dict):
+                resolved = section
             break
     _config_cache = resolved
     return resolved
 
 
+def _settings() -> dict[str, object]:
+    """`[telemetry]` from the nearest `.telemetry/settings.toml` (memoized), or `{}`.
+
+    The repo-local, gitignored, per-developer override that the `/racecar-telemetry-build`
+    and `/racecar-telemetry-share` toggles write. Sits between the env var and pyproject in
+    the switch resolution, so a developer opts a checkout in or out without touching the
+    shared pyproject default. Any failure degrades to `{}`.
+    """
+    global _settings_cache  # pylint: disable=global-statement
+    if _settings_cache is not None:
+        return _settings_cache
+    resolved: dict[str, object] = {}
+    for base in (Path.cwd(), *Path.cwd().parents):
+        settings = base / ".telemetry" / "settings.toml"
+        if settings.is_file():
+            section = _load_toml(settings).get("telemetry", {})
+            if isinstance(section, dict):
+                resolved = section
+            break
+        if (base / ".git").exists():
+            break  # don't escape the repo looking for a per-repo file
+    _settings_cache = resolved
+    return resolved
+
+
 def _switch(env_name: str, cfg_key: str) -> bool:
-    """Resolve a switch: env override (truthy on / else off) > pyproject > on by default."""
+    """Resolve a switch: env > `.telemetry/settings.toml` > pyproject > on by default."""
     raw = os.environ.get(env_name, "").strip().lower()
     if raw:
         return raw in _TRUTHY
-    cfg = _config()
-    if cfg_key in cfg:
-        return bool(cfg[cfg_key])
+    for source in (_settings(), _config()):
+        if cfg_key in source:
+            return bool(source[cfg_key])
     return True
 
 
@@ -113,6 +156,27 @@ def _log_path() -> Path:
         or ".telemetry"
     )
     return Path(root) / "build.jsonl"
+
+
+def ensure_gitignored(directory: Path) -> None:
+    """Make the telemetry dir self-ignoring, so its contents are never committed.
+
+    Drops a `<dir>/.gitignore` containing `*` (the pytest-`.pytest_cache` pattern), which git
+    honors whether or not it is tracked — so the local ledger stays out of every commit
+    regardless of the repo's root `.gitignore`. Idempotent and best-effort: a telemetry file
+    must never be committable, but failing to write the marker must never fail the gate.
+    """
+    marker = directory / ".gitignore"
+    if marker.exists():
+        return
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+        marker.write_text(
+            "# Created automatically by racecar telemetry — local-only, never committed.\n*\n",
+            encoding="utf-8",
+        )
+    except OSError:
+        pass
 
 
 def _git(args: list[str]) -> str | None:
@@ -136,6 +200,23 @@ def _git_context() -> dict[str, object]:
         "git_dirty": bool(status) if status is not None else None,
         "branch": _git(["rev-parse", "--abbrev-ref", "HEAD"]),
     }
+
+
+def _racecar_version() -> str | None:
+    """The canon stamp (`scripts/.racecar-version`) in force, or None if unstamped.
+
+    `sync_scripts.py` writes this into every governed repo (racecar's short SHA); recording
+    it per gate lets a later harvest attribute a findings shift to the exact racecar version.
+    """
+    root = _git(["rev-parse", "--show-toplevel"])
+    if not root:
+        return None
+    try:
+        return (Path(root) / "scripts" / ".racecar-version").read_text(
+            encoding="utf-8"
+        ).strip() or None
+    except OSError:
+        return None
 
 
 def run_streamed(command: list[str]) -> tuple[int, list[str], float]:
@@ -193,8 +274,10 @@ def record(label: str, command: list[str]) -> int:
     checkers, total = parse_checkers(lines)
     payload: dict[str, object] = {
         "schema": SCHEMA,
+        "id": os.urandom(8).hex(),
         "ts": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         **_git_context(),
+        "racecar_version": _racecar_version(),
         "label": label,
         "command": command,
         "ok": exit_code == 0,
@@ -202,10 +285,12 @@ def record(label: str, command: list[str]) -> int:
         "wall_s": wall_s,
         "total_findings": total,
         "checkers": checkers,
+        "pushed": False,
     }
     try:
         path = _log_path()
         path.parent.mkdir(parents=True, exist_ok=True)
+        ensure_gitignored(path.parent)  # the ledger must never be committable
         with path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(payload, separators=(",", ":")) + "\n")
     except OSError as exc:  # a ledger failure must never fail the gate

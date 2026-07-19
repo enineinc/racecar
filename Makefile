@@ -8,7 +8,7 @@ ifdef VENV
 endif
 PYTHON := $(if $(VENV),$(VENV)/bin/python3,python3)
 
-.PHONY: install install-deps install-dev expert expert-uninstall doctor check-docs check-subsystem-docs check-changelog check-brief check-required-docs check-content-blind docs lint test check demo init sync-scripts sync-remote-test clean distclean obsidian obsidian-data obsidian-docs help
+.PHONY: install install-deps install-dev expert expert-uninstall doctor check-docs check-subsystem-docs check-changelog check-brief check-required-docs check-content-blind docs lint test check _check harvest fleet demo init sync-scripts sync-remote-test clean distclean obsidian obsidian-data obsidian-docs help
 
 install: install-deps
 	./install
@@ -72,7 +72,21 @@ lint:
 test:
 	$(PYTHON) -m pytest arch-coherence/tests doc-coherence/tests llm-summary/tests sysadmin-hardware/tests docs-orchestrator/tests scripts/tests
 
-check: check-docs check-doc-graph check-subsystem-docs check-changelog check-required-docs check-content-blind lint test check-brief
+check: ## Full local gate, recorded to the build ledger when record_gate.py is present
+	@if [ -f scripts/record_gate.py ]; then \
+	  $(PYTHON) scripts/record_gate.py check -- $(MAKE) --no-print-directory _check; \
+	else $(MAKE) --no-print-directory _check; fi
+
+# Private gate body; `check` wraps it in the build-telemetry ledger (racecar dogfoods its own
+# record_gate). Build telemetry is on by default, opt-out (see /racecar-telemetry-build).
+_check: check-docs check-doc-graph check-subsystem-docs check-changelog check-required-docs check-content-blind lint test check-brief
+
+harvest: ## Harvest a target repo's build telemetry into the fleet aggregate (DEST=<repo-path>)
+	@test -n "$(DEST)" || { echo "usage: make harvest DEST=<repo-path> [DEST2=... ]"; exit 2; }
+	$(PYTHON) scripts/harvest_build_telemetry.py $(DEST)
+
+fleet: ## Reduce the harvested fleet aggregate to a per-checker profile (dead / noisy / trend)
+	$(PYTHON) scripts/fleet_profile.py
 
 # One-command "see the value" demo. Runs the arch-coherence upward-import check
 # against examples/ — a deliberately-broken sample project (see examples/README.md)

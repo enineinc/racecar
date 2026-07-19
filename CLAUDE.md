@@ -134,6 +134,12 @@ Load: [commit-preflight/SKILL.md](commit-preflight/SKILL.md)
 Topic: Commit decompose — alias of commit authoring; splitting a working tree into an ordered commit series is now the default behavior of racecar-commit, kept so existing invocations still resolve
 Load: [commit-decompose/SKILL.md](commit-decompose/SKILL.md)
 
+Topic: Telemetry build toggle — turn build (developer) telemetry on/off for a checkout (the gate-outcome ledger record_gate.py writes to `.telemetry/build.jsonl`); writes the per-developer `.telemetry/settings.toml`
+Load: [telemetry-build/SKILL.md](telemetry-build/SKILL.md)
+
+Topic: Telemetry share toggle — turn sharing on/off for a checkout (whether the anonymized, minimized build aggregate may leave the machine for racecar's fleet); writes `.telemetry/settings.toml`
+Load: [telemetry-share/SKILL.md](telemetry-share/SKILL.md)
+
 ## Enforcement
 
 A project applies racecar by referencing this file from its own `CLAUDE.md` or equivalent agent-instruction file (the `./install` pointer block does this automatically; see [README.md](README.md) "Install"). Read this file first to find which component applies. Do not load component files speculatively — read only what the current task requires. If you arrived at a component file directly, return here first.

@@ -76,53 +76,83 @@ _WORKER_FLAGS = ("--workers", "--jobs", "-j")
 
 _CONFIG_SENTINEL: Any = object()
 _config_cache: Any = _CONFIG_SENTINEL
+_settings_cache: Any = _CONFIG_SENTINEL
+
+
+def _read_toml(path: Path) -> dict[str, Any]:
+    """Parse a TOML file to a dict, or `{}` on any failure (missing tomllib, bad TOML)."""
+    try:
+        import tomllib  # pylint: disable=import-outside-toplevel  # stdlib 3.11+
+    except ImportError:
+        return {}
+    try:
+        return tomllib.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        _warn(exc)
+        return {}
 
 
 def _config() -> dict[str, Any]:
     """`[tool.racecar.telemetry]` from the nearest pyproject.toml (memoized), or `{}`.
 
-    The config home for the switches and the log dir. Read once per process, walking up
-    from the CWD (the repo root for a `python -m <pkg>` run). Any failure — no pyproject,
-    no `tomllib` (pre-3.11), malformed TOML — degrades to `{}`, i.e. the on-by-default,
-    `.telemetry` defaults. Config must never break a command.
+    The shared per-repo config home for the switches and the log dir. Read once per process,
+    walking up from the CWD (the repo root for a `python -m <pkg>` run). Any failure degrades
+    to `{}`, i.e. the on-by-default, `.telemetry` defaults. Config must never break a command.
     """
     global _config_cache  # pylint: disable=global-statement
     if _config_cache is not _CONFIG_SENTINEL:
         return _config_cache
     _config_cache = {}
-    try:
-        import tomllib  # pylint: disable=import-outside-toplevel  # stdlib 3.11+
-    except ImportError:
-        return _config_cache
-    start = Path.cwd()
-    for base in (start, *start.parents):
+    for base in (Path.cwd(), *Path.cwd().parents):
         pyproject = base / "pyproject.toml"
         if pyproject.is_file():
-            try:
-                data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
-                section = data.get("tool", {}).get("racecar", {}).get("telemetry", {})
-                if isinstance(section, dict):
-                    _config_cache = section
-            except Exception as exc:  # pylint: disable=broad-exception-caught
-                _warn(exc)
+            section = _read_toml(pyproject).get("tool", {}).get("racecar", {}).get(
+                "telemetry", {}
+            )
+            if isinstance(section, dict):
+                _config_cache = section
             break
     return _config_cache
 
 
-def _switch(env_name: str, cfg_key: str) -> bool:
-    """Resolve a telemetry switch: env override > pyproject > on by default (opt-out).
+def _settings() -> dict[str, Any]:
+    """`[telemetry]` from the nearest `.telemetry/settings.toml` (memoized), or `{}`.
 
-    The env var wins when set (truthy = on, any other value = off); else
-    `[tool.racecar.telemetry].<cfg_key>`; else on. Telemetry records by default; a repo
-    opts out deliberately. Neither choice breaks anything: off is a no-op, on only
-    appends a local, gitignored record.
+    The repo-local, gitignored, per-developer override the `/racecar-telemetry-*` toggles
+    write. Sits between the env var and pyproject in switch resolution, so a developer opts a
+    checkout in or out without touching the shared pyproject default. Any failure degrades
+    to `{}`; never escapes the repo (stops at the `.git` root).
+    """
+    global _settings_cache  # pylint: disable=global-statement
+    if _settings_cache is not _CONFIG_SENTINEL:
+        return _settings_cache
+    _settings_cache = {}
+    for base in (Path.cwd(), *Path.cwd().parents):
+        settings = base / ".telemetry" / "settings.toml"
+        if settings.is_file():
+            section = _read_toml(settings).get("telemetry", {})
+            if isinstance(section, dict):
+                _settings_cache = section
+            break
+        if (base / ".git").exists():
+            break
+    return _settings_cache
+
+
+def _switch(env_name: str, cfg_key: str) -> bool:
+    """Resolve a switch: env > `.telemetry/settings.toml` > pyproject > on by default.
+
+    The env var wins when set (truthy = on, any other value = off); else the per-developer
+    `.telemetry/settings.toml`; else `[tool.racecar.telemetry].<cfg_key>`; else on. Telemetry
+    records by default; a repo or developer opts out deliberately. Neither choice breaks
+    anything: off is a no-op, on only appends a local, gitignored record.
     """
     raw = os.environ.get(env_name, "").strip().lower()
     if raw:
         return raw in _TRUTHY
-    cfg = _config()
-    if cfg_key in cfg:
-        return bool(cfg[cfg_key])
+    for source in (_settings(), _config()):
+        if cfg_key in source:
+            return bool(source[cfg_key])
     return True
 
 
@@ -143,6 +173,27 @@ def log_path() -> Path:
         or _DEFAULT_DIR
     )
     return Path(root) / _JSONL_NAME
+
+
+def _ensure_gitignored(directory: Path) -> None:
+    """Make the telemetry dir self-ignoring, so its contents are never committed.
+
+    Drops a `<dir>/.gitignore` containing `*` (the pytest-`.pytest_cache` pattern), which git
+    honors tracked or not — so the log stays out of every commit regardless of the repo's root
+    `.gitignore`. Idempotent, best-effort: instrumentation must never surprise, and a failure
+    here must never break the command.
+    """
+    marker = directory / ".gitignore"
+    if marker.exists():
+        return
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+        marker.write_text(
+            "# Created automatically by racecar telemetry — local-only, never committed.\n*\n",
+            encoding="utf-8",
+        )
+    except OSError as exc:
+        _warn(exc)
 
 
 _ENV_SENTINEL: Any = object()
@@ -412,6 +463,7 @@ class _Probe:
         payload = self._record(status)
         path = log_path()
         path.parent.mkdir(parents=True, exist_ok=True)
+        _ensure_gitignored(path.parent)  # the log must never be committable
         line = json.dumps(payload, separators=(",", ":")) + "\n"
         # A single write() of a sub-PIPE_BUF line under O_APPEND is atomic on
         # POSIX, so concurrent `python -m` processes never interleave lines.
@@ -482,9 +534,17 @@ def record(argv: Sequence[str] | None = None) -> Iterator[None]:
 
 
 def run(main: Callable[[], Any], argv: Sequence[str] | None = None) -> None:
-    """Run `main()` under `record()`. The one-line adoption at a CLI entrypoint."""
+    """Run `main()` under `record()`, propagating its return as the process exit code.
+
+    The one-line adoption at a CLI entrypoint: `run(main)` is `sys.exit(main())` with
+    measurement, so replacing a compliant `raise SystemExit(main())` / `sys.exit(main())`
+    guard with it is behavior-preserving. `main()` runs inside the measured block; its return
+    (or an explicit `sys.exit`) becomes the exit code — recorded by `record()` and re-raised,
+    never swallowed. (The earlier form discarded `main()`'s return, forcing exit 0 — wrong for
+    every entrypoint that returns its code.)
+    """
     with record(argv=argv):
-        main()
+        raise SystemExit(main())
 
 
 def _safe_finish(probe: _Probe | None, status: int) -> None:
