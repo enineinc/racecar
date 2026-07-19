@@ -61,6 +61,8 @@ Drift accumulates silently in the corners no one points the lens at, and the fra
 
 This is the difference between hoping you point the lens at the right file and the system handing you a ranked queue of where the rot is most likely. A clock plus a coverage map. Without it, "constant" is aspirational — you are still relying on memory to locate drift, and memory is precisely what entropy defeats.
 
+A first concrete instance ships as [`scripts/record_gate.py`](../scripts/record_gate.py): a transparent wrapper around a gate run (`make check`, `make arch`) that appends one outcome record — commit SHA, pass/fail, per-checker finding counts — to `.telemetry/build.jsonl`, on by default (opt-out) behind `RACECAR_BUILD_TELEMETRY` (or `[tool.racecar.telemetry].build`). This is **developer telemetry** — the trajectory of the codebase's own health — and is kept strictly separate from the **usage telemetry** (`RACECAR_USAGE_TELEMETRY`, `.telemetry/`; [`sysadmin-hardware/TELEMETRY.md`](../sysadmin-hardware/TELEMETRY.md)) the sizing lens collects about runtime cost: different question, different producer, different switch, different store. Accumulated across commits it is the clock's tick — which checkers recur, whether findings trend toward zero — the direction a single green run cannot show.
+
 ## What this is not
 
 This doctrine detects and surfaces; it does not authorize. Every tier reports to the owner, who decides what to fix and when. Automating *detection* to run constantly does not move *responsibility* off the owner — see [OWNERSHIP](OWNERSHIP.md). A green ledger is confirmation, not a merge gate.

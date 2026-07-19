@@ -43,9 +43,11 @@ from check_config_drift import unified_template_diff
 RACECAR_ROOT = Path(__file__).resolve().parent.parent
 CANONICAL_RACECAR_MK = RACECAR_ROOT / "templates" / "classic" / "racecar.mk"
 
-# The only legitimate `[tool.racecar.*]` subtables: input bindings racecar's own checkers
-# read. Everything else under `[tool.racecar]` (notably `overrides`) is a local override.
-ALLOWED_RACECAR_KEYS = frozenset({"surface", "roles", "subsystem-docs"})
+# The only legitimate `[tool.racecar.*]` subtables: input bindings racecar's own tools
+# read — the surface/roles/subsystem-docs checker bindings, and `telemetry` (the usage /
+# build telemetry config: on/off and dir). Everything else under `[tool.racecar]` (notably
+# `overrides`) is a local override, the second-home drift this gate catches.
+ALLOWED_RACECAR_KEYS = frozenset({"surface", "roles", "subsystem-docs", "telemetry"})
 
 
 def disallowed_racecar_keys(root: Path) -> list[str]:

@@ -2,7 +2,7 @@
 
 Two units under test:
 
-1. ``lib/_telemetry.py`` — the runtime probe. Off unless ``RACECAR_TELEMETRY``
+1. ``lib/_telemetry.py`` — the runtime probe. Off unless ``RACECAR_USAGE_TELEMETRY``
    is set; when on, appends one JSON record per ``record()`` block with the
    documented fields; records the exit status; never alters control flow.
 2. ``scripts/telemetry_profile.py`` — the aggregator. Percentiles, per-command
@@ -46,8 +46,8 @@ profiler = _load("telemetry_profile_under_test", PROFILE_PATH)
 
 
 def test_disabled_by_default(monkeypatch, tmp_path):
-    """With RACECAR_TELEMETRY unset, record() writes nothing."""
-    monkeypatch.delenv("RACECAR_TELEMETRY", raising=False)
+    """With the switch off, record() writes nothing."""
+    monkeypatch.setenv("RACECAR_USAGE_TELEMETRY", "0")
     monkeypatch.setenv("RACECAR_TELEMETRY_DIR", str(tmp_path))
     with telemetry.record(argv=["run", "--all"]):
         pass
@@ -56,7 +56,7 @@ def test_disabled_by_default(monkeypatch, tmp_path):
 
 def test_enabled_writes_one_record(monkeypatch, tmp_path):
     """With the switch on, one JSON line lands with the documented fields."""
-    monkeypatch.setenv("RACECAR_TELEMETRY", "1")
+    monkeypatch.setenv("RACECAR_USAGE_TELEMETRY", "1")
     monkeypatch.setenv("RACECAR_TELEMETRY_DIR", str(tmp_path))
     with telemetry.record(argv=["run", "--all", "--workers", "8"]):
         pass
@@ -89,7 +89,7 @@ def test_enabled_writes_one_record(monkeypatch, tmp_path):
 
 def test_records_systemexit_code_and_reraises(monkeypatch, tmp_path):
     """A SystemExit inside the block is recorded and still propagates."""
-    monkeypatch.setenv("RACECAR_TELEMETRY", "1")
+    monkeypatch.setenv("RACECAR_USAGE_TELEMETRY", "1")
     monkeypatch.setenv("RACECAR_TELEMETRY_DIR", str(tmp_path))
     with pytest.raises(SystemExit):
         with telemetry.record(argv=["run"]):
@@ -102,7 +102,7 @@ def test_records_systemexit_code_and_reraises(monkeypatch, tmp_path):
 
 def test_records_exception_as_status_one(monkeypatch, tmp_path):
     """A non-SystemExit exception is recorded as status 1 and re-raised."""
-    monkeypatch.setenv("RACECAR_TELEMETRY", "1")
+    monkeypatch.setenv("RACECAR_USAGE_TELEMETRY", "1")
     monkeypatch.setenv("RACECAR_TELEMETRY_DIR", str(tmp_path))
     with pytest.raises(ValueError):
         with telemetry.record(argv=["run"]):
@@ -115,7 +115,7 @@ def test_records_exception_as_status_one(monkeypatch, tmp_path):
 
 def test_probe_failure_never_breaks_the_command(monkeypatch, tmp_path):
     """If the log dir cannot be created, the wrapped block still completes."""
-    monkeypatch.setenv("RACECAR_TELEMETRY", "1")
+    monkeypatch.setenv("RACECAR_USAGE_TELEMETRY", "1")
     # Point the dir at a path under a regular file, so mkdir raises; the probe
     # must swallow it rather than propagate into the command.
     blocker = tmp_path / "afile"
@@ -129,7 +129,7 @@ def test_probe_failure_never_breaks_the_command(monkeypatch, tmp_path):
 
 def test_run_wrapper_invokes_main(monkeypatch, tmp_path):
     """run(main) executes main() and records once."""
-    monkeypatch.setenv("RACECAR_TELEMETRY", "1")
+    monkeypatch.setenv("RACECAR_USAGE_TELEMETRY", "1")
     monkeypatch.setenv("RACECAR_TELEMETRY_DIR", str(tmp_path))
     called = []
     telemetry.run(lambda: called.append(True), argv=["status"])

@@ -23,12 +23,12 @@ reads `resource.getrusage`, and appends one JSON object to the telemetry log.
 `record()` is also usable directly as a context manager when the entrypoint
 does work around `main()`.
 
-Off by default: nothing is written unless `RACECAR_TELEMETRY` is truthy in the
-environment (`1`/`true`/`yes`/`on`). This keeps disk untouched on the happy
-path and honors racecar's dotenv-at-entrypoints discipline (opt in from the
-one place env is read). When enabled, the probe never changes the command's
-behavior or output and never raises into the command: any telemetry failure is
-swallowed (surfaced on stderr only when `RACECAR_TELEMETRY_DEBUG` is truthy).
+On by default, opt-out: telemetry records unless `RACECAR_USAGE_TELEMETRY` is set falsy,
+or `[tool.racecar.telemetry].usage = false` in pyproject.toml (env wins; see TELEMETRY.md
+"Enable switch"). Safe either way — the probe never changes the command's behavior or
+output and never raises into the command: off is a no-op, on only appends a local,
+gitignored record; any telemetry failure is swallowed (surfaced on stderr only when
+`RACECAR_TELEMETRY_DEBUG` is truthy).
 
 Storage: append-only JSONL at `$RACECAR_TELEMETRY_DIR/usage.jsonl`, default
 `./.telemetry/usage.jsonl` (relative to the process CWD, which for a
@@ -39,13 +39,18 @@ where that module is absent.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import platform
+import re
+import subprocess
 import sys
 import time
 from collections.abc import Callable, Sequence
 from contextlib import contextmanager
 from datetime import datetime, timezone
+from importlib import metadata
 from pathlib import Path
 from typing import Any, Iterator
 
@@ -54,9 +59,12 @@ try:
 except ImportError:  # non-POSIX (e.g. Windows): probe degrades to a no-op.
     resource = None  # type: ignore[assignment]
 
-SCHEMA_VERSION = 1
+# Schema 2 adds the `work` object (mark() work-scale counters) and the `provenance`
+# object (run-time git SHA/dirty, python, host, env fingerprint) — both backward-only
+# signals: capturable at run time, lost afterward, useful in accumulation.
+SCHEMA_VERSION = 2
 
-_ENABLE_ENV = "RACECAR_TELEMETRY"
+_ENABLE_ENV = "RACECAR_USAGE_TELEMETRY"
 _DIR_ENV = "RACECAR_TELEMETRY_DIR"
 _DEBUG_ENV = "RACECAR_TELEMETRY_DEBUG"
 _DEFAULT_DIR = ".telemetry"
@@ -66,9 +74,61 @@ _TRUTHY = frozenset({"1", "true", "yes", "on"})
 _WORKER_FLAGS = ("--workers", "--jobs", "-j")
 
 
+_CONFIG_SENTINEL: Any = object()
+_config_cache: Any = _CONFIG_SENTINEL
+
+
+def _config() -> dict[str, Any]:
+    """`[tool.racecar.telemetry]` from the nearest pyproject.toml (memoized), or `{}`.
+
+    The config home for the switches and the log dir. Read once per process, walking up
+    from the CWD (the repo root for a `python -m <pkg>` run). Any failure — no pyproject,
+    no `tomllib` (pre-3.11), malformed TOML — degrades to `{}`, i.e. the on-by-default,
+    `.telemetry` defaults. Config must never break a command.
+    """
+    global _config_cache  # pylint: disable=global-statement
+    if _config_cache is not _CONFIG_SENTINEL:
+        return _config_cache
+    _config_cache = {}
+    try:
+        import tomllib  # pylint: disable=import-outside-toplevel  # stdlib 3.11+
+    except ImportError:
+        return _config_cache
+    start = Path.cwd()
+    for base in (start, *start.parents):
+        pyproject = base / "pyproject.toml"
+        if pyproject.is_file():
+            try:
+                data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+                section = data.get("tool", {}).get("racecar", {}).get("telemetry", {})
+                if isinstance(section, dict):
+                    _config_cache = section
+            except Exception as exc:  # pylint: disable=broad-exception-caught
+                _warn(exc)
+            break
+    return _config_cache
+
+
+def _switch(env_name: str, cfg_key: str) -> bool:
+    """Resolve a telemetry switch: env override > pyproject > on by default (opt-out).
+
+    The env var wins when set (truthy = on, any other value = off); else
+    `[tool.racecar.telemetry].<cfg_key>`; else on. Telemetry records by default; a repo
+    opts out deliberately. Neither choice breaks anything: off is a no-op, on only
+    appends a local, gitignored record.
+    """
+    raw = os.environ.get(env_name, "").strip().lower()
+    if raw:
+        return raw in _TRUTHY
+    cfg = _config()
+    if cfg_key in cfg:
+        return bool(cfg[cfg_key])
+    return True
+
+
 def enabled() -> bool:
-    """True when telemetry is switched on via the `RACECAR_TELEMETRY` env var."""
-    return os.environ.get(_ENABLE_ENV, "").strip().lower() in _TRUTHY
+    """Whether usage telemetry records — on by default; opt out via env or pyproject."""
+    return _switch(_ENABLE_ENV, "usage")
 
 
 def _debug() -> bool:
@@ -76,9 +136,66 @@ def _debug() -> bool:
 
 
 def log_path() -> Path:
-    """Resolve the JSONL log path: `$RACECAR_TELEMETRY_DIR/usage.jsonl` or the default."""
-    root = os.environ.get(_DIR_ENV, "").strip() or _DEFAULT_DIR
+    """`<dir>/usage.jsonl`: env `RACECAR_TELEMETRY_DIR` > pyproject `dir` > `.telemetry`."""
+    root = (
+        os.environ.get(_DIR_ENV, "").strip()
+        or str(_config().get("dir", "")).strip()
+        or _DEFAULT_DIR
+    )
     return Path(root) / _JSONL_NAME
+
+
+_ENV_SENTINEL: Any = object()
+_env_cache: Any = _ENV_SENTINEL
+
+
+def _env_fingerprint() -> str | None:
+    """A 12-char hash of the installed distribution set (`name==version`, sorted).
+
+    Computed once per process (memoized) and only when a record is emitted. It names no
+    dependency; it changes iff the resolved environment changes — the backward-only
+    signal that correlates a resource shift to a dependency upgrade, without bloating
+    every record with the full list. None if the set cannot be read.
+    """
+    global _env_cache  # pylint: disable=global-statement
+    if _env_cache is not _ENV_SENTINEL:
+        return _env_cache
+    try:
+        dists = sorted(
+            f"{dist.metadata['Name']}=={dist.version}"
+            for dist in metadata.distributions()
+            if dist.metadata and dist.metadata["Name"]
+        )
+        _env_cache = hashlib.sha256("\n".join(dists).encode()).hexdigest()[:12]
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        _warn(exc)
+        _env_cache = None
+    return _env_cache
+
+
+def _git(args: list[str]) -> str | None:
+    """Stripped stdout of `git <args>` in the process CWD, or None on any failure."""
+    try:
+        out = subprocess.run(
+            ["git", *args], capture_output=True, text=True, timeout=2, check=False
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return out.stdout.strip() if out.returncode == 0 else None
+
+
+def _git_provenance() -> tuple[str | None, bool | None]:
+    """`(short SHA, dirty)` of HEAD in the CWD, or `(None, None)` off a git tree.
+
+    Called AFTER the resource snapshots (see `_record`) so the git subprocesses are
+    never counted in the command's own CPU/children usage — provenance costs the log,
+    not the measurement.
+    """
+    sha = _git(["rev-parse", "--short", "HEAD"])
+    if sha is None:
+        return None, None
+    status = _git(["status", "--porcelain"])
+    return sha, (bool(status) if status is not None else None)
 
 
 def _main_package() -> str | None:
@@ -95,6 +212,58 @@ def _main_package() -> str | None:
     spec = getattr(main_mod, "__spec__", None)
     parent = getattr(spec, "parent", None)
     return parent or None
+
+
+_REDACTED = "<redacted>"
+# Flag NAMES whose value is a secret to mask (matched case-insensitively, as a substring
+# so `--api-key` / `--db-password` / `--auth-token` all hit).
+_SECRET_FLAG_RE = re.compile(
+    r"(?i)(pass(?:word|wd)?|secret|token|api[-_]?key|access[-_]?key|auth|credential"
+    r"|private[-_]?key)"
+)
+# Standalone token SHAPES that are secrets wherever they appear in argv.
+_SECRET_VALUE_RE = re.compile(
+    r"eyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}"  # JWT
+    r"|(?:sk|rk|ghp|gho|ghu|ghs|ghr|xox[baprs])[-_][A-Za-z0-9_-]{10,}"  # prefixed API keys
+    r"|github_pat_[A-Za-z0-9_]{20,}"
+    r"|A(?:KIA|SIA)[0-9A-Z]{16}"  # AWS access key id
+    r"|-----BEGIN[ A-Z]+PRIVATE KEY-----"  # PEM header
+)
+# A URL with inline credentials — mask the password, keep scheme/user/host for grouping.
+_URL_CRED_RE = re.compile(r"(?P<pre>://[^/\s:@]+):[^/\s:@]+@")
+
+
+def _redact_argv(argv: Sequence[str]) -> list[str]:
+    """Mask secret-shaped tokens in argv before anything downstream reads it.
+
+    Telemetry records by default and the log is local + gitignored, but it must never become a
+    credential store — a `--token ghp_…` run would otherwise write the secret verbatim,
+    and worse leak it into `subcommand`/`command` (the first positional after a
+    value-taking flag). Masking here, once, keeps every derived field clean. Conservative
+    by design: it masks the value after a secret-named flag (`--token X`, `--pw=X`), any
+    standalone token whose shape is a known secret (JWT, `ghp_`/`sk-`/`AKIA…`, PEM), and
+    the password inside a URL; paths and ordinary arguments pass through unchanged.
+    """
+    out: list[str] = []
+    mask_next = False
+    for token in argv:
+        if mask_next:
+            out.append(_REDACTED)
+            mask_next = False
+        elif (
+            token.startswith("-")
+            and "=" in token
+            and _SECRET_FLAG_RE.search(token.partition("=")[0])
+        ):
+            out.append(f"{token.partition('=')[0]}={_REDACTED}")
+        elif token.startswith("-") and _SECRET_FLAG_RE.search(token):
+            out.append(token)
+            mask_next = True
+        elif _SECRET_VALUE_RE.search(token):
+            out.append(_REDACTED)
+        else:
+            out.append(_URL_CRED_RE.sub(rf"\g<pre>:{_REDACTED}@", token))
+    return out
 
 
 def _subcommand(argv: Sequence[str]) -> str | None:
@@ -155,7 +324,11 @@ class _Probe:
     """One in-flight measurement: start marks captured, finish emits the record."""
 
     def __init__(self, argv: Sequence[str]) -> None:
-        self.argv = list(argv)
+        # Redact once, up front, so every derived field (argv, subcommand, command,
+        # workers) reads the masked vector and no secret can reach the log.
+        self.argv = _redact_argv(argv)
+        # Work-scale counters attached by mark() during the run (rows, bytes, files…).
+        self.work: dict[str, float] = {}
         self.package = _main_package()
         self.wall_start = time.monotonic()
         self.ts_start = datetime.now(timezone.utc)
@@ -193,6 +366,20 @@ class _Probe:
         # worker count it was launched with.
         cores_used = round(cpu_total / wall, 2) if wall > 0 else 0.0
 
+        # Provenance is gathered HERE — after every rusage/timing snapshot above — so
+        # the git subprocesses and the dist scan never count against the command's own
+        # numbers. It attributes a run to the exact code+environment that produced it,
+        # which the repo's current state cannot reconstruct after the fact.
+        git_sha, git_dirty = _git_provenance()
+        provenance = {
+            "git_sha": git_sha,
+            "git_dirty": git_dirty,
+            "python": platform.python_version(),
+            "host": platform.node() or None,
+            "venv": sys.prefix,
+            "env_fingerprint": _env_fingerprint(),
+        }
+
         return {
             "schema": SCHEMA_VERSION,
             "ts_start": self.ts_start.isoformat().replace("+00:00", "Z"),
@@ -216,6 +403,8 @@ class _Probe:
             "exit_status": status,
             "pid": os.getpid(),
             "platform": sys.platform,
+            "work": dict(self.work),
+            "provenance": provenance,
         }
 
     def finish(self, status: int) -> None:
@@ -230,11 +419,36 @@ class _Probe:
             handle.write(line)
 
 
+# The in-flight probe, so mark() can reach the record being built. Set while a measured
+# block runs (record()), None otherwise — which is why mark() is a safe no-op when
+# telemetry is off or the command runs unwrapped.
+_ACTIVE: _Probe | None = None
+
+
+def mark(**counters: float) -> None:
+    """Attach work-scale counters (rows, bytes, files…) to the current run's record.
+
+    A no-op when telemetry is off or no run is being measured, so a command can call it
+    unconditionally. Numeric values ACCUMULATE across calls — mark each batch — and land
+    under the record's `work` object, turning every resource number into a rate (resource
+    per unit of work), the metric that makes sizing predictive. Never raises: a bad mark
+    must not break the command.
+    """
+    probe = _ACTIVE
+    if probe is None:
+        return
+    try:
+        for key, value in counters.items():
+            probe.work[key] = probe.work.get(key, 0) + value
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        _warn(exc)
+
+
 @contextmanager
 def record(argv: Sequence[str] | None = None) -> Iterator[None]:
     """Measure the wrapped block and append one telemetry record on exit.
 
-    A no-op (zero added cost beyond an env lookup) unless `RACECAR_TELEMETRY` is
+    A no-op (zero added cost beyond an env lookup) unless `RACECAR_USAGE_TELEMETRY` is
     set and `resource` is importable. Records the exit status: 0 on clean
     return, the `SystemExit` code when the block exits via `sys.exit`, 1 on any
     other exception. The original exit or exception always propagates unchanged;
@@ -245,12 +459,14 @@ def record(argv: Sequence[str] | None = None) -> Iterator[None]:
         yield
         return
 
+    global _ACTIVE  # pylint: disable=global-statement
     try:
         probe: _Probe | None = _Probe(sys.argv[1:] if argv is None else argv)
     except Exception as exc:  # pylint: disable=broad-exception-caught
         _warn(exc)
         probe = None
 
+    _ACTIVE = probe  # expose the in-flight record to mark()
     try:
         yield
     except SystemExit as exc:
@@ -259,6 +475,8 @@ def record(argv: Sequence[str] | None = None) -> Iterator[None]:
     except BaseException:
         _safe_finish(probe, 1)
         raise
+    finally:
+        _ACTIVE = None
     # Reached only on a clean return; the except branches above re-raise.
     _safe_finish(probe, 0)
 

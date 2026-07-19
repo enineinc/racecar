@@ -31,6 +31,17 @@ profile = "black"
 [tool.pytest.ini_options]
 addopts = "-q"
 
+# Telemetry config, read by the probe (sysadmin-hardware/lib/_telemetry.py) and the gate
+# ledger (scripts/record_gate.py). Both streams are ON by default (opt-out): a project
+# inherits on unless it sets these false here, or opts out per-run via the
+# RACECAR_USAGE_TELEMETRY / RACECAR_BUILD_TELEMETRY / RACECAR_TELEMETRY_DIR env vars
+# (env wins). Neither on nor off can break a command: off is a no-op, on only appends a
+# local, gitignored record. Set false to opt out.
+[tool.racecar.telemetry]
+usage = true   # runtime resource telemetry -> .telemetry/usage.jsonl
+build = true   # gate-outcome / drift telemetry -> .telemetry/build.jsonl
+dir = ".telemetry"
+
 [tool.pylint.MASTER]
 # Honored by the doc-coherence checks (check_docs / check_file_placement) as the
 # one place to scope markdown out of the navigable doc surface. drafts/ holds WIP

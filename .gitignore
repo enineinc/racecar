@@ -10,3 +10,6 @@ __pycache__/
 # virtual environments
 .venv/
 venv/
+
+# racecar developer telemetry — the gate/drift ledger (RACECAR_BUILD_TELEMETRY)
+.telemetry/
