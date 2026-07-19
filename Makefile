@@ -127,19 +127,12 @@ sync-remote-test:
 	  rm -rf "$$tmpdir"
 
 # Remove derived caches/build artifacts only. Never touches the virtualenv
-# (that is the explicit, separate `distclean`) and prunes .git + the venv so
-# nothing inside them is removed.
+# (that is the explicit, separate `distclean`). Delegates to the canonical
+# scripts/clean_files.sh — the same single home racecar ships to every
+# consuming repo via templates/classic/racecar.mk — so racecar's own clean
+# cannot drift from the clean it hands out.
 clean:
-	find . -path ./.git -prune -o -path './$(VENV)' -prune -o \
-	  -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
-	find . -path ./.git -prune -o -path './$(VENV)' -prune -o \
-	  -type f -name '*.py[co]' -delete 2>/dev/null || true
-	find . -path ./.git -prune -o -path './$(VENV)' -prune -o \
-	  -type d -name '*.egg-info' -exec rm -rf {} + 2>/dev/null || true
-	find . -path ./.git -prune -o -path './$(VENV)' -prune -o \
-	  -type f -name '.DS_Store' -delete 2>/dev/null || true
-	rm -rf .pytest_cache .ruff_cache .mypy_cache .import_linter_cache \
-	  build dist .coverage coverage.xml htmlcov
+	bash scripts/clean_files.sh
 
 distclean: clean
 	rm -rf $(VENV)
