@@ -8,6 +8,11 @@ All notable changes to racecar are recorded here, in the style of
 [Keep a Changelog](https://keepachangelog.com). racecar is pre-1.0, so a minor
 bump may carry breaking changes for adopters; those are marked **Breaking**.
 
+## 0.30.0 - 2026-07-19
+
+### Changed
+- **The CLI instrumenter auto-wraps the general case — no more hand-wrapping discovery entrypoints.** `scripts/instrument_telemetry.py` previously auto-wrapped only a single `main()` dispatch (as `run(main)`) and surfaced every other guard for manual handling — so the 0.29.0 fleet rollout left ~40 Pattern-1 "print subcommands; `sys.exit(0)`" discovery listers to hand-wrap with `record()`. Insight from the rollout: `with record(): <body>` is behavior-preserving for *any* guard body (record() only measures and re-raises), so the instrumenter now wraps the general case too — re-indenting the body under `with record():`, reserving `run(<name>)` for the single-dispatch form. Every generated file is `ast`-parsed before it is written (a transform that would not be valid Python is surfaced, never written); the `record()` form is recognized as already-instrumented (idempotent on re-run); and the probe is delivered by AST comparison, so a re-run never fights the adopter's black line-length. On the fleet's discovery entrypoints this is now "0 to do by hand." Covered by `test_instrument_telemetry.py`; `TELEMETRY.md` and the upgrade flow updated.
+
 ## 0.29.1 - 2026-07-19
 
 ### Fixed

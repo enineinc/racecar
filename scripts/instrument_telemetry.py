@@ -10,21 +10,32 @@ Two mechanical operations per racecar-compliant CLI (the §3 `main()` contract i
 
   1. Deliver the probe: copy racecar's `sysadmin-hardware/lib/_telemetry.py` to the top
      package as `<pkg>/_telemetry.py` (runtime code the CLI imports; canon, kept fresh).
-  2. Wrap each `__main__.py` run-guard: parse it with `ast`, and only when the guard body is
-     provably the compliant single-dispatch form — `main()`, `sys.exit(main())`, or
-     `raise SystemExit(main())` (any callable name, read from the AST) — splice it to
+  2. Wrap each `__main__.py` run-guard, parsed with `ast`. A single bare-`main()` dispatch —
+     `main()`, `sys.exit(main())`, or `raise SystemExit(main())` (any callable name, read from
+     the AST) — becomes `run(<name>)`, which is `sys.exit(main())` with measurement (see
+     `_telemetry.run`), so the swap is behavior-preserving:
 
          if __name__ == "__main__":
              from <pkg>._telemetry import run
              run(main)
 
-     `run(main)` is `sys.exit(main())` with measurement (see `_telemetry.run`), so the swap is
-     behavior-preserving. The splice replaces only the guard-body lines; the rest of the file
-     is untouched byte-for-byte. Idempotent: an already-wrapped guard is skipped.
+     Any other non-trivial guard body is wrapped whole in `with record():` — behavior-preserving
+     for ANY body, since `record()` only measures and re-raises (it changes no control flow):
 
-Anything it cannot prove compliant — a guard that does work beyond the single dispatch, an
-unusual shape, or a `__main__.py` not inside a package — is REPORTED, never edited. The tool
-acts only where it is mechanically certain.
+         if __name__ == "__main__":
+             from <pkg>._telemetry import record
+             with record():
+                 <original body, re-indented>
+
+     The splice replaces only the guard-body lines; the rest of the file is untouched byte-for-
+     byte, and every generated file is `ast`-parsed before it is written — a transform that would
+     not be valid Python is surfaced, not written. Idempotent: a guard already calling `run()` or
+     `record()` is skipped, and a trivial (`pass`-only) guard has nothing to measure.
+
+The only things not edited: a trivial guard (nothing to measure), a `__main__.py` not inside a
+package (can't `from <pkg>._telemetry import`), and the rare transform that fails the ast check —
+all REPORTED. The probe is delivered by AST comparison, so a re-run never fights the adopter's
+formatter (a probe differing only in black line-length is left in place).
 
 Usage:
     python3 scripts/instrument_telemetry.py --dest <repo>            # deliver + wrap
@@ -126,35 +137,75 @@ def _guard(tree: ast.Module) -> ast.If | None:
     return None
 
 
+def _body_calls(body: list[ast.stmt], name: str) -> bool:
+    """True if a top-level statement in `body` calls `name` — `name(...)` or `with name(...)`."""
+    for stmt in body:
+        if isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Call) \
+                and _is_name(stmt.value.func, name):
+            return True
+        if isinstance(stmt, ast.With):
+            for item in stmt.items:
+                ctx = item.context_expr
+                if isinstance(ctx, ast.Call) and _is_name(ctx.func, name):
+                    return True
+    return False
+
+
+def _is_trivial(body: list[ast.stmt]) -> bool:
+    """True if the guard body is only `pass` / a bare string or `...` — nothing to measure."""
+    for stmt in body:
+        if isinstance(stmt, ast.Pass):
+            continue
+        if isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Constant):
+            continue
+        return False
+    return True
+
+
 def analyze(source: str) -> tuple[str, str | None, tuple[int, int] | None, int]:
     """Classify a `__main__.py`: (status, callable, (body_start, body_end), indent).
 
-    status ∈ {compliant, already, non-standard, no-guard}. Only `compliant` is edited.
+    status ∈ {run, record, already, trivial, no-guard}:
+      * run      — a single bare `main()` dispatch; wrap as `run(<name>)`.
+      * record   — any other non-trivial guard body; wrap the whole body in `with record():`,
+                   which is behavior-preserving for ANY body (record() only measures + re-raises).
+      * already  — the guard already imports and calls run()/record().
+      * trivial  — the body is only `pass` / a docstring; nothing to measure.
+      * no-guard — no `if __name__ == "__main__":` block (also the fallback on a syntax error).
+    Only `run` and `record` are edited, and every edit is ast-verified before it is written.
     """
     try:
         tree = ast.parse(source)
     except SyntaxError:
-        return ("non-standard", None, None, 0)
+        return ("no-guard", None, None, 0)
     guard = _guard(tree)
     if guard is None:
         return ("no-guard", None, None, 0)
     body = guard.body
-    if "._telemetry import run" in source and any(
-        isinstance(s, ast.Expr) and isinstance(s.value, ast.Call) and _is_name(s.value.func, "run")
-        for s in body
+    if "._telemetry import" in source and (
+        _body_calls(body, "run") or _body_calls(body, "record")
     ):
         return ("already", None, None, 0)
+    if _is_trivial(body):
+        return ("trivial", None, None, 0)
+    start, end = body[0].lineno, body[-1].end_lineno or body[-1].lineno
+    indent = body[0].col_offset
     if len(body) == 1:
         name = _dispatch_callable(body[0])
         if name:
-            end = body[-1].end_lineno or body[-1].lineno
-            return ("compliant", name, (body[0].lineno, end), body[0].col_offset)
-    return ("non-standard", None, None, 0)
+            return ("run", name, (start, end), indent)
+    return ("record", None, (start, end), indent)
 
 
-def wrap_source(source: str, top_name: str, callable_name: str,
-                span: tuple[int, int], indent: int) -> str:
-    """Splice the compliant guard body with the probe wrap, preserving the rest verbatim."""
+def _reindent(lines: list[str], amount: int) -> list[str]:
+    """Add `amount` spaces to each non-blank line; leave blank lines blank."""
+    pad = " " * amount
+    return [line if line.strip() == "" else pad + line for line in lines]
+
+
+def wrap_run(source: str, top_name: str, callable_name: str,
+             span: tuple[int, int], indent: int) -> str:
+    """Splice a single-`main()` guard body to `run(<name>)` + import, rest verbatim."""
     start, end = span
     lines = source.splitlines(keepends=True)
     pad = " " * indent
@@ -162,21 +213,47 @@ def wrap_source(source: str, top_name: str, callable_name: str,
     return "".join(lines[: start - 1]) + new_body + "".join(lines[end:])
 
 
+def wrap_record(source: str, top_name: str, span: tuple[int, int], indent: int) -> str:
+    """Wrap a general guard body in `with record():` (body re-indented), rest verbatim."""
+    start, end = span
+    lines = source.splitlines(keepends=True)
+    pad = " " * indent
+    reindented = _reindent(lines[start - 1: end], 4)
+    new_body = (
+        f"{pad}from {top_name}._telemetry import record\n{pad}with record():\n"
+        + "".join(reindented)
+    )
+    return "".join(lines[: start - 1]) + new_body + "".join(lines[end:])
+
+
 def deliver_probe(top_dir: Path, check: bool) -> bool:
-    """Copy the canon probe to `<top>/_telemetry.py` if missing or stale; True if it changed."""
+    """Copy the canon probe to `<top>/_telemetry.py` unless it is already semantically identical.
+
+    Compares by AST, not bytes, so a re-run does not fight the adopter's formatter (black line-
+    length): a probe differing only in formatting is left in place; only a real canon code change
+    re-delivers. Returns True if it (would) change.
+    """
     dest = top_dir / "_telemetry.py"
     canon = _PROBE_SRC.read_text(encoding="utf-8")
-    if dest.exists() and dest.read_text(encoding="utf-8") == canon:
-        return False
+    if dest.exists():
+        try:
+            same = ast.dump(ast.parse(dest.read_text(encoding="utf-8"))) == ast.dump(
+                ast.parse(canon)
+            )
+        except SyntaxError:
+            same = False
+        if same:
+            return False
     if not check:
         dest.write_text(canon, encoding="utf-8")
     return True
 
 
 def instrument(repo: Path, check: bool) -> dict[str, list[str]]:
-    """Deliver the probe and wrap each compliant entrypoint; return a report by outcome."""
+    """Deliver the probe and wrap each entrypoint's guard; return a report by outcome."""
     report: dict[str, list[str]] = {
-        "wrapped": [], "already": [], "non-standard": [], "no-package": [], "delivered": [],
+        "wrapped": [], "already": [], "trivial": [], "surfaced": [],
+        "no-package": [], "delivered": [],
     }
     for main_py in find_main_modules(repo):
         rel = str(main_py.relative_to(repo))
@@ -191,14 +268,23 @@ def instrument(repo: Path, check: bool) -> dict[str, list[str]]:
         status, name, span, indent = analyze(source)
         if status == "already":
             report["already"].append(rel)
-        elif status == "compliant":
-            assert name is not None and span is not None
+        elif status in ("trivial", "no-guard"):
+            report["trivial"].append(rel)
+        elif status in ("run", "record"):
+            assert span is not None
+            wrapped = (
+                wrap_run(source, top_name, name, span, indent)
+                if status == "run"
+                else wrap_record(source, top_name, span, indent)
+            )
+            try:
+                ast.parse(wrapped)  # only write a transform that is valid Python
+            except SyntaxError:
+                report["surfaced"].append(rel)
+                continue
             if not check:
-                wrapped = wrap_source(source, top_name, name, span, indent)
                 main_py.write_text(wrapped, encoding="utf-8")
             report["wrapped"].append(rel)
-        elif status in ("non-standard", "no-guard"):
-            report["non-standard"].append(rel)
     return report
 
 
@@ -230,16 +316,16 @@ def main(argv: list[str] | None = None) -> int:
         print(f"instrument_telemetry: {verb} {rel}")
     for rel in report["already"]:
         print(f"instrument_telemetry: already instrumented {rel}")
-    for rel in report["non-standard"]:
-        print(f"instrument_telemetry: SURFACED (manual) {rel} — guard is not a plain main() "
-              f"dispatch; wrap it by hand with record() (see sysadmin-hardware/TELEMETRY.md)")
+    for rel in report["surfaced"]:
+        print(f"instrument_telemetry: SURFACED (manual) {rel} — the record() wrap did not produce "
+              f"valid Python; wrap it by hand (see sysadmin-hardware/TELEMETRY.md)")
     for rel in report["no-package"]:
         print(f"instrument_telemetry: skipped {rel} — __main__.py is not inside a package")
     n = len(report["wrapped"])
-    print(f"instrument_telemetry: {n} entrypoint(s) {verb}, "
-          f"{len(report['already'])} already, {len(report['non-standard'])} to do by hand.")
+    print(f"instrument_telemetry: {n} entrypoint(s) {verb}, {len(report['already'])} already, "
+          f"{len(report['trivial'])} trivial, {len(report['surfaced'])} to do by hand.")
     if args.check and report["wrapped"]:
-        return 1  # un-instrumented compliant entrypoints exist
+        return 1  # un-instrumented entrypoints exist
     return 0
 
 

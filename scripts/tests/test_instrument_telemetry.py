@@ -60,12 +60,53 @@ def test_delivers_probe_at_top_package(tmp_path: Path) -> None:
     assert "from pkg._telemetry import run" in sub_main
 
 
-def test_surfaces_non_standard_guard_unchanged(tmp_path: Path) -> None:
-    body = "    print('boot')\n    main()\n"  # more than a single dispatch
+def test_general_body_wrapped_in_record(tmp_path: Path) -> None:
+    """A guard that does work beyond a single main() dispatch is wrapped whole in record()."""
+    import ast as _ast
+
+    body = "    print('boot')\n    sys.exit(main())\n"  # more than a single dispatch
     main_py = _pkg(tmp_path, body)
+    it.main(["--dest", str(tmp_path)])
+    text = main_py.read_text(encoding="utf-8")
+    assert "from pkg._telemetry import record" in text
+    assert "with record():" in text
+    assert "print('boot')" in text and "sys.exit(main())" in text  # body preserved
+    _ast.parse(text)  # the transform is valid Python
+
+
+def test_trivial_guard_is_skipped(tmp_path: Path) -> None:
+    """A `pass`-only guard has nothing to measure and is left untouched."""
+    main_py = _pkg(tmp_path, "    pass\n")
     before = main_py.read_text(encoding="utf-8")
     it.main(["--dest", str(tmp_path)])
-    assert main_py.read_text(encoding="utf-8") == before  # never edited
+    assert main_py.read_text(encoding="utf-8") == before
+
+
+def test_record_form_recognized_as_already(tmp_path: Path) -> None:
+    """A guard already using the record() context manager is idempotently skipped."""
+    pkg_dir = tmp_path / "src" / "pkg"
+    pkg_dir.mkdir(parents=True)
+    (pkg_dir / "__init__.py").write_text("", encoding="utf-8")
+    main_py = pkg_dir / "__main__.py"
+    main_py.write_text(
+        'from pkg._telemetry import record\n\n'
+        'if __name__ == "__main__":\n    with record():\n        _list_commands()\n',
+        encoding="utf-8",
+    )
+    before = main_py.read_text(encoding="utf-8")
+    it.main(["--dest", str(tmp_path)])
+    assert main_py.read_text(encoding="utf-8") == before  # not re-wrapped
+
+
+def test_probe_delivered_by_ast_not_bytes(tmp_path: Path) -> None:
+    """A probe differing only in formatting is not re-delivered (don't fight the formatter)."""
+    _pkg(tmp_path, "    sys.exit(main())\n")
+    it.main(["--dest", str(tmp_path)])
+    probe = tmp_path / "src" / "pkg" / "_telemetry.py"
+    reformatted = probe.read_text(encoding="utf-8") + "\n"  # whitespace-only, AST-identical
+    probe.write_text(reformatted, encoding="utf-8")
+    it.main(["--dest", str(tmp_path)])  # re-run
+    assert probe.read_text(encoding="utf-8") == reformatted  # not clobbered back to canon bytes
 
 
 def test_idempotent(tmp_path: Path) -> None:

@@ -56,11 +56,12 @@ and hide the instrumentation from the code that carries it.
 ## The one-line adoption
 
 `racecar-upgrade` does this for you, mechanically: [`scripts/instrument_telemetry.py`](../scripts/instrument_telemetry.py)
-delivers the probe to each top package and `ast`-wraps every compliant `__main__.py` run-guard,
-editing only guards it can prove are the plain `main()` / `sys.exit(main())` /
-`raise SystemExit(main())` form and surfacing anything else for you to wrap by hand. It is
-idempotent, so it is safe on every upgrade. The manual form, for a surfaced entrypoint or a
-repo not yet on racecar:
+delivers the probe to each top package and `ast`-wraps every `__main__.py` run-guard — a single
+`main()` dispatch becomes `run(main)`, any other non-trivial guard is wrapped whole in
+`with record():` (behavior-preserving for any body), and every generated file is re-parsed
+before it is written. It is idempotent (a guard already calling `run()`/`record()` is skipped)
+and delivers the probe by AST comparison, so a re-run never fights the adopter's formatter. The
+manual form, for a repo not yet on racecar:
 
 Copy [`lib/_telemetry.py`](lib/_telemetry.py) into the package source root as
 `<pkg>/_telemetry.py` (it is runtime code the CLI imports, so it lives in the
